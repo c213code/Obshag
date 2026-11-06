@@ -21,7 +21,7 @@ function Soon({ icon, label }: { icon: ReactNode; label: string }) {
   );
 }
 
-/** Four round actions. Покупка works; the rest are visible but marked «скоро» until their slices land. */
+/** Four round actions. Покупка and Расчёт work; the rest are visible but marked «скоро» until their slices land. */
 export function QuickActions() {
   return (
     <nav aria-label={ru.main.quick.purchase} className="grid grid-cols-4 gap-2">
@@ -35,7 +35,15 @@ export function QuickActions() {
         {ru.main.quick.purchase}
       </Link>
       <Soon icon={<BellIcon />} label={ru.main.quick.remind} />
-      <Soon icon={<TransferIcon />} label={ru.main.quick.settle} />
+      <Link
+        href="/settle"
+        className="flex flex-col items-center gap-2 text-label text-text transition-transform duration-200 ease-smooth active:scale-[0.96]"
+      >
+        <span className={cx(circle, "bg-card text-text")}>
+          <TransferIcon />
+        </span>
+        {ru.main.quick.settle}
+      </Link>
       <Soon icon={<CalendarIcon />} label={ru.main.quick.monthly} />
     </nav>
   );

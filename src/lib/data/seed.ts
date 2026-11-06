@@ -1,12 +1,13 @@
-import type { Household, Member, Profile, Purchase, Share } from "./types";
+import type { Household, Member, Profile, Purchase, Settlement, Share } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
 export const SEED_EMAIL = "erasyl@obshak.test";
-/** In mock mode every email code is this one. */
-export const MOCK_OTP = "000000";
+/** In mock/E2E mode every seeded user has this password. */
+export const SEED_PASSWORD = "password123";
 
-export type MockUser = { id: string; email: string };
+/** Mock only (never reached in production builds): the "password" is stored as is. */
+export type MockUser = { id: string; email: string; password: string };
 
 /** Everything the mock "backend" stores. Plain JSON so it survives localStorage and the E2E store route. */
 export type MockDb = {
@@ -16,8 +17,11 @@ export type MockDb = {
   members: Member[];
   purchases: Purchase[];
   shares: Share[];
+  settlements: Settlement[];
   /** join_household attempts (rate limit: 10 per user per hour). */
   joinAttempts: Array<{ user_id: string; at: string }>;
+  /** mark/cancel calls (rate limit: 20 per user per hour). */
+  settlementOps: Array<{ user_id: string; at: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();
@@ -104,11 +108,11 @@ export function createSeed(): MockDb {
   ];
 
   const users: MockUser[] = [
-    { id: me.id, email: SEED_EMAIL },
-    { id: aidos.id, email: "aidos@obshak.test" },
-    { id: danya.id, email: "danya@obshak.test" },
-    { id: nurik.id, email: "nurik@obshak.test" },
+    { id: me.id, email: SEED_EMAIL, password: SEED_PASSWORD },
+    { id: aidos.id, email: "aidos@obshak.test", password: SEED_PASSWORD },
+    { id: danya.id, email: "danya@obshak.test", password: SEED_PASSWORD },
+    { id: nurik.id, email: "nurik@obshak.test", password: SEED_PASSWORD },
   ];
 
-  return { users, profiles, households: [household], members, purchases, shares, joinAttempts: [] };
+  return { users, profiles, households: [household], members, purchases, shares, settlements: [], joinAttempts: [], settlementOps: [] };
 }

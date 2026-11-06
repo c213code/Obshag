@@ -7,17 +7,21 @@ export function Screen({
   className,
   topOffset = 58,
   bottomRoom = true,
+  gap = 6,
 }: {
   children: ReactNode;
   className?: string;
   /** Mockup top padding (Main 58, forms 54); the real safe-area inset replaces it inside the installed PWA. */
   topOffset?: 54 | 58;
   bottomRoom?: boolean;
+  /** Spacing scale step between blocks: Главная 6 (24px), Расчёт 4 (16px, Pay.dc.html). */
+  gap?: 4 | 6;
 }) {
   return (
     <main
       className={cx(
-        "mx-auto flex w-full max-w-[390px] flex-col gap-6 px-5",
+        "mx-auto flex w-full max-w-[390px] flex-col px-5",
+        gap === 4 ? "gap-4" : "gap-6",
         topOffset === 58 ? "pt-[max(0px,calc(58px-env(safe-area-inset-top)))]" : "pt-[max(0px,calc(54px-env(safe-area-inset-top)))]",
         bottomRoom && "pb-[156px]",
         className,

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { MockDb } from "./seed";
 
 /** Bump when the shape of MockDb changes: older saved data is then discarded and reseeded. */
-export const MOCK_SCHEMA_VERSION = 2;
+export const MOCK_SCHEMA_VERSION = 4;
 
 const uuid = z.string().min(1).max(64);
 const iso = z.string().min(1).max(40);
@@ -48,14 +48,28 @@ const share = z.object({
   settlement_id: uuid.nullable(),
 });
 
+const settlement = z.object({
+  id: uuid,
+  household_id: uuid,
+  from_id: uuid,
+  to_id: uuid,
+  amount: z.number().int(),
+  status: z.enum(["marked", "confirmed", "cancelled"]),
+  marked_at: iso,
+  confirmed_at: iso.nullable(),
+  covered: z.array(z.object({ purchase_id: uuid, debtor_id: uuid, amount: z.number().int() })).max(2000),
+});
+
 export const mockDbSchema = z.object({
-  users: z.array(z.object({ id: uuid, email: z.string().max(200) })).max(500),
+  users: z.array(z.object({ id: uuid, email: z.string().max(200), password: z.string().max(200) })).max(500),
   profiles: z.array(profile).max(500),
   households: z.array(household).max(500),
   members: z.array(member).max(2000),
   purchases: z.array(purchase).max(5000),
   shares: z.array(share).max(20000),
+  settlements: z.array(settlement).max(5000),
   joinAttempts: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
+  settlementOps: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

@@ -11,8 +11,8 @@ npx playwright install webkit   # один раз, для E2E
 NEXT_PUBLIC_DATA_MODE=mock npm run dev
 ```
 
-Откройте http://localhost:3000: вход по почте, код всегда `000000`, письмо не уходит.
-Почта `erasyl@obshak.test` входит в демо-квартиру «Квартира 42» (код приглашения `KV42AB7K9M3X`).
+Откройте http://localhost:3000: вход и регистрация по почте и паролю (минимум 8 символов), письма не уходят.
+Почта `erasyl@obshak.test` с паролем `password123` входит в демо-квартиру «Квартира 42» (код приглашения `KV42AB7K9M3X`); у остальных демо-соседей (`aidos@`, `danya@`, `nurik@obshak.test`) тот же пароль.
 Состояние mock-режима хранится в `localStorage`, перезагрузка его не сбрасывает.
 Галерея компонентов: http://localhost:3000/kit.
 
@@ -20,9 +20,11 @@ NEXT_PUBLIC_DATA_MODE=mock npm run dev
 
 1. Создайте проект, в `.env.local` задайте `NEXT_PUBLIC_DATA_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` (см. `.env.example`).
-2. Примените `supabase/migrations/0001_baseline.sql`, затем `0002_slice1_rpcs.sql` (`supabase db push` или SQL Editor).
-3. Authentication → Providers → Email: включить, подтверждение по коду (OTP), шаблон письма «Magic Link» и «Confirm signup» с `{{ .Token }}`;
-   длина кода 6; Site URL = адрес приложения.
+2. Примените по порядку `supabase/migrations/0001_baseline.sql`, `0002_slice1_rpcs.sql`, `0003_slice3_settlements.sql`
+   (`supabase db push` или SQL Editor). 0001 и 0002 уже применены в рабочем проекте и не меняются.
+3. Authentication → Providers → Email: **Enable Email provider = ON**, **Confirm email = OFF** (иначе регистрация не вернёт сессию
+   и приложение покажет ошибку). Шаблоны писем и OTP не нужны: кодов нет. Authentication → Policies (Password): «Minimum password length» не больше 8.
+   Site URL = адрес приложения.
 4. Фронтенд ходит напрямую в Supabase: чтение через RLS, запись только через RPC.
 
 ## Скрипты

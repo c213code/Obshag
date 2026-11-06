@@ -4,11 +4,13 @@ import { cx } from "./cx";
 type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "prefix"> & {
   label: string;
   prefix?: ReactNode;
+  /** Sits at the right end of the capsule, e.g. the eye button of a password field. */
+  trailing?: ReactNode;
   error?: string | null;
 };
 
 /** Capsule text input: caption above, 58px pill, lime border on focus, orange on error. */
-export function TextField({ label, prefix, error, id, ...input }: TextFieldProps) {
+export function TextField({ label, prefix, trailing, error, id, ...input }: TextFieldProps) {
   const auto = useId();
   const fieldId = id ?? auto;
   const errorId = `${fieldId}-error`;
@@ -35,6 +37,7 @@ export function TextField({ label, prefix, error, id, ...input }: TextFieldProps
           className="min-w-0 flex-1 bg-transparent font-medium text-text outline-none placeholder:text-muted/60"
           {...input}
         />
+        {trailing}
       </div>
       {error ? (
         <p id={errorId} role="alert" className="pl-[6px] text-label text-orange">

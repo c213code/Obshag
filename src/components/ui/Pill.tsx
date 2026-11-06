@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 import { cx } from "./cx";
 
 export type PillVariant = "ghost" | "on" | "lime";
-export type PillSize = "sm" | "md" | "lg" | "bar";
+export type PillSize = "sm" | "md" | "lg" | "bar" | "pay";
 
 export const pillVariantClass: Record<PillVariant, string> = {
   ghost: "text-muted",
@@ -18,6 +18,8 @@ export const pillSizeClass: Record<PillSize, string> = {
   lg: "h-12 px-6 text-headline",
   /** Pill inside a Bar (Segmented): 42px tall, 15/600, per AddPurchase.dc.html. */
   bar: "h-[42px] px-4 text-[15px] font-semibold",
+  /** Pill inside the floating bottom bar of Pay.dc.html: padding 13/18, 15/600. */
+  pay: "h-11 px-[18px] text-[15px] font-semibold",
 };
 
 export function pillClass(variant: PillVariant, size: PillSize, extra?: string) {

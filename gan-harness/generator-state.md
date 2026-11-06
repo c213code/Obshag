@@ -129,3 +129,67 @@ Nothing committed (per instruction). No servers running. Migrations 0001/0002 ed
 - Disabled payers on Новая покупка are dimmer than in the mockup (deliberate, per C2); everything else matches the reference side by side.
 - Disabled "Рассчитаться" is a flat translucent lime as specified; it still reads olive on the dark card.
 - Duplicate purchase after a network failure whose request actually reached the server is still possible (no idempotency key); only the follow-up-read cause was removed.
+
+---
+
+# Slice 3 "Netting and settlement" (iteration 001)
+
+Nothing committed. No servers running. Migrations 0001 and 0002 untouched; `.env.local` untouched.
+
+## Results
+- `npm run verify`: green (lint, tsc, Vitest incl. PGlite DB tests applying 0001+0002+0003, coverage ~95% lines on src/lib, build).
+- `npm run test:e2e`: 35/35 (18 kit + 9 slice 1 + 8 slice 3), WebKit iPhone 15, production build, mock + NEXT_PUBLIC_E2E=1.
+- playwright.config webServer.env and vitest env now blank NEXT_PUBLIC_SUPABASE_URL/ANON_KEY and force mock mode, so the developer's `.env.local` (live Supabase) cannot disable the E2E store gate or leak into unit tests.
+
+## What was built
+- Domain `src/lib/domain/netting.ts`: `netPair` (iOwe, theyOwe, net = |diff|, direction i_pay|they_pay|even, myItems/theirItems), `netForUser` (counterparties, owe, owed, total), `coveredShares` (open shares between the pair whose purchase.created_at <= marked_at), `markCovered`. `householdSummary` now uses `netForUser` (Главная's Долги card is net per person; total unchanged).
+- Migration `supabase/migrations/0003_slice3_settlements.sql`: `private.pair_net`, `private.lock_pair` (pg_advisory_xact_lock on household + ordered pair), `mark_settlement(p_household_id, p_to)` (net computed server-side, idempotent), `confirm_settlement(p_settlement_id)` (FOR UPDATE, creditor only, no-op when confirmed, closes covered shares both directions), `cancel_settlement` (debtor or creditor, no-op when cancelled). security definer, `search_path=''`, execute for authenticated only. Error codes: 28000, 42501, 23514, 23503, P0002.
+- Repos: `listSettlements`, `markSettlement`, `confirmSettlement`, `cancelSettlement` on `Repo`; mockRepo mirrors the SQL; supabaseRepo calls the RPCs (P0002 -> not_found). Mock DB version 3 (settlements). Shared contract tests.
+- `SettlementTracker` (optimistic overlay: temp marked row, optimistic confirm/cancel, locally settled shares, rollback + refresh), AppDataProvider actions `markPaid`, `confirmReceived`, `cancelSettlement`, settlements in the snapshot (refreshed on focus like before).
+- UI: `/settle` (list of pill rows, one counterparty redirects with replace, empty «Все в расчёте»), `/settle/[userId]` (Pay.dc.html: capsule header, `PairScene` netting card, two columns top 3 + «и ещё N», masked Kaspi bar with «скопирован» chip, floating bar: Я оплатил / Отменить + Перевести N ₸ ↗ (copies kaspi_phone, opens https://kaspi.kz/transfers), Напомнить disabled «скоро» when they owe), «Ждём подтверждения от <Имя>» in the caption slot of the card, `IncomingRow` + `IncomingSection` «Подтверди оплату» on Главная above Последние покупки and on the pair screen (reuses ReceivedRow = reference #4, rows held 1.4s so the ✓ is seen). TabBar hidden on /settle*. Quick action «Расчёт» and «Рассчитаться» are live links.
+- Netting animation = reference #3 timings (slide 420ms, count 800ms, pop, caption); reduced motion renders the final state with a fade. Only transform/opacity animate.
+- Guard: a tap on «Отменить» within 900ms of «Я оплатил» is ignored (the pill swaps under the finger).
+
+## Screenshots
+- References: gan-harness/screenshots/s3-ref-*.png (script gan-harness/shoot-s3-ref.mjs). App: s3-app-*.png (from the E2E run). Side by side (left ref, right app): s3-cmp-pay.png, s3-cmp-netting.png, s3-cmp-poluchil.png, s3-cmp-waiting.png (script gan-harness/shoot-s3-cmp.mjs).
+
+## Known gaps / notes
+- Russian declension is not applied to names: «Расчёт с Айдос», «Ты → Айдос», «Kaspi · Айдос» (mockup: Айдосом / Айдосу / Айдоса).
+- Pay.dc.html shows «скопирован» statically; the app shows a «Скопировать» pill first and the chip after copying (or after «Перевести»).
+- The result in the equation pill flashes lime for ~0.9s after the netting finishes (reference #3), then returns to the Pay.dc.html white.
+- The mock confirm uses wall-clock timestamps for "created at or before marked_at" (same ms ties count as covered); SQL uses the purchase's created_at vs settlements.marked_at.
+- Concurrency (advisory lock) is asserted structurally in PGlite (single connection), not exercised with two real connections.
+- Supabase path is unit-tested with a fake client and PGlite only; never run against the live project.
+
+---
+
+# Slice 3 — iteration 2 (+ password auth)
+
+Nothing committed. No servers running. `.env.local`, 0001 and 0002 untouched. 0003 edited in place (not applied yet); no 0004 was needed (nothing in 0001/0002 had to change).
+
+## Results
+- `npm run verify`: green (30 test files, 272 tests, 96% lines on src/lib, build OK).
+- `npm run test:e2e`: 37/37 (18 kit + 10 slice 1 + 9 slice 3). Green in the last 4 consecutive full runs (and 3 of 4 in an earlier batch); one run in between had a single failure in slice1 "user 1: sign up..." at 1.7 s that I could not reproduce in 10+ later runs (suspected: the shared in-memory mock store under three parallel workers; the failing log was not kept).
+- Slice 3 spec alone: 9/9, 5 runs in a row.
+- Screenshots: gan-harness/screenshots/s3i2-* (script gan-harness/shoot-s3i2.mjs; composites s3i2-cmp-*: left reference, right app).
+
+## Per item
+- U done: email + password. `/login` = Segmented «Вход / Регистрация», eye toggle, short Russian errors. Repo: `signUp`/`signIn`/`signOut`; supabase maps invalid_credentials, user_already_exists/email_exists, weak_password, rate limits (and a hidden existing account behind "Confirm email"). Mock: users keep a password, seeds use `password123`, same error semantics, mock schema v4. OTP code, `/login/verify` screen and CodeInput removed; `/login/verify` redirects to `/login`. e2e (slices 1 and 3), contract and unit tests moved to the password flow. README and .env.example updated.
+- S1 done: table `settlement_shares` (RLS select for members, no client writes, purchase_id intentionally without FK so a deleted purchase is detectable). `mark_settlement` records the exact open shares under the pair lock and derives the amount from them; `confirm_settlement` closes exactly the recorded set or raises 23514 `stale_settlement` (client then cancels the row and shows «Суммы изменились — отметь оплату заново»). Domain `coveredShares/isStale/markCovered/pairShares` and mockRepo mirror it. PGlite tests: late purchase, pending then shared, deleted purchase, settled-by-opposite, no longer shared, normal confirm.
+- S2 done: re-marking refreshes the record and the amount in the same row, under the lock.
+- S3 done: not-found and not-yours both P0002 (a party who is not the creditor still gets 42501); `pair_net` returns bigint; 20 mark/cancel calls per user per hour (`private.settlement_ops`); PGlite test that anon has no execute on any function in public/private and no privilege on the new table.
+- C1 done: AppDataProvider keeps `serverRef` and builds every view from it (purchases and settlements); rollback never depends on refresh; tracker also strips released/resolved optimistic ids and expires overrides after 30 s. Tests: chained views after release, failed mark/confirm/cancel, TTL.
+- C2 done: pure `settleNav` (`listRedirect`, `pairScreenState`) shared by both screens; a departed sole counterparty cannot loop; list shows read-only rows for departed people, pair screen renders «Бывший сосед больше не в квартире»; Home totals still count them (`netForUser(..., isActive)` only flags). Unit tests only (no UI to remove a member in e2e).
+- M1 done: `useHeldIncoming.release`; a refused «Получил» rolls the ✓ back. e2e test for it.
+- M2 done: guard 350 ms from the click's `timeStamp`, `aria-disabled` plus dimmed while guarded or saving.
+- M3 done: cancel test uses a held PUT (route gate) instead of timeouts, no nested contexts, contexts closed in `finally`, Kaspi routed with `fulfill`, countdown needs >= 2 samples, strictly decreasing, endpoints checked, stores awaited (`savedToStore`) before a phone is closed.
+- M4 done: `src/lib/i18n/declension.ts` (+ tests) used in «Расчёт с Айдосом», «Ты → Айдосу», «Kaspi Айдоса», «Ждём подтверждения от Айдоса», `open`.
+- M5 done: chip is the mockup's (card-2 pill, lime text, ✓ скопирован); «Скопировать» in the same shape; the first tap anywhere on the screen (capture, inside the gesture) or the bar copies; per person in sessionStorage.
+- M6 done: label fades (0.14 s) while the button shrinks.
+- M7 checked: the bar was already `position: fixed` with the safe area and content has bottom padding; the "mid-screen" look comes from full-page screenshots. Viewport check: transfer button bottom edge 624 of 659.
+- M8 done: «Ждём подтверждения» section on the debtor's Главная (capsule rows, link to the pair screen).
+- L done: list Back uses `router.back()`; legacy textarea copy first, async API fallback, «Не удалось скопировать — номер: …»; list redirects only on arrival; PairScene resets `played`; `snapRef` updated synchronously in a `commit` helper; tracker TTL 30 s.
+
+## Known issues
+- Departed-member flow and the stale confirm are covered by unit and PGlite tests, not by a browser test.
+- Supabase path is still only tested with a fake client and PGlite; never run against the live project.

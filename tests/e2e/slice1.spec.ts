@@ -16,7 +16,9 @@ async function newPhone(browser: Browser, baseURL: string | undefined): Promise<
   const context = await browser.newContext({ ...devices["iPhone 15"], baseURL });
   const page = await context.newPage();
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (e) => {
+    if (!e.message.includes("access control checks")) errors.push(e.message);
+  });
   page.on("console", (m) => {
     // WebKit logs prefetches that a navigation cancels mid-flight ("due to access control checks"): not an app error
     const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks");
@@ -56,11 +58,22 @@ async function waitHydrated(page: Page) {
   await page.locator("html[data-hydrated='true']").waitFor({ state: "attached" });
 }
 
-async function signIn(page: Page, address: string) {
+const PASSWORD = "password123";
+
+/** First visit: the «Регистрация» tab with a matching pair of passwords. */
+async function register(page: Page, address: string) {
+  await page.getByRole("button", { name: "Регистрация", exact: true }).click();
   await page.getByLabel("Почта").fill(address);
-  await page.getByRole("button", { name: "Получить код" }).click();
-  await expect(page).toHaveURL(/\/login\/verify/);
-  await page.getByLabel("Код из письма").fill("000000");
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByLabel("Повтори пароль").fill(PASSWORD);
+  await page.getByRole("button", { name: "Создать аккаунт" }).click();
+}
+
+/** Returning user: the «Вход» tab. */
+async function login(page: Page, address: string) {
+  await page.getByLabel("Почта").fill(address);
+  await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
 }
 
 async function onboard(page: Page, name: string, phone: string) {
@@ -78,7 +91,7 @@ test.describe("slice 1: first end-to-end path", () => {
   test("a fresh visit to / redirects to /login, and every guarded page follows", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("heading", { name: "Войди по почте" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Войди в Общак" })).toBeVisible();
     for (const path of ["/purchases/new", "/flat", "/household", "/onboarding"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/login$/);
@@ -86,35 +99,63 @@ test.describe("slice 1: first end-to-end path", () => {
     await page.screenshot({ path: `${SHOTS}/s1-e2e-login.png` });
   });
 
-  test("login validates the email and the code", async ({ page }) => {
+  test("login and registration validate email and password with short Russian messages", async ({ page }) => {
     await page.goto("/login");
     await waitHydrated(page);
+    // «Вход»
     await page.getByLabel("Почта").fill("nope");
-    await page.getByRole("button", { name: "Получить код" }).click();
+    await page.getByLabel("Пароль", { exact: true }).fill("wrong-password");
+    await page.getByRole("button", { name: "Войти", exact: true }).click();
+    await expect(alerts(page)).toHaveCount(1);
     await expect(alerts(page)).toContainText("Проверь почту");
     await page.getByLabel("Почта").fill(email("bad"));
-    await page.getByRole("button", { name: "Получить код" }).click();
-    await expect(page).toHaveURL(/\/login\/verify/);
-    // the 6 digit input: numeric keypad, >= 16px
-    const code = page.getByLabel("Код из письма");
-    expect(await code.getAttribute("inputmode")).toBe("numeric");
-    expect(await code.getAttribute("autocomplete")).toBe("one-time-code");
-    expect(parseFloat(await code.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    // the test-mode hint never orphans the code onto its own line
-    const hint = page.getByText("Тестовый режим");
-    expect(await hint.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(60);
-    await code.fill("123456");
-    await expect(alerts(page)).toContainText("Код не подошёл");
-    await expect(code).toHaveValue("");
-    await page.screenshot({ path: `${SHOTS}/s1-e2e-verify.png` });
+    await page.getByRole("button", { name: "Войти", exact: true }).click();
+    await expect(alerts(page)).toHaveCount(1);
+    await expect(alerts(page)).toContainText("Неверная почта или пароль");
+    await expect(page).toHaveURL(/\/login$/);
+    // the eye toggles the visibility of the password
+    const password = page.getByLabel("Пароль", { exact: true });
+    await expect(password).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Показать пароль" }).click();
+    await expect(password).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Скрыть пароль" }).click();
+    await expect(password).toHaveAttribute("type", "password");
+    // «Регистрация»
+    await page.getByRole("button", { name: "Регистрация", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Создай аккаунт" })).toBeVisible();
+    await expect(page.getByLabel("Повтори пароль")).toBeVisible();
+    await page.getByLabel("Пароль", { exact: true }).fill("short");
+    await page.getByRole("button", { name: "Создать аккаунт" }).click();
+    await expect(alerts(page)).toContainText("Минимум 8 символов");
+    await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("Повтори пароль").fill("another-password");
+    await page.getByRole("button", { name: "Создать аккаунт" }).click();
+    await expect(alerts(page)).toContainText("Пароли не совпадают");
+    // the password fields use the right autocomplete hints and a >= 16px font (no iOS zoom)
+    expect(await page.getByLabel("Пароль", { exact: true }).getAttribute("autocomplete")).toBe("new-password");
+    expect(parseFloat(await password.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await page.screenshot({ path: `${SHOTS}/s1-e2e-login-signup.png` });
   });
 
-  test("user 1: code, onboarding, create household, invite code shown", async ({ browser, baseURL }) => {
+  test("the old code step is gone: /login/verify lands on /login, and a taken email is refused", async ({ page }) => {
+    await page.goto("/login/verify?email=a%40b.kz");
+    await expect(page).toHaveURL(/\/login$/);
+    await waitHydrated(page);
+    await page.getByLabel("Почта").fill("erasyl@obshak.test"); // a seeded mock user already exists
+    await page.getByRole("button", { name: "Регистрация", exact: true }).click();
+    await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("Повтори пароль").fill(PASSWORD);
+    await page.getByRole("button", { name: "Создать аккаунт" }).click();
+    await expect(alerts(page)).toContainText("Такая почта уже зарегистрирована");
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("user 1: sign up, onboarding, create household, invite code shown", async ({ browser, baseURL }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await page.goto("/");
       await waitHydrated(page);
       await expect(page).toHaveURL(/\/login$/);
-      await signIn(page, email("one"));
+      await register(page, email("one"));
 
       // signed in without a profile: everything leads to onboarding
       await onboard(page, "", "");
@@ -176,7 +217,7 @@ test.describe("slice 1: first end-to-end path", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await page.goto("/login");
       await waitHydrated(page);
-      await signIn(page, email("probe"));
+      await register(page, email("probe"));
       await onboard(page, "Проверка", "+77009998877");
       await expect(page).toHaveURL(/\/household$/);
       await page.getByRole("link", { name: /У меня есть код/ }).click();
@@ -208,7 +249,7 @@ test.describe("slice 1: first end-to-end path", () => {
     await withPhone(browser, baseURL, async (one) => {
       await one.page.goto("/login");
       await waitHydrated(one.page);
-      await signIn(one.page, email("one")); // same mock user as above (the shared store knows them)
+      await login(one.page, email("one")); // same mock user as above (the shared store knows them)
       await expect(one.page).toHaveURL(/\/$/);
 
       await withPhone(browser, baseURL, async (two) => {
@@ -216,7 +257,7 @@ test.describe("slice 1: first end-to-end path", () => {
         await two.page.goto(`/join/${inviteCode}`);
         await waitHydrated(two.page);
         await expect(two.page).toHaveURL(/\/login$/);
-        await signIn(two.page, email("two"));
+        await register(two.page, email("two"));
         await onboard(two.page, "Айдос", "+77007654321");
         await expect(two.page).toHaveURL(new RegExp(`/join/${inviteCode}$`));
         await expect(two.page.getByRole("heading", { name: "Тебя зовут в квартиру" })).toBeVisible();
@@ -317,7 +358,7 @@ test.describe("slice 1: first end-to-end path", () => {
     await withPhone(browser, baseURL, async (one) => {
       await one.page.goto("/login");
       await waitHydrated(one.page);
-      await signIn(one.page, email("one"));
+      await login(one.page, email("one"));
       await expect(one.page).toHaveURL(/\/$/);
       await expect(one.page.getByText("Привет, Ерасыл")).toBeVisible();
 
@@ -325,7 +366,7 @@ test.describe("slice 1: first end-to-end path", () => {
       await withPhone(browser, baseURL, async (three) => {
         await three.page.goto(`/join/${inviteCode}`);
         await waitHydrated(three.page);
-        await signIn(three.page, email("three"));
+        await register(three.page, email("three"));
         await onboard(three.page, "Даня", "+77005554433");
         await expect(three.page).toHaveURL(new RegExp(`/join/${inviteCode}$`));
         await three.page.getByRole("button", { name: "Войти", exact: true }).click();
@@ -347,7 +388,7 @@ test.describe("slice 1: first end-to-end path", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await page.goto("/login");
       await waitHydrated(page);
-      await signIn(page, email("one"));
+      await login(page, email("one"));
       await expect(page).toHaveURL(/\/$/);
       await page.goto("/purchases/new");
       await page.getByLabel("Сумма").fill("500");
@@ -365,7 +406,7 @@ test.describe("slice 1: first end-to-end path", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await page.goto("/login");
       await waitHydrated(page);
-      await signIn(page, email("two"));
+      await login(page, email("two"));
       await expect(page).toHaveURL(/\/$/);
       await page.getByRole("link", { name: "Квартира", exact: true }).click();
       await page.getByRole("button", { name: "Выйти" }).click();

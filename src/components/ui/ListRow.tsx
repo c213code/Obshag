@@ -15,7 +15,7 @@ export function ListRow({
   avatarColor: AvatarColor;
   title: string;
   caption?: string;
-  captionTone?: "muted" | "orange";
+  captionTone?: "muted" | "orange" | "lime";
   trailing?: ReactNode;
   className?: string;
 }) {
@@ -30,7 +30,7 @@ export function ListRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-headline">{title}</p>
         {caption ? (
-          <p className={cx("truncate text-caption", captionTone === "orange" && "!text-orange")}>{caption}</p>
+          <p className={cx("truncate text-caption", captionTone === "orange" && "!text-orange", captionTone === "lime" && "!text-lime")}>{caption}</p>
         ) : null}
       </div>
       {trailing ? <div className="flex shrink-0 items-center pr-1">{trailing}</div> : null}

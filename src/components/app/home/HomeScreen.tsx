@@ -10,8 +10,10 @@ import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { DebtsCard } from "./DebtsCard";
 import { GreetingHeader } from "./GreetingHeader";
+import { IncomingSection } from "./IncomingSection";
 import { QuickActions } from "./QuickActions";
 import { RecentPurchases } from "./RecentPurchases";
+import { WaitingSection } from "./WaitingSection";
 
 const TONES: ReadonlyArray<CardTone> = ["lime", "orange", "periwinkle"];
 const monthName = () => new Intl.DateTimeFormat("ru-RU", { month: "long" }).format(new Date());
@@ -58,6 +60,8 @@ export function HomeScreen() {
       </div>
       <QuickActions />
       <DebtsCard owe={data.active.balance.owe} owed={data.active.balance.owed} />
+      <IncomingSection />
+      <WaitingSection />
       <RecentPurchases purchases={data.ps} payerNames={data.names} />
     </Screen>
   );

@@ -13,7 +13,7 @@ describe("createRepo", () => {
     const a = createRepo();
     const b = createRepo();
     expect(a).not.toBe(b);
-    await a.verifyOtp("erasyl@obshak.test", "000000");
+    await a.signIn("erasyl@obshak.test", "password123");
     expect((await a.getMe())?.display_name).toBe("Ерасыл");
     await a.createHousehold("Дача");
     expect(await a.listHouseholds()).toHaveLength(2);

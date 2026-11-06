@@ -1,14 +1,6 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { ScreenSkeleton } from "@/components/app/ScreenSkeleton";
-import { VerifyScreen } from "@/components/app/VerifyScreen";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Код · Общак" };
-
+/** The email-code step is gone (sign-in is email + password): old links and bookmarks land on /login. */
 export default function VerifyPage() {
-  return (
-    <Suspense fallback={<ScreenSkeleton />}>
-      <VerifyScreen />
-    </Suspense>
-  );
+  redirect("/login");
 }

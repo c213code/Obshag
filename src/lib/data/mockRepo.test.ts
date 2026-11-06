@@ -3,7 +3,7 @@ import { createMockRepo, memorySession, memoryStorage } from "./mockRepo";
 import { MockConflictError } from "./mockDb";
 import { repoContract } from "./repoContract";
 import { RepoError } from "./repo";
-import { HOUSEHOLD_ID, ME_ID, SEED_EMAIL, createSeed } from "./seed";
+import { HOUSEHOLD_ID, ME_ID, SEED_EMAIL, SEED_PASSWORD, createSeed } from "./seed";
 
 repoContract("mockRepo", async () => {
   const storage = memoryStorage();
@@ -13,7 +13,7 @@ repoContract("mockRepo", async () => {
 describe("mockRepo seed and persistence", () => {
   it("signs the seeded user into the demo household with four members", async () => {
     const repo = createMockRepo();
-    await repo.verifyOtp(SEED_EMAIL, "000000");
+    await repo.signIn(SEED_EMAIL, SEED_PASSWORD);
     expect((await repo.getMe())?.display_name).toBe("Ерасыл");
     const [h] = await repo.listHouseholds();
     expect(h.name).toBe("Квартира 42");
@@ -23,7 +23,7 @@ describe("mockRepo seed and persistence", () => {
 
   it("hides other people's personal purchases and sorts newest first", async () => {
     const repo = createMockRepo();
-    await repo.verifyOtp(SEED_EMAIL, "000000");
+    await repo.signIn(SEED_EMAIL, SEED_PASSWORD);
     const list = await repo.listPurchases(HOUSEHOLD_ID);
     expect(list.every((p) => p.status !== "personal")).toBe(true);
     expect(list[0].created_at >= list[list.length - 1].created_at).toBe(true);
@@ -33,7 +33,7 @@ describe("mockRepo seed and persistence", () => {
     const storage = memoryStorage();
     const session = memorySession();
     const one = createMockRepo({ storage, session });
-    await one.verifyOtp(SEED_EMAIL, "000000");
+    await one.signIn(SEED_EMAIL, SEED_PASSWORD);
     await one.createHousehold("Дача");
     const two = createMockRepo({ storage, session });
     expect((await two.listHouseholds()).map((h) => h.name)).toEqual(["Квартира 42", "Дача"]);
@@ -41,7 +41,7 @@ describe("mockRepo seed and persistence", () => {
 
   it("shares the seeded split: payer share settled, the rest open", async () => {
     const repo = createMockRepo();
-    await repo.verifyOtp(SEED_EMAIL, "000000");
+    await repo.signIn(SEED_EMAIL, SEED_PASSWORD);
     const created = await repo.createPurchase({
       household_id: HOUSEHOLD_ID,
       amount: 6000,
@@ -58,7 +58,7 @@ describe("mockRepo seed and persistence", () => {
     let t = Date.parse("2026-11-06T10:00:00Z");
     const storage = memoryStorage();
     const a = createMockRepo({ storage, session: memorySession(), now: () => new Date(t) });
-    await a.verifyOtp("a@x.kz", "000000");
+    await a.signUp("a@x.kz", "password123");
     await a.upsertProfile({ display_name: "А", kaspi_phone: "+77001234567" });
     for (let i = 0; i < 10; i++) await a.joinHousehold(`BAD0000000${i}`).catch(() => undefined);
     await expect(a.joinHousehold("KV42AB7K9M3X")).rejects.toBeInstanceOf(RepoError);
@@ -68,8 +68,8 @@ describe("mockRepo seed and persistence", () => {
 
   it("validates emails and profile fields", async () => {
     const repo = createMockRepo();
-    await expect(repo.requestOtp("nope")).rejects.toMatchObject({ code: "invalid" });
-    await repo.verifyOtp("c@x.kz", "000000");
+    await expect(repo.signUp("nope", "password123")).rejects.toMatchObject({ code: "invalid" });
+    await repo.signUp("c@x.kz", "password123");
     await expect(repo.upsertProfile({ display_name: "", kaspi_phone: "+77001234567" })).rejects.toMatchObject({ code: "invalid" });
     await expect(repo.upsertProfile({ display_name: "C", kaspi_phone: "123" })).rejects.toMatchObject({ code: "invalid" });
     const p = await repo.upsertProfile({ display_name: "C", kaspi_phone: "8 700 123 45 67" });
@@ -82,7 +82,7 @@ describe("mockRepo seed and persistence", () => {
   it("reactivates a member who left when they join again", async () => {
     const storage = memoryStorage();
     const repo = createMockRepo({ storage, session: memorySession() });
-    await repo.verifyOtp("a@x.kz", "000000");
+    await repo.signUp("a@x.kz", "password123");
     await repo.upsertProfile({ display_name: "А", kaspi_phone: "+77001234567" });
     const h = await repo.createHousehold("Дача");
     const { rev, db } = (await storage.load())!;
@@ -99,7 +99,7 @@ describe("mockRepo seed and persistence", () => {
 
   it("an active admin typing the code again keeps the role", async () => {
     const repo = createMockRepo();
-    await repo.verifyOtp("a@x.kz", "000000");
+    await repo.signUp("a@x.kz", "password123");
     await repo.upsertProfile({ display_name: "А", kaspi_phone: "+77001234567" });
     const h = await repo.createHousehold("Дача");
     await repo.joinHousehold(h.invite_code);
@@ -109,7 +109,7 @@ describe("mockRepo seed and persistence", () => {
   it("concurrent writes through one repo are serialized: no lost updates", async () => {
     const storage = memoryStorage();
     const repo = createMockRepo({ storage, session: memorySession() });
-    await repo.verifyOtp("a@x.kz", "000000");
+    await repo.signUp("a@x.kz", "password123");
     await repo.upsertProfile({ display_name: "А", kaspi_phone: "+77001234567" });
     const h = await repo.createHousehold("Дача");
     const me = (await repo.getMe())!;
@@ -126,7 +126,7 @@ describe("mockRepo seed and persistence", () => {
     const a = createMockRepo({ storage, session: memorySession() });
     const b = createMockRepo({ storage, session: memorySession() });
     for (const [r, mail] of [[a, "a@x.kz"], [b, "b@x.kz"]] as const) {
-      await r.verifyOtp(mail, "000000");
+      await r.signUp(mail, "password123");
     }
     await Promise.all([
       a.upsertProfile({ display_name: "А", kaspi_phone: "+77001234567" }),
@@ -142,5 +142,59 @@ describe("mockRepo seed and persistence", () => {
     await storage.save(first.db, 0);
     await expect(storage.save(first.db, 0)).rejects.toBeInstanceOf(MockConflictError);
     await storage.save(first.db, 1);
+  });
+});
+
+describe("mockRepo settlements: the recorded set", () => {
+  async function marked() {
+    const storage = memoryStorage();
+    const a = createMockRepo({ storage, session: memorySession() });
+    const b = createMockRepo({ storage, session: memorySession() });
+    await a.signIn(SEED_EMAIL, SEED_PASSWORD);
+    await b.signIn("aidos@obshak.test", SEED_PASSWORD);
+    // seed: Ерасыл paid 6000 (Айдос owes 1500), Айдос paid 2000 (Ерасыл owes 500): Айдос owes Ерасыл 1000 net
+    const s = await b.markSettlement(HOUSEHOLD_ID, ME_ID);
+    return { storage, a, b, s };
+  }
+
+  it("seeded users sign in with password123; a wrong password is refused", async () => {
+    const repo = createMockRepo();
+    await expect(repo.signIn(SEED_EMAIL, "nope-nope")).rejects.toMatchObject({ code: "invalid_credentials" });
+    expect((await repo.signIn(SEED_EMAIL, SEED_PASSWORD)).user_id).toBe(ME_ID);
+  });
+
+  it("confirm is stale when a recorded purchase was deleted: nothing closes, cancel and mark again work", async () => {
+    const { storage, a, b, s } = await marked();
+    expect(s.amount).toBe(1000);
+    const { rev, db } = (await storage.load())!;
+    db.purchases = db.purchases.filter((p) => p.description !== "Вода");
+    db.shares = db.shares.filter((x) => x.purchase_id !== "20000000-0000-4000-8000-000000000002");
+    await storage.save(db, rev);
+    await expect(a.confirmSettlement(s.id)).rejects.toMatchObject({ code: "stale" });
+    const open = (await a.listPurchases(HOUSEHOLD_ID)).flatMap((p) => p.shares.filter((x) => x.settlement_id !== null));
+    expect(open).toEqual([]);
+    await b.cancelSettlement(s.id);
+    expect((await b.markSettlement(HOUSEHOLD_ID, ME_ID)).amount).toBe(1500);
+  });
+
+  it("a purchase that turned shared after the mark stays open after the confirm", async () => {
+    const { storage, a, s } = await marked();
+    const { rev, db } = (await storage.load())!;
+    db.purchases.push({
+      id: "20000000-0000-4000-8000-0000000000aa",
+      household_id: HOUSEHOLD_ID,
+      payer_id: ME_ID,
+      amount: 400,
+      description: "Ожидало",
+      merchant: null,
+      source: "apple_pay",
+      status: "shared",
+      created_at: "2026-11-01T00:00:00.000Z", // older than the mark, but never recorded
+    });
+    db.shares.push({ purchase_id: "20000000-0000-4000-8000-0000000000aa", debtor_id: s.from_id, amount: 400, settled_at: null, settlement_id: null });
+    await storage.save(db, rev);
+    await a.confirmSettlement(s.id);
+    const open = (await a.listPurchases(HOUSEHOLD_ID)).flatMap((p) => p.shares.filter((x) => x.settled_at === null && x.debtor_id === s.from_id));
+    expect(open.map((x) => x.amount)).toEqual([400]);
   });
 });

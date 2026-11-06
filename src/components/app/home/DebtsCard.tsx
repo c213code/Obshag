@@ -1,8 +1,8 @@
-import { Pill } from "@/components/ui/Pill";
+import { PillLink } from "@/components/ui/Pill";
 import { formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 
-/** Main.dc.html Долги card: summary, orange/lime split bar, two captions and a settle button (slice 3). */
+/** Main.dc.html Долги card: summary, orange/lime split bar, two captions and the «Рассчитаться» button (opens /settle). */
 export function DebtsCard({ owe, owed }: { owe: number; owed: number }) {
   const net = owed - owe;
   const empty = owe === 0 && owed === 0;
@@ -28,9 +28,9 @@ export function DebtsCard({ owe, owed }: { owe: number; owed: number }) {
           {ru.main.debts.owed} {formatTenge(owed)}
         </span>
       </div>
-      <Pill variant="lime" size="lg" disabled className="w-full">
+      <PillLink href="/settle" variant="lime" size="lg" className="w-full">
         {ru.main.debts.settle}
-      </Pill>
+      </PillLink>
     </section>
   );
 }

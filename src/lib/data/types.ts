@@ -55,6 +55,9 @@ export type Share = {
   settlement_id: Uuid | null;
 };
 
+/** One share frozen into a settlement at mark time (table settlement_shares). */
+export type SettlementShare = { purchase_id: Uuid; debtor_id: Uuid; amount: number };
+
 export type Settlement = {
   id: Uuid;
   household_id: Uuid;
@@ -64,6 +67,8 @@ export type Settlement = {
   status: SettlementStatus;
   marked_at: IsoDateTime;
   confirmed_at: IsoDateTime | null;
+  /** The exact open shares this settlement covers, recorded when it was marked. Confirming closes these and nothing else. */
+  covered: SettlementShare[];
 };
 
 export type Bill = {

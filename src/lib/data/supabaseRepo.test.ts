@@ -26,8 +26,14 @@ function fakeClient(opts: { rpc?: Record<string, Result>; tables?: Record<string
   const client = {
     auth: {
       getSession: async () => ({ data: { session: opts.user ? { user: opts.user } : null } }),
-      signInWithOtp: vi.fn(async () => ({ error: null })),
-      verifyOtp: vi.fn(async () => ({ data: { user: { id: "u1", email: "a@x.kz" } }, error: null })),
+      signUp: vi.fn(async (): Promise<{ data: { user: unknown; session: unknown }; error: unknown }> => ({
+        data: { user: { id: "u1", email: "a@x.kz", identities: [{}] }, session: { access_token: "t" } },
+        error: null,
+      })),
+      signInWithPassword: vi.fn(async (): Promise<{ data: { user: unknown }; error: unknown }> => ({
+        data: { user: { id: "u1", email: "a@x.kz" } },
+        error: null,
+      })),
       signOut: vi.fn(async () => ({ error: null })),
     },
     rpc: async (fn: string, args: unknown) => {
@@ -44,22 +50,54 @@ describe("supabaseRepo", () => {
     expect(mapDbError({ code: "28000" }).code).toBe("unauthenticated");
     expect(mapDbError({ code: "42501" }).code).toBe("forbidden");
     expect(mapDbError({ code: "23514" }).code).toBe("invalid");
+    expect(mapDbError({ code: "23514", message: "stale_settlement" }).code).toBe("stale");
+    expect(mapDbError({ code: "P0001", message: "rate_limited" }).code).toBe("rate_limited");
     expect(mapDbError({ code: "P0001", message: "join_failed" }).code).toBe("join_failed");
     expect(mapDbError({ code: "P0001", message: "profile_required" }).code).toBe("profile_required");
     expect(mapDbError({ message: "boom" }).code).toBe("unknown");
   });
 
-  it("auth: otp request/verify validate input and call supabase auth", async () => {
+  it("auth: sign up and sign in validate input and call supabase auth with email + password", async () => {
     const { client, auth } = fakeClient();
     const repo = createSupabaseRepo(client);
-    await expect(repo.requestOtp("nope")).rejects.toMatchObject({ code: "invalid" });
-    await repo.requestOtp(" A@X.kz ");
-    expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: "a@x.kz", options: { shouldCreateUser: true } });
-    await expect(repo.verifyOtp("a@x.kz", "12")).rejects.toMatchObject({ code: "otp_failed" });
-    expect(await repo.verifyOtp("a@x.kz", "123456")).toEqual({ user_id: "u1", email: "a@x.kz" });
-    expect(auth.verifyOtp).toHaveBeenCalledWith({ email: "a@x.kz", token: "123456", type: "email" });
+    await expect(repo.signUp("nope", "password123")).rejects.toMatchObject({ code: "invalid" });
+    await expect(repo.signUp("a@x.kz", "short")).rejects.toMatchObject({ code: "weak_password" });
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(await repo.signUp(" A@X.kz ", "password123")).toEqual({ user_id: "u1", email: "a@x.kz" });
+    expect(auth.signUp).toHaveBeenCalledWith({ email: "a@x.kz", password: "password123" });
+    await expect(repo.signIn("a@x.kz", "")).rejects.toMatchObject({ code: "invalid_credentials" });
+    expect(await repo.signIn("a@x.kz", "password123")).toEqual({ user_id: "u1", email: "a@x.kz" });
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "a@x.kz", password: "password123" });
     await repo.signOut();
     expect(auth.signOut).toHaveBeenCalled();
+  });
+
+  it("auth errors map to repo codes; an existing account behind 'Confirm email' is email_taken, no session is unknown", async () => {
+    const failWith = (error: { code?: string; status?: number }) => {
+      const f = fakeClient();
+      f.auth.signUp.mockResolvedValueOnce({ data: { user: null, session: null }, error });
+      f.auth.signInWithPassword.mockResolvedValueOnce({ data: { user: null }, error });
+      return createSupabaseRepo(f.client);
+    };
+    const cases: Array<[{ code?: string; status?: number }, string]> = [
+      [{ code: "invalid_credentials", status: 400 }, "invalid_credentials"],
+      [{ code: "user_already_exists", status: 422 }, "email_taken"],
+      [{ code: "email_exists", status: 422 }, "email_taken"],
+      [{ code: "weak_password", status: 422 }, "weak_password"],
+      [{ code: "over_request_rate_limit", status: 429 }, "rate_limited"],
+      [{ status: 429 }, "rate_limited"],
+      [{ code: "unexpected_failure", status: 500 }, "unknown"],
+    ];
+    for (const [error, code] of cases) {
+      await expect(failWith(error).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code });
+      await expect(failWith(error).signIn("a@x.kz", "password123")).rejects.toMatchObject({ code });
+    }
+    const hidden = fakeClient();
+    hidden.auth.signUp.mockResolvedValueOnce({ data: { user: { id: "u1", identities: [] }, session: null }, error: null });
+    await expect(createSupabaseRepo(hidden.client).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "email_taken" });
+    const noSession = fakeClient();
+    noSession.auth.signUp.mockResolvedValueOnce({ data: { user: { id: "u1", identities: [{}] }, session: null }, error: null });
+    await expect(createSupabaseRepo(noSession.client).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "unknown" });
   });
 
   it("getSession / getMe", async () => {
@@ -178,5 +216,54 @@ describe("supabaseRepo", () => {
     await expect(failing.listHouseholds()).rejects.toMatchObject({ code: "forbidden" });
     const missing = createSupabaseRepo(fakeClient({ tables: { households: { data: null, error: null } } }).client);
     await expect(missing.listHouseholds()).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("settlements: RPC names and arguments (no amount is ever sent), the read query, and error mapping", async () => {
+    const row = { id: "s1", household_id: "h1", from_id: "u1", to_id: "u2", amount: 200, status: "marked", marked_at: "t", confirmed_at: null };
+    const { client, calls, queries } = fakeClient({
+      rpc: {
+        mark_settlement: { data: row, error: null },
+        confirm_settlement: { data: { ...row, status: "confirmed" }, error: null },
+        cancel_settlement: { data: { ...row, status: "cancelled" }, error: null },
+      },
+      tables: {
+        settlements: { data: [{ ...row, covered: [{ purchase_id: "p1", debtor_id: "u1", amount: 200, junk: 1 }] }], error: null },
+        settlement_shares: { data: [{ purchase_id: "p1", debtor_id: "u1", amount: 200 }], error: null },
+      },
+    });
+    const repo = createSupabaseRepo(client);
+    const covered = [{ purchase_id: "p1", debtor_id: "u1", amount: 200 }];
+    expect(await repo.markSettlement("h1", "u2")).toEqual({ ...row, covered });
+    expect((await repo.confirmSettlement("s1")).status).toBe("confirmed");
+    expect((await repo.cancelSettlement("s1")).status).toBe("cancelled");
+    expect(calls).toEqual([
+      { fn: "mark_settlement", args: { p_household_id: "h1", p_to: "u2" } },
+      { fn: "confirm_settlement", args: { p_settlement_id: "s1" } },
+      { fn: "cancel_settlement", args: { p_settlement_id: "s1" } },
+    ]);
+    queries.length = 0;
+    expect(await repo.listSettlements("h1")).toEqual([{ ...row, covered }]);
+    expect(queries).toEqual([
+      'settlements.select("*, covered:settlement_shares(purchase_id, debtor_id, amount)")',
+      'settlements.eq("household_id","h1")',
+      'settlements.order("marked_at",{"ascending":false})',
+      'settlements.order("id",{"ascending":true})',
+    ]);
+
+    const failing = (code: string) =>
+      createSupabaseRepo(fakeClient({ rpc: { confirm_settlement: { data: null, error: { code, message: "raw db text" } } } }).client);
+    await expect(failing("42501").confirmSettlement("s1")).rejects.toMatchObject({ code: "forbidden", message: "Not allowed" });
+    await expect(failing("P0002").confirmSettlement("s1")).rejects.toMatchObject({ code: "not_found" });
+    await expect(failing("23514").confirmSettlement("s1")).rejects.toMatchObject({ code: "invalid" });
+
+    // the RPC succeeded but the follow-up read of the recorded set fails: still a success, with an empty record
+    const flaky = createSupabaseRepo(
+      fakeClient({
+        rpc: { mark_settlement: { data: row, error: null } },
+        tables: { settlement_shares: { data: null, error: { code: "08006" } } },
+      }).client,
+    );
+    expect(await flaky.markSettlement("h1", "u2")).toEqual({ ...row, covered: [] });
+    expect(mapDbError({ code: "P0002" }).code).toBe("not_found");
   });
 });

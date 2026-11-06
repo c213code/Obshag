@@ -5,9 +5,10 @@ import {
   emailSchema,
   householdNameSchema,
   inviteCodeSchema,
-  otpSchema,
+  passwordSchema,
   profileSchema,
 } from "@/lib/domain/schemas";
+import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import {
   RepoError,
@@ -19,8 +20,8 @@ import {
   type Repo,
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
-import { MOCK_OTP, createSeed, type MockDb } from "./seed";
-import type { Household, Profile, Purchase, Share, Uuid } from "./types";
+import { createSeed, type MockDb } from "./seed";
+import type { Household, Profile, Purchase, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -52,6 +53,7 @@ export function memorySession(initial: Uuid | null = null): SessionStore {
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const JOIN_LIMIT = 10;
+const SETTLEMENT_OPS_LIMIT = 20;
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_RETRIES = 8;
 
@@ -140,6 +142,36 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
   const requireMember = (db: MockDb, householdId: Uuid, userId: Uuid) => {
     if (!isMember(db, householdId, userId)) throw new RepoError("forbidden", "Not a member of this household");
   };
+  const householdPurchases = (db: MockDb, householdId: Uuid) => db.purchases.filter((p) => p.household_id === householdId);
+  const householdShares = (db: MockDb, householdId: Uuid) => {
+    const ids = new Set(householdPurchases(db, householdId).map((p) => p.id));
+    return db.shares.filter((s) => ids.has(s.purchase_id));
+  };
+  /** A settlement the caller is a party of; a missing id and somebody else's id look the same (not_found). */
+  const findSettlement = (db: MockDb, id: Uuid, userId: Uuid): Settlement => {
+    const s = db.settlements.find((x) => x.id === id);
+    if (!s || (s.from_id !== userId && s.to_id !== userId) || !isMember(db, s.household_id, userId)) {
+      throw new RepoError("not_found", "Settlement not found");
+    }
+    return s;
+  };
+  /** At most 20 mark/cancel calls per user per hour; the call is only counted when it goes through (SQL rolls back otherwise). */
+  const settlementOpsLeft = (db: MockDb, userId: Uuid) => {
+    const t = now().getTime();
+    db.settlementOps = db.settlementOps.filter((o) => t - Date.parse(o.at) < HOUR_MS);
+    if (db.settlementOps.filter((o) => o.user_id === userId).length >= SETTLEMENT_OPS_LIMIT) {
+      throw new RepoError("rate_limited", "Too many settlement actions");
+    }
+  };
+  const countSettlementOp = (db: MockDb, userId: Uuid) => db.settlementOps.push({ user_id: userId, at: now().toISOString() });
+  /** Rewrites the recorded set from the current open shares and derives the amount from it (the SQL record_settlement_shares). */
+  const record = (db: MockDb, s: Settlement) => {
+    const covered = pairShares(s.from_id, s.to_id, householdShares(db, s.household_id), householdPurchases(db, s.household_id));
+    const amount = covered.reduce((sum, c) => sum + (c.debtor_id === s.from_id ? c.amount : -c.amount), 0);
+    if (amount <= 0) throw new RepoError("invalid", "You do not owe this person");
+    s.covered = covered;
+    s.amount = amount;
+  };
   const withShares = (db: MockDb, p: Purchase): PurchaseWithShares =>
     structuredClone({ ...p, shares: db.shares.filter((s) => s.purchase_id === p.id) });
 
@@ -153,24 +185,27 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       });
     },
 
-    async requestOtp(email) {
-      const parsed = emailSchema.safeParse(email);
-      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
-      // mock mode: nothing is sent
+    async signUp(email, password): Promise<AuthSession> {
+      const e = emailSchema.safeParse(email);
+      if (!e.success) throw new RepoError("invalid", firstIssue(e.error));
+      if (!passwordSchema.safeParse(password).success) throw new RepoError("weak_password", "Password is too short");
+      const user = await tx((db) => {
+        if (db.users.some((x) => x.email === e.data)) throw new RepoError("email_taken", "Email is already registered");
+        const created = { id: newId(), email: e.data, password };
+        db.users.push(created);
+        return created;
+      });
+      session.set(user.id);
+      return { user_id: user.id, email: user.email };
     },
 
-    async verifyOtp(email, code): Promise<AuthSession> {
+    async signIn(email, password): Promise<AuthSession> {
       const e = emailSchema.safeParse(email);
-      const c = otpSchema.safeParse(code);
-      if (!e.success || !c.success || c.data !== MOCK_OTP) throw new RepoError("otp_failed", "Invalid code");
-      const user = await tx((db) => {
-        let u = db.users.find((x) => x.email === e.data);
-        if (!u) {
-          u = { id: newId(), email: e.data };
-          db.users.push(u);
-        }
-        return u;
-      });
+      const wrong = () => new RepoError("invalid_credentials", "Invalid email or password");
+      if (!e.success || !password) throw wrong();
+      const user = await read((db) => db.users.find((x) => x.email === e.data));
+      // the same answer for an unknown email and a wrong password
+      if (!user || user.password !== password) throw wrong();
       session.set(user.id);
       return { user_id: user.id, email: user.email };
     },
@@ -315,6 +350,93 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         db.purchases.push(purchase);
         db.shares.push(...shares);
         return structuredClone({ ...purchase, shares });
+      });
+    },
+
+    async listSettlements(householdId) {
+      const id = uid();
+      return read((db) => {
+        requireMember(db, householdId, id);
+        return structuredClone(
+          db.settlements
+            .filter((x) => x.household_id === householdId)
+            .sort((a, b) => b.marked_at.localeCompare(a.marked_at) || a.id.localeCompare(b.id)),
+        );
+      });
+    },
+
+    async markSettlement(householdId, toUserId) {
+      const id = uid();
+      return tx((db): Settlement => {
+        if (!householdId || !toUserId || !isMember(db, householdId, id)) throw new RepoError("forbidden", "Not a member of this household");
+        if (toUserId === id) throw new RepoError("invalid", "Cannot settle with yourself");
+        if (!isMember(db, householdId, toUserId)) throw new RepoError("invalid", "Counterparty is not an active member");
+        settlementOpsLeft(db, id);
+        // one open marked settlement per pair and direction: asking again returns it, its record refreshed to the current open shares
+        const open = db.settlements
+          .filter((x) => x.household_id === householdId && x.from_id === id && x.to_id === toUserId && x.status === "marked")
+          .sort((a, b) => b.marked_at.localeCompare(a.marked_at) || a.id.localeCompare(b.id))[0];
+        if (open) {
+          record(db, open);
+          countSettlementOp(db, id);
+          return structuredClone(open);
+        }
+        // the amount is computed here, from the open shares: nothing comes from the caller
+        const pair = netPair(id, toUserId, householdShares(db, householdId), householdPurchases(db, householdId));
+        if (pair.direction !== "i_pay") throw new RepoError("invalid", "You do not owe this person");
+        const created: Settlement = {
+          id: newId(),
+          household_id: householdId,
+          from_id: id,
+          to_id: toUserId,
+          amount: pair.net,
+          status: "marked",
+          marked_at: now().toISOString(),
+          confirmed_at: null,
+          covered: [],
+        };
+        record(db, created);
+        db.settlements.push(created);
+        countSettlementOp(db, id);
+        return structuredClone(created);
+      });
+    },
+
+    async confirmSettlement(settlementId, expectedAmount) {
+      const id = uid();
+      return tx((db): Settlement => {
+        const s = findSettlement(db, settlementId, id);
+        if (s.to_id !== id) throw new RepoError("forbidden", "Only the creditor can confirm");
+        if (s.status === "confirmed") return structuredClone(s);
+        if (s.status !== "marked") throw new RepoError("invalid", "Settlement is not open");
+        if (expectedAmount !== undefined && expectedAmount !== s.amount) {
+          throw new RepoError("stale", "The amounts changed since the payment was marked");
+        }
+        const shares = householdShares(db, s.household_id);
+        const purchases = householdPurchases(db, s.household_id);
+        // the books must still match what was recorded at the mark; otherwise nothing is closed
+        if (isStale(s, shares, purchases)) throw new RepoError("stale", "The amounts changed since the payment was marked");
+        const at = now().toISOString();
+        for (const share of coveredShares(s, shares, purchases)) {
+          share.settled_at = at;
+          share.settlement_id = s.id;
+        }
+        s.status = "confirmed";
+        s.confirmed_at = at;
+        return structuredClone(s);
+      });
+    },
+
+    async cancelSettlement(settlementId) {
+      const id = uid();
+      return tx((db): Settlement => {
+        const s = findSettlement(db, settlementId, id);
+        if (s.status === "cancelled") return structuredClone(s);
+        if (s.status !== "marked") throw new RepoError("invalid", "A confirmed settlement cannot be cancelled");
+        settlementOpsLeft(db, id);
+        s.status = "cancelled";
+        countSettlementOp(db, id);
+        return structuredClone(s);
       });
     },
   };

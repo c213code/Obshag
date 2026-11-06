@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { householdSummary, purchaseProgress } from "./summary";
 
-const purchases = [{ id: "p1", payer_id: "me", status: "shared" as const }];
+const purchases = [{ id: "p1", payer_id: "me", status: "shared" as const, description: "x", created_at: "2026-11-03T00:00:00Z" }];
 const share = (debtor_id: string, amount: number, settled = false) => ({
   purchase_id: "p1",
   debtor_id,

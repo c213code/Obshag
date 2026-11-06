@@ -5,7 +5,7 @@ import {
   householdNameSchema,
   inviteCodeSchema,
   normalizePhone,
-  otpSchema,
+  passwordSchema,
   profileSchema,
 } from "./schemas";
 
@@ -40,9 +40,10 @@ describe("auth schemas", () => {
   it("validates email and a 6 digit code", () => {
     expect(emailSchema.parse("  A@Mail.com ")).toBe("a@mail.com");
     expect(emailSchema.safeParse("nope").success).toBe(false);
-    expect(otpSchema.safeParse("000000").success).toBe(true);
-    expect(otpSchema.safeParse("12345").success).toBe(false);
-    expect(otpSchema.safeParse("12345a").success).toBe(false);
+    expect(passwordSchema.safeParse("password123").success).toBe(true);
+    expect(passwordSchema.safeParse("1234567").success).toBe(false);
+    expect(passwordSchema.safeParse("12345678").success).toBe(true);
+    expect(passwordSchema.safeParse("x".repeat(73)).success).toBe(false);
   });
   it("normalizes invite codes and rejects junk", () => {
     expect(inviteCodeSchema.parse(" kv42-ab7k 9m3x ")).toBe("KV42AB7K9M3X");

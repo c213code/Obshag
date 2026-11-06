@@ -6,8 +6,11 @@ export function errorMessage(e: unknown, fallbacks: Partial<Record<RepoError["co
   if (e instanceof RepoError) {
     const specific = fallbacks[e.code];
     if (specific) return specific;
-    if (e.code === "otp_failed") return ru.errors.otp;
     if (e.code === "join_failed") return ru.errors.joinFailed;
+    if (e.code === "invalid_credentials") return ru.auth.errors.invalidCredentials;
+    if (e.code === "email_taken") return ru.auth.errors.emailTaken;
+    if (e.code === "weak_password") return ru.auth.errors.weakPassword;
+    if (e.code === "rate_limited") return ru.auth.errors.rateLimited;
   }
   return ru.errors.generic;
 }

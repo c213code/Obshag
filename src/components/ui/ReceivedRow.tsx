@@ -63,9 +63,9 @@ export function ReceivedRow({
       </div>
       <div className="relative flex items-center gap-[10px] rounded-pill border border-card-2 bg-card p-[6px]">
         <Avatar name={name} color={avatarColor} size={40} decorative />
-        <div className="flex flex-1 flex-col">
-          <span className="text-[14px]">{name}</span>
-          <span className={cx("text-[12px] transition-colors duration-[400ms] ease-smooth", received ? "text-muted" : "text-orange")}>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-[14px]">{name}</span>{" "}
+          <span className={cx("truncate text-[12px] transition-colors duration-[400ms] ease-smooth", received ? "text-muted" : "text-orange")}>
             {received ? receivedLabel : pendingLabel}
           </span>
         </div>
@@ -80,7 +80,15 @@ export function ReceivedRow({
           aria-hidden={received}
           tabIndex={received ? -1 : 0}
         >
-          {buttonLabel}
+          {/* the label is gone before the button has shrunk much: no clipped «Получ…» under the ✓ circle */}
+          <motion.span
+            className="inline-block"
+            initial={false}
+            animate={{ opacity: received ? 0 : 1 }}
+            transition={reduced ? { duration: 0.1, ease: "linear" } : { duration: 0.14, ease: ease.smooth }}
+          >
+            {buttonLabel}
+          </motion.span>
         </motion.button>
         <motion.span
           aria-hidden="true"

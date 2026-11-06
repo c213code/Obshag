@@ -24,7 +24,9 @@ export const phoneSchema = z
 
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(120));
 
-export const otpSchema = z.string().regex(/^\d{6}$/, "The code is 6 digits");
+export const MIN_PASSWORD = 8;
+/** Supabase hashes with bcrypt, which only looks at the first 72 bytes. */
+export const passwordSchema = z.string().min(MIN_PASSWORD, "Password is shorter than 8 characters").max(72, "Password is too long");
 
 export const profileSchema = z.object({
   display_name: z.string().trim().min(1, "Name is required").max(40),
