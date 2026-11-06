@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>После оплаты Apple Pay</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-display{font-family:var(--font-num);font-size:40px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.t-amount{font-family:var(--font-num);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.t-title{font-size:22px;font-weight:700;letter-spacing:-0.01em;margin:0}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+a{color:var(--lime)}
+.chip{border:0;border-radius:999px;padding:8px 12px;font:inherit;font-size:13px;font-weight:500;background:var(--card-2);color:var(--text)}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #14161B; color: var(--text); font-family: var(--font); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center">
+  <svg style="position: absolute; left: -120px; top: 300px" width="620" height="620" viewBox="0 0 620 620" aria-hidden="true"><circle cx="310" cy="310" r="300" fill="#1B1E25"/><circle cx="310" cy="310" r="200" fill="#20242C"/><circle cx="310" cy="310" r="100" fill="#262A33"/></svg>
+
+  <div style="margin-top: 11px; width: 368px; background: #000; border-radius: 44px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="width: 44px; height: 44px; border-radius: 50%; background: var(--lime); color: var(--on-lime); display: grid; place-items: center; flex-shrink: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg></span>
+      <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0"><span class="t-headline">Magnum</span><span class="t-caption">Что купил?</span></div>
+      <span class="t-amount">6 000 ₸</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <button type="button" class="chip" style="background: var(--lime); color: var(--on-lime)">Продукты</button>
+      <button type="button" class="chip">Хлеб</button>
+      <button type="button" class="chip">Вода</button>
+      <button type="button" class="chip">Бытовое</button>
+      <button type="button" class="chip" style="background: transparent; color: var(--lime); box-shadow: inset 0 0 0 1px #3A3D45">Написать…</button>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <a href="Purchase.dc.html" style="flex-grow: 1; background: var(--lime); color: var(--on-lime); text-decoration: none; border-radius: 999px; padding: 14px; text-align: center; font-size: 15px; font-weight: 600">Общее · по 1 500 ₸</a>
+      <button type="button" style="background: var(--card-2); color: var(--text); border: 0; border-radius: 999px; padding: 14px 20px; font: inherit; font-size: 15px; font-weight: 600">Моё</button>
+    </div>
+  </div>
+
+  <div style="margin-top: 40px; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1">
+    <span class="t-headline" style="color: #B9BDC6; font-weight: 500">четверг, 6 ноября</span>
+    <span style="font-family: var(--font-num); font-size: 80px; font-weight: 700; letter-spacing: -0.03em; line-height: 1">18:40</span>
+  </div>
+
+  <div style="margin-top: 40px; width: 360px; background: rgba(42,44,51,0.96); border-radius: 28px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1">
+    <div style="display: flex; align-items: center; gap: 8px"><span class="t-label" style="width: 22px; height: 22px; border-radius: 6px; background: var(--lime); color: var(--on-lime); display: grid; place-items: center; font-weight: 700">О</span><span class="t-label" style="color: var(--muted); flex-grow: 1">ОБЩАК</span><span class="t-label" style="color: var(--muted)">сейчас</span></div>
+    <span class="t-headline">Magnum · 6 000 ₸</span>
+    <div style="display: flex; align-items: center; gap: 8px; background: #14161B; box-shadow: inset 0 0 0 1px var(--lime); border-radius: 20px; padding: 6px 6px 6px 14px">
+      <input id="what" aria-label="Что купил" value="хлеб, картошка, лук" class="t-body" style="flex-grow: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font-family: var(--font)">
+      <button type="button" aria-label="Отправить" style="width: 36px; height: 36px; border-radius: 50%; background: var(--lime); color: var(--on-lime); border: 0; display: grid; place-items: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
+    <span class="t-caption">Соседи увидят, что ты купил</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

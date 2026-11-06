@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Главная</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-display{font-family:var(--font-num);font-size:40px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.t-amount{font-family:var(--font-num);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.t-title{font-size:22px;font-weight:700;letter-spacing:-0.01em;margin:0}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+a{color:var(--lime)}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--text); font-family: var(--font); position: relative; overflow: hidden">
+  <div style="padding: 58px 20px 0; display: flex; flex-direction: column; gap: 24px">
+
+    <div style="display: flex; align-items: center; gap: 12px">
+      <div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-caption">Привет, Ерасыл</span><h1 class="t-title">Общак</h1></div>
+      <button type="button" aria-label="Уведомления" style="width: 44px; height: 44px; border-radius: 50%; background: var(--card); color: var(--text); border: 0; display: grid; place-items: center; position: relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span style="position: absolute; top: 10px; right: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--orange)"></span></button>
+      <span class="t-headline" style="width: 44px; height: 44px; border-radius: 50%; background: var(--lime); color: var(--on-lime); display: grid; place-items: center">Е</span>
+    </div>
+
+    <div style="position: relative; height: 212px; margin-top: -8px">
+      <div style="position: absolute; left: 24px; right: 24px; top: 0; height: 40px; background: var(--card-2); border-radius: 20px"></div>
+      <div style="position: absolute; left: 12px; right: 12px; top: 10px; height: 40px; background: #4A4E58; border-radius: 20px"></div>
+      <div style="position: absolute; left: 0; right: 0; top: 20px; bottom: 0; background: var(--lime); color: var(--on-lime); border-radius: 28px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden">
+        <svg style="position: absolute; right: -40px; top: -40px" width="190" height="190" viewBox="0 0 190 190" aria-hidden="true"><circle cx="95" cy="95" r="86" fill="none" stroke="#1A2300" stroke-opacity="0.08" stroke-width="22"/><circle cx="95" cy="95" r="38" fill="none" stroke="#1A2300" stroke-opacity="0.08" stroke-width="12"/></svg>
+        <div style="display: flex; justify-content: space-between; align-items: center; position: relative"><span class="t-headline">Квартира 42</span><span class="t-label" style="background: rgba(26,35,0,0.1); border-radius: 999px; padding: 4px 10px">1 из 3</span></div>
+        <div style="display: flex; flex-direction: column; gap: 4px; position: relative"><span class="t-label">Баланс</span><span class="t-display">+7 550 ₸</span></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; position: relative">
+          <div style="display: flex">
+            <span class="t-label" style="width: 26px; height: 26px; border-radius: 50%; background: var(--on-lime); color: var(--lime); border: 2px solid var(--lime); display: grid; place-items: center">Е</span>
+            <span class="t-label" style="width: 26px; height: 26px; border-radius: 50%; background: #2F5D8A; color: #fff; border: 2px solid var(--lime); margin-left: -8px; display: grid; place-items: center">А</span>
+            <span class="t-label" style="width: 26px; height: 26px; border-radius: 50%; background: #8A5A2F; color: #fff; border: 2px solid var(--lime); margin-left: -8px; display: grid; place-items: center">Д</span>
+            <span class="t-label" style="width: 26px; height: 26px; border-radius: 50%; background: #6B4C8A; color: #fff; border: 2px solid var(--lime); margin-left: -8px; display: grid; place-items: center">Н</span>
+          </div>
+          <span class="t-label">ноябрь</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+      <a href="AddPurchase.dc.html" class="t-label" style="display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text)"><span style="width: 56px; height: 56px; border-radius: 50%; background: var(--lime); color: var(--on-lime); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Покупка</a>
+      <a href="Purchase.dc.html" class="t-label" style="display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text)"><span style="width: 56px; height: 56px; border-radius: 50%; background: var(--card); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span>Напомнить</a>
+      <a href="Pay.dc.html" class="t-label" style="display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text)"><span style="width: 56px; height: 56px; border-radius: 50%; background: var(--card); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10h13l-4-4M17 14H4l4 4"/></svg></span>Расчёт</a>
+      <a href="Bills.dc.html" class="t-label" style="display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: var(--text)"><span style="width: 56px; height: 56px; border-radius: 50%; background: var(--card); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg></span>Ежемесячно</a>
+    </div>
+
+    <div style="background: var(--card); border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="t-headline">Долги</span><span class="t-caption">итог <span style="color: var(--lime)">+7 550 ₸</span></span></div>
+      <div style="display: flex; height: 8px; gap: 4px"><div style="flex: 400; background: var(--orange); border-radius: 4px"></div><div style="flex: 7750; background: var(--lime); border-radius: 4px"></div></div>
+      <div style="display: flex; justify-content: space-between"><span class="t-label" style="color: var(--orange)">ты должен 200 ₸</span><span class="t-label" style="color: var(--lime)">тебе должны 7 750 ₸</span></div>
+      <a href="Pay.dc.html" style="background: var(--lime); color: var(--on-lime); text-decoration: none; border-radius: 999px; padding: 14px; text-align: center; font-size: 17px; font-weight: 600">Рассчитаться</a>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="t-headline">Последние покупки</span><a href="Purchase.dc.html" class="t-caption" style="color: var(--lime); text-decoration: none">Все</a></div>
+      <a href="Purchase.dc.html" style="background: var(--card); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px; text-decoration: none; color: var(--text)">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span style="width: 44px; height: 44px; border-radius: 12px; background: var(--lime-soft); color: var(--lime); display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg></span>
+          <div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-body">Хлеб, картошка, лук</span><span class="t-caption">Magnum · 18:40</span></div>
+          <span class="t-amount">6 000 ₸</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px"><div style="flex-grow: 1; height: 6px; border-radius: 3px; background: var(--card-2); overflow: hidden"><div style="width: 66%; height: 100%; background: var(--lime)"></div></div><span class="t-caption">2 из 3</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 20px; right: 20px; bottom: 28px; display: flex; align-items: center; gap: 12px">
+    <nav style="flex-grow: 1; background: rgba(26,28,34,0.94); border: 1px solid var(--card-2); border-radius: 999px; padding: 6px; display: flex; justify-content: space-between; align-items: center">
+      <a href="Main.dc.html" class="t-label" style="background: var(--card-2); color: var(--text); border-radius: 999px; padding: 10px 16px; display: flex; align-items: center; gap: 6px; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Главная</a>
+      <a href="Purchase.dc.html" aria-label="Покупки" style="padding: 10px; color: var(--muted); display: grid"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></a>
+      <a href="Bills.dc.html" aria-label="Ежемесячно" style="padding: 10px; color: var(--muted); display: grid"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg></a>
+      <a href="Invite.dc.html" aria-label="Квартира" style="padding: 10px; color: var(--muted); display: grid"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 20a6.5 6.5 0 0 0-3-5.5"/></svg></a>
+    </nav>
+    <a href="AddPurchase.dc.html" aria-label="Добавить покупку" style="width: 58px; height: 58px; border-radius: 50%; background: var(--lime); color: var(--on-lime); display: grid; place-items: center; flex-shrink: 0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

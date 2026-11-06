@@ -1,0 +1,256 @@
+"use client";
+
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { LayoutGroup, motion } from "motion/react";
+import { ease, spring, useReducedMotionSafe } from "@/lib/motion";
+import { ru } from "@/lib/i18n/ru";
+import { Bar } from "./Bar";
+import { Fab } from "./Fab";
+import { cx } from "./cx";
+import { CalendarIcon, CartIcon, HomeIcon, ListIcon, PlusIcon, UsersIcon } from "./icons";
+
+export type TabId = "home" | "purchases" | "monthly" | "household";
+
+export type TabDef = { id: TabId; label: string; icon: ReactNode; href?: string };
+
+export const defaultTabs: ReadonlyArray<TabDef> = [
+  { id: "home", label: ru.nav.home, icon: <HomeIcon /> },
+  { id: "purchases", label: ru.nav.purchases, icon: <ListIcon /> },
+  { id: "monthly", label: ru.nav.monthly, icon: <CalendarIcon /> },
+  { id: "household", label: ru.nav.household, icon: <UsersIcon /> },
+];
+
+export type FabAction = "purchase" | "monthly";
+
+const isHrefActive = (pathname: string, href: string) =>
+  href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+
+const menuItem = "flex items-center gap-[10px] rounded-pill px-3 py-[10px] text-left text-[14px] text-text";
+
+/**
+ * Floating tab bar: a Bar with 4 tabs (active = icon + label in a card-2 pill that slides
+ * via layoutId) plus a lime Fab "+".
+ *
+ * Fab menu (approved reference, docs/design/motion-reference.html #1): the Fab does NOT rotate,
+ * it shrinks to .6 and fades while the menu grows out of its bottom-right corner (scale .24 -> 1,
+ * soft spring). The menu has a highlighted first row, lime icons and a lime «Закрыть» pill.
+ *
+ * Tabs with `href` derive the active tab from the pathname; tabs without it use `value`.
+ * Taps are never locked: every handler is idempotent.
+ */
+export function TabBar({
+  value,
+  onChange,
+  onAction,
+  tabs = defaultTabs,
+  position = "fixed",
+}: {
+  value: TabId;
+  onChange?: (id: TabId) => void;
+  onAction?: (action: FabAction) => void;
+  tabs?: ReadonlyArray<TabDef>;
+  position?: "fixed" | "static";
+}) {
+  const group = useId();
+  const pathname = usePathname();
+  const { reduced } = useReducedMotionSafe();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  const activeId = tabs.find((t) => t.href && isHrefActive(pathname, t.href))?.id ?? value;
+
+  const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[data-menu-focus]") ?? []);
+
+  // Focus: first item on open, the Fab on close.
+  useEffect(() => {
+    if (menuOpen) {
+      items()[0]?.focus();
+    } else if (wasOpen.current) {
+      fabRef.current?.focus({ preventScroll: true });
+    }
+    wasOpen.current = menuOpen;
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [menuOpen]);
+
+  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      setMenuOpen(false);
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const list = items();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === "ArrowDown" ? (at + 1) % list.length : (at - 1 + list.length) % list.length;
+    list[next]?.focus();
+  };
+
+  const choose = (action: FabAction) => {
+    setMenuOpen(false);
+    onAction?.(action);
+  };
+
+  const menuAnimate = reduced
+    ? { opacity: menuOpen ? 1 : 0 }
+    : { scale: menuOpen ? 1 : 0.24, opacity: menuOpen ? 1 : 0 };
+  const menuTransition = reduced
+    ? { duration: 0.2, ease: "linear" as const }
+    : { scale: { duration: 0.55, ease: ease.softSpring }, opacity: { duration: 0.35, ease: ease.smooth } };
+
+  return (
+    <>
+      {position === "fixed" ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-[136px] bg-gradient-to-t from-bg via-bg/85 to-transparent"
+        />
+      ) : null}
+      <div
+        className={cx(
+          position === "fixed" &&
+            "fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(env(safe-area-inset-bottom),16px)]",
+        )}
+      >
+        <div
+          className={cx(
+            "relative flex items-center justify-between gap-[10px]",
+            position === "fixed" ? "w-full max-w-[390px] px-4" : "w-full",
+          )}
+        >
+          <LayoutGroup id={group}>
+            <nav aria-label={ru.nav.label} className="min-w-0">
+              <Bar>
+                {tabs.map((tab) => {
+                  const active = tab.id === activeId;
+                  const cls = cx(
+                    "relative inline-flex h-11 items-center justify-center gap-2 rounded-pill px-3 whitespace-nowrap",
+                    "text-label transition-colors duration-200 ease-smooth active:scale-[0.97]",
+                    active ? "text-text" : "text-muted",
+                  );
+                  const inner = (
+                    <>
+                      {active ? (
+                        <motion.span
+                          layoutId="tab-active"
+                          aria-hidden="true"
+                          className="absolute inset-0 rounded-pill bg-card-2"
+                          transition={reduced ? { duration: 0.15 } : spring.snap}
+                        />
+                      ) : null}
+                      <span className="relative inline-flex items-center gap-2">
+                        {tab.icon}
+                        {active ? (
+                          <motion.span
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.25, delay: 0.05, ease: ease.smooth }}
+                          >
+                            {tab.label}
+                          </motion.span>
+                        ) : null}
+                      </span>
+                    </>
+                  );
+                  return tab.href ? (
+                    <Link
+                      key={tab.id}
+                      href={tab.href}
+                      aria-label={tab.label}
+                      aria-current={active ? "page" : undefined}
+                      className={cls}
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      aria-label={tab.label}
+                      aria-current={active ? "page" : undefined}
+                      className={cls}
+                      onClick={() => onChange?.(tab.id)}
+                    >
+                      {inner}
+                    </button>
+                  );
+                })}
+              </Bar>
+            </nav>
+          </LayoutGroup>
+
+          <Fab
+            ref={fabRef}
+            aria-label={ru.nav.add}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            hidden={menuOpen}
+            tabIndex={menuOpen ? -1 : 0}
+            onClick={() => setMenuOpen(true)}
+          >
+            <PlusIcon size={26} />
+          </Fab>
+
+          <motion.div
+            ref={menuRef}
+            role="menu"
+            aria-label={ru.nav.add}
+            inert={!menuOpen}
+            initial={false}
+            animate={menuAnimate}
+            transition={menuTransition}
+            onKeyDown={onMenuKeyDown}
+            style={{ transformOrigin: "bottom right" }}
+            className={cx(
+              "absolute right-4 bottom-0 z-10 flex w-[220px] flex-col gap-[6px] rounded-lg border border-card-2 bg-card p-2",
+              // reduced motion: fade only, even before hydration knows the preference
+              "motion-reduce:transform-none!",
+              !menuOpen && "pointer-events-none",
+            )}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              data-menu-focus
+              className={cx(menuItem, "bg-card-2")}
+              onClick={() => choose("purchase")}
+            >
+              <CartIcon size={18} className="text-lime" />
+              {ru.nav.addPurchase}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              data-menu-focus
+              className={menuItem}
+              onClick={() => choose("monthly")}
+            >
+              <CalendarIcon size={18} className="text-lime" />
+              {ru.nav.addMonthly}
+            </button>
+            <button
+              type="button"
+              data-menu-focus
+              className="rounded-pill bg-lime p-[11px] text-[14px] font-semibold text-on-lime"
+              onClick={() => setMenuOpen(false)}
+            >
+              {ru.common.close}
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    </>
+  );
+}

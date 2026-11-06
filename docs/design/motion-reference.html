@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Общак: approved motion reference</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<!--
+  APPROVED BY THE USER. This is the source of truth for motion AND the look of these widgets.
+  Reproduce them 1:1 in React (motion/react): same structure, same colors, same icons,
+  same timing curves (smooth = cubic-bezier(.22,1,.36,1), soft = cubic-bezier(.34,1.18,.64,1)).
+  Icons here use the Tabler outline icon set; in the app, use equivalent inline stroke SVGs.
+-->
+<style>
+body{margin:0;background:#16171b;font-family:-apple-system,system-ui,sans-serif;color:#F2F3F5;padding:24px}
+h1{font-size:18px;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.mx{--e:cubic-bezier(.22,1,.36,1);--s:cubic-bezier(.34,1.18,.64,1);background:#0E0F13;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:250px;box-sizing:border-box;position:relative;overflow:hidden}
+.mx button.go{align-self:flex-start;background:#2C2F37;color:#F2F3F5;border:0;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer;transition:transform .2s var(--e)}
+.mx button.go:active{transform:scale(.95)}
+.e{transition:transform .5s var(--e),opacity .4s var(--e),background-color .4s var(--e),color .4s var(--e)}
+.s{transition:transform .55s var(--s),opacity .35s var(--e)}
+.label{font-size:14px;font-weight:500;margin-top:6px}
+.note{font-size:13px;color:#8B8F98}
+@media (prefers-reduced-motion: reduce){.e,.s{transition:opacity .2s linear!important}}
+</style>
+</head>
+<body>
+<h1>Общак: approved motion and widget reference</h1>
+<div class="grid">
+
+<!-- 1. TabBar + FAB menu (APPROVED: menu exactly like this) -->
+<div>
+<div class="mx">
+<span class="note">Tap the tabs and the «+»</span>
+<div style="flex:1"></div>
+<div id="menu" class="s" style="position:absolute; right:16px; bottom:16px; width:220px; background:#1A1C22; border:1px solid #2C2F37; border-radius:28px; padding:8px; display:flex; flex-direction:column; gap:6px; transform-origin:bottom right; transform:scale(.24); opacity:0; pointer-events:none; z-index:3">
+<span style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:999px; background:#2C2F37; font-size:14px"><i class="ti ti-shopping-cart" style="font-size:18px; color:#C8F25A"></i>Покупка</span>
+<span style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:999px; font-size:14px"><i class="ti ti-calendar" style="font-size:18px; color:#C8F25A"></i>Ежемесячный платёж</span>
+<button id="mclose" style="background:#C8F25A; color:#1A2300; border:0; border-radius:999px; padding:11px; font-size:14px; font-weight:600; cursor:pointer">Закрыть</button>
+</div>
+<div style="display:flex; align-items:center; gap:10px">
+<div style="flex:1; position:relative; background:#1A1C22; border:1px solid #2C2F37; border-radius:999px; padding:6px; display:grid; grid-template-columns:repeat(4,1fr)">
+<span id="tbp" class="e" style="position:absolute; top:6px; bottom:6px; left:6px; width:calc((100% - 12px)/4); background:#2C2F37; border-radius:999px"></span>
+<button data-i="0" class="tbb e" style="position:relative; background:none; border:0; color:#F2F3F5; padding:10px 0; cursor:pointer"><i class="ti ti-home" style="font-size:20px"></i></button>
+<button data-i="1" class="tbb e" style="position:relative; background:none; border:0; color:#8B8F98; padding:10px 0; cursor:pointer"><i class="ti ti-list" style="font-size:20px"></i></button>
+<button data-i="2" class="tbb e" style="position:relative; background:none; border:0; color:#8B8F98; padding:10px 0; cursor:pointer"><i class="ti ti-calendar" style="font-size:20px"></i></button>
+<button data-i="3" class="tbb e" style="position:relative; background:none; border:0; color:#8B8F98; padding:10px 0; cursor:pointer"><i class="ti ti-users" style="font-size:20px"></i></button>
+</div>
+<button id="fab" class="e" style="width:52px; height:52px; border-radius:50%; background:#C8F25A; color:#1A2300; border:0; display:grid; place-items:center; cursor:pointer"><i class="ti ti-plus" style="font-size:24px"></i></button>
+</div>
+</div>
+<div class="label">1. Tabs and «+»</div>
+<div class="note">The active pill slides between tabs. «+» does NOT rotate: it shrinks and fades (scale .6, opacity 0) while the menu grows out of its bottom-right corner (scale .24 → 1, soft spring). Menu: card bg, card-2 border, radius 28, padding 8. First item is highlighted with a card-2 pill. Every item has a lime icon. The lime pill «Закрыть» closes it. In the real app the tab bar shows the active tab as icon + label (see docs/design/Main.dc.html).</div>
+</div>
+
+<!-- 2. Dynamic-island style sheet (APPROVED v1: width/height grow) -->
+<div>
+<div class="mx" style="align-items:center">
+<div id="isl" style="background:#000; border-radius:22px; width:120px; height:34px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; padding:0 14px; box-sizing:border-box; transition:width .5s var(--s), height .5s var(--s), border-radius .5s var(--e)">
+<div id="islc" style="opacity:0; display:none; flex-direction:column; gap:10px; transition:opacity .25s var(--e)">
+<div style="display:flex; justify-content:space-between; align-items:center"><span style="font-size:14px; font-weight:600">Magnum</span><span style="font-size:17px; font-weight:700">6 000 ₸</span></div>
+<div style="display:flex; gap:6px"><button id="islok" style="flex:1; background:#C8F25A; color:#1A2300; border:0; border-radius:999px; padding:9px; font-size:13px; font-weight:600; cursor:pointer">Общее · по 1 500</button><span style="background:#2C2F37; border-radius:999px; padding:9px 14px; font-size:13px">Моё</span></div>
+</div>
+<div id="isld" style="display:none; opacity:0; align-items:center; gap:8px; justify-content:center; transition:opacity .25s var(--e)"><span style="width:20px; height:20px; border-radius:50%; background:#C8F25A; color:#1A2300; display:grid; place-items:center"><i class="ti ti-check" style="font-size:14px"></i></span><span style="font-size:12px">Поделено</span></div>
+</div>
+<div style="flex:1"></div>
+<button class="go" id="islgo">Оплатить Apple Pay</button>
+</div>
+<div class="label">2. Purchase "island" sheet (v1, approved)</div>
+<div class="note">It grows from a small black pill into a wide card (width and height, soft spring), and the content fades in after it opens. After «Общее» it shrinks back to a pill with a check and «Поделено». The scale-based v2 was REJECTED. In the PWA, emulate this growth with transform scale on an outer wrapper plus counter-scaled content, or with the motion layout animation. The visible result must look like this.</div>
+</div>
+
+<!-- 3. Netting -->
+<div>
+<div class="mx">
+<div style="display:grid; grid-template-columns:40px 1fr 40px; align-items:center; gap:10px">
+<span style="width:40px; height:40px; border-radius:50%; background:#C8F25A; color:#1A2300; display:grid; place-items:center; font-weight:600">Е</span>
+<div style="position:relative; height:64px">
+<div id="oa" class="e" style="position:absolute; left:0; right:0; top:18px; display:flex; flex-direction:column; align-items:center">
+<span id="ol" style="font-size:14px; font-weight:700; color:#FF8A5B; position:absolute; top:-18px">2 000 ₸</span>
+<div style="width:100%; height:3px; background:#FF8A5B; border-radius:2px; position:relative"><span style="position:absolute; right:-2px; top:-4px; border-left:8px solid #FF8A5B; border-top:5.5px solid transparent; border-bottom:5.5px solid transparent"></span></div>
+</div>
+<div id="la" class="e" style="position:absolute; left:0; right:0; top:42px; display:flex; flex-direction:column; align-items:center">
+<div style="width:100%; height:3px; background:#C8F25A; border-radius:2px; position:relative"><span style="position:absolute; left:-2px; top:-4px; border-right:8px solid #C8F25A; border-top:5.5px solid transparent; border-bottom:5.5px solid transparent"></span></div>
+<span style="font-size:14px; font-weight:700; color:#C8F25A; margin-top:4px">1 800 ₸</span>
+</div>
+</div>
+<span style="width:40px; height:40px; border-radius:50%; background:#2F5D8A; display:grid; place-items:center; font-weight:600">А</span>
+</div>
+<div style="background:#1A1C22; border:1px solid #2C2F37; border-radius:999px; padding:12px; display:flex; justify-content:center; align-items:center; gap:10px">
+<span style="font-size:13px; color:#8B8F98">Перевести Айдосу</span><span id="nr" class="s" style="font-size:26px; font-weight:700; display:inline-block">2 000 ₸</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center"><button class="go" id="netgo">Посчитать</button><span id="cap" class="e" style="font-size:12px; color:#8B8F98; opacity:0">Один перевод вместо двух</span></div>
+</div>
+<div class="label">3. Netting</div>
+<div class="note">The lime arrow slides up onto the orange arrow and dissolves. One arrow Е → А remains, its label and the total count down 2 000 → 200 ₸, and the total turns lime with a slight pop.</div>
+</div>
+
+<!-- 4. Получил -->
+<div>
+<div class="mx">
+<div style="display:flex; align-items:center; gap:10px"><div style="flex:1; height:6px; border-radius:3px; background:#2C2F37; overflow:hidden"><div id="pb" class="e" style="width:100%; height:100%; background:#C8F25A; transform-origin:left; transform:scaleX(.66)"></div></div><span id="pbl" class="e" style="font-size:12px; color:#8B8F98">2 из 3</span></div>
+<div style="position:relative; background:#1A1C22; border:1px solid #2C2F37; border-radius:999px; padding:6px; display:flex; align-items:center; gap:10px">
+<span style="width:40px; height:40px; border-radius:50%; background:#8A5A2F; display:grid; place-items:center; font-weight:600">Д</span>
+<div style="flex:1; display:flex; flex-direction:column"><span style="font-size:14px">Даня</span><span id="dst" class="e" style="font-size:12px; color:#FF8A5B">отметил «оплатил»</span></div>
+<button id="okb" class="e" style="background:#C8F25A; color:#1A2300; border:0; border-radius:999px; padding:10px 14px; font-size:13px; font-weight:600; cursor:pointer; min-width:84px">Получил</button>
+<span id="okc" class="s" style="position:absolute; right:6px; width:40px; height:40px; border-radius:50%; background:#C8F25A; color:#1A2300; display:grid; place-items:center; transform:scale(.4); opacity:0"><i class="ti ti-check" style="font-size:20px"></i></span>
+</div>
+<button class="go" id="okreset">Сначала</button>
+</div>
+<div class="label">4. «Получил»</div>
+<div class="note">The button shrinks into a lime ✓ circle and the progress bar fills to 100% with "все скинули". No confetti.</div>
+</div>
+
+<!-- 5. Card stack -->
+<div>
+<div class="mx" style="align-items:center; justify-content:center">
+<div id="stk" style="position:relative; width:240px; height:150px; cursor:pointer"></div>
+<span class="note">Tap the card</span>
+</div>
+<div class="label">5. Card stack</div>
+<div class="note">The front card slides down and back, and the next card comes forward. Card colors: Квартира lime, Дача orange, Поездка periwinkle #B8C4FF (on #141A3A).</div>
+</div>
+
+</div>
+<script>
+(function(){
+const tbp=document.getElementById('tbp');const tbbs=[...document.querySelectorAll('.tbb')];
+tbbs.forEach(b=>b.onclick=()=>{const i=+b.dataset.i;tbp.style.transform='translateX('+(i*100)+'%)';tbbs.forEach((x,j)=>x.style.color=j===i?'#F2F3F5':'#8B8F98');});
+const fab=document.getElementById('fab'),menu=document.getElementById('menu');
+fab.onclick=()=>{fab.style.transform='scale(.6)';fab.style.opacity='0';menu.style.transform='scale(1)';menu.style.opacity='1';menu.style.pointerEvents='auto';};
+document.getElementById('mclose').onclick=()=>{menu.style.transform='scale(.24)';menu.style.opacity='0';menu.style.pointerEvents='none';fab.style.transform='scale(1)';fab.style.opacity='1';};
+const isl=document.getElementById('isl'),c=document.getElementById('islc'),d=document.getElementById('isld');let ib=false;
+document.getElementById('islgo').onclick=()=>{if(ib)return;ib=true;d.style.opacity=0;setTimeout(()=>{d.style.display='none';isl.style.width='100%';isl.style.height='110px';isl.style.borderRadius='32px';c.style.display='flex';setTimeout(()=>{c.style.opacity=1;ib=false;},220);},120);};
+document.getElementById('islok').onclick=()=>{if(ib)return;ib=true;c.style.opacity=0;setTimeout(()=>{c.style.display='none';isl.style.width='150px';isl.style.height='34px';isl.style.borderRadius='22px';d.style.display='flex';setTimeout(()=>{d.style.opacity=1;ib=false;},280);},200);};
+const oa=document.getElementById('oa'),la=document.getElementById('la'),ol=document.getElementById('ol'),nr=document.getElementById('nr'),cap=document.getElementById('cap');
+const fmt=v=>v.toLocaleString('ru-RU')+' ₸';
+const count=(el,from,to,ms,done)=>{const t0=performance.now();const f=t=>{const p=Math.min(1,(t-t0)/ms);const e=1-Math.pow(1-p,4);el.textContent=fmt(Math.round(from+(to-from)*e));p<1?requestAnimationFrame(f):done&&done();};requestAnimationFrame(f);};
+let busy=false;
+document.getElementById('netgo').onclick=()=>{if(busy)return;busy=true;la.style.transition='none';la.style.transform='none';la.style.opacity=1;oa.style.transform='none';ol.textContent='2 000 ₸';nr.textContent='2 000 ₸';nr.style.color='#F2F3F5';nr.style.transform='scale(1)';cap.style.opacity=0;
+requestAnimationFrame(()=>{la.style.transition='';requestAnimationFrame(()=>{la.style.transform='translateY(-24px)';setTimeout(()=>{la.style.opacity=0;oa.style.transform='translateY(4px)';count(ol,2000,200,800);count(nr,2000,200,800,()=>{nr.style.color='#C8F25A';nr.style.transform='scale(1.08)';setTimeout(()=>nr.style.transform='scale(1)',260);cap.style.opacity=1;busy=false;});},420);});});};
+const pb=document.getElementById('pb'),pbl=document.getElementById('pbl'),okb=document.getElementById('okb'),okc=document.getElementById('okc'),dst=document.getElementById('dst');
+okb.onclick=()=>{okb.style.transform='scale(.5)';okb.style.opacity=0;setTimeout(()=>{okc.style.transform='scale(1)';okc.style.opacity=1;},120);pb.style.transform='scaleX(1)';pbl.textContent='все скинули';pbl.style.color='#C8F25A';dst.textContent='получено';dst.style.color='#8B8F98';};
+document.getElementById('okreset').onclick=()=>{okc.style.transform='scale(.4)';okc.style.opacity=0;setTimeout(()=>{okb.style.transform='scale(1)';okb.style.opacity=1;},100);pb.style.transform='scaleX(.66)';pbl.textContent='2 из 3';pbl.style.color='#8B8F98';dst.textContent='отметил «оплатил»';dst.style.color='#FF8A5B';};
+const stk=document.getElementById('stk');const cards=[['Квартира 42','+7 550 ₸','#C8F25A','#1A2300'],['Дача','−1 200 ₸','#FF8A5B','#2B0E02'],['Поездка','+3 400 ₸','#B8C4FF','#141A3A']];let order=[0,1,2];
+const els=cards.map(cc=>{const e=document.createElement('div');e.style.cssText='position:absolute;left:0;right:0;bottom:0;height:120px;border-radius:22px;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;background:'+cc[2]+';color:'+cc[3]+';transition:transform .6s cubic-bezier(.22,1,.36,1),filter .6s cubic-bezier(.22,1,.36,1)';e.innerHTML='<span style="font-size:13px;font-weight:600">'+cc[0]+'</span><span style="font-size:28px;font-weight:700">'+cc[1]+'</span>';stk.appendChild(e);return e;});
+const lay=()=>order.forEach((ci,pos)=>{const e=els[ci];e.style.zIndex=10-pos;e.style.transform='translateY('+(-pos*14)+'px) scale('+(1-pos*0.06)+')';e.style.filter=pos?'brightness('+(1-pos*0.25)+')':'none';});lay();
+let sb=false;stk.onclick=()=>{if(sb)return;sb=true;const f=els[order[0]];f.style.transform='translateY(36px) scale(.94)';setTimeout(()=>{order.push(order.shift());lay();setTimeout(()=>sb=false,400);},220);};
+})();
+</script>
+</body>
+</html>

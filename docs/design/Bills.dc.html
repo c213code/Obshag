@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Ежемесячно</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-amount{font-family:var(--font-num);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+.bar{background:rgba(26,28,34,0.94);border:1px solid var(--card-2);border-radius:999px;padding:6px;display:flex;align-items:center;gap:6px}
+.pill{border:0;border-radius:999px;padding:10px 16px;font-family:var(--font);font-size:13px;font-weight:600;background:transparent;color:var(--muted);text-decoration:none}
+.pill.on{background:var(--card-2);color:var(--text)}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--card-2);color:var(--text);display:grid;place-items:center;border:0;flex-shrink:0}
+.fab{width:58px;height:58px;border-radius:50%;background:var(--lime);color:var(--on-lime);display:grid;place-items:center;flex-shrink:0}
+.bill{background:var(--card);border:1px solid #23262D;border-radius:28px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.track{flex-grow:1;height:6px;border-radius:3px;background:var(--card-2);overflow:hidden}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--text); font-family: var(--font); display: flex; flex-direction: column; padding: 54px 20px 0; gap: 16px; overflow: hidden; position: relative">
+
+  <div style="display: flex; justify-content: space-between; align-items: center">
+    <div class="bar" style="padding-right: 20px">
+      <a href="Main.dc.html" class="circ" aria-label="Назад"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <h1 class="t-headline" style="margin: 0">Ежемесячно</h1>
+    </div>
+    <div class="bar"><span class="pill on">ноябрь</span></div>
+  </div>
+
+  <div class="bar" style="padding: 6px">
+    <div style="flex: 1; padding: 8px 14px; display: flex; flex-direction: column"><span class="t-caption">Всего</span><span class="t-amount">236 000 ₸</span></div>
+    <div style="flex: 1; background: var(--lime); color: var(--on-lime); border-radius: 999px; padding: 8px 18px; display: flex; flex-direction: column"><span class="t-label">Твоя доля</span><span class="t-amount">59 000 ₸</span></div>
+  </div>
+
+  <div class="bill">
+    <div style="display: flex; align-items: center; gap: 12px"><span class="ic" style="background: var(--lime-soft); color: var(--lime)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-headline">Аренда</span><span class="t-caption">1 числа · платит Ерасыл</span></div><span class="t-amount">180 000</span></div>
+    <div style="display: flex; align-items: center; gap: 12px"><div class="track"><div style="width: 100%; height: 100%; background: var(--lime)"></div></div><span class="t-label" style="color: var(--lime)">все скинули</span></div>
+  </div>
+
+  <div class="bill" style="border-color: #5A3A28">
+    <div style="display: flex; align-items: center; gap: 12px"><span class="ic" style="background: #3A2318; color: var(--orange)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span><div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-headline">Коммуналка</span><span class="t-caption" style="color: var(--orange)">нужна сумма</span></div><button type="button" style="background: var(--orange); color: var(--on-orange); border: 0; border-radius: 999px; padding: 10px 16px; font-family: var(--font); font-size: 13px; font-weight: 600">Ввести</button></div>
+  </div>
+
+  <div class="bill">
+    <div style="display: flex; align-items: center; gap: 12px"><span class="ic" style="background: #1E2A3A; color: #7FB2FF"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg></span><div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-headline">Интернет</span><span class="t-caption">5 числа · платит Айдос</span></div><span class="t-amount">8 000</span></div>
+    <div style="display: flex; align-items: center; gap: 12px"><div class="track"><div style="width: 66%; height: 100%; background: var(--lime)"></div></div><span class="t-label" style="color: var(--muted)">2 из 3</span></div>
+  </div>
+
+  <div style="position: absolute; left: 20px; right: 20px; bottom: 28px; display: flex; align-items: center; gap: 12px">
+    <div class="bar" style="flex-grow: 1; height: 58px; box-sizing: border-box; padding-left: 20px"><span class="t-caption" style="flex-grow: 1">1-го числа делю всё на 4</span></div>
+    <button type="button" class="fab" aria-label="Добавить платёж" style="border: 0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

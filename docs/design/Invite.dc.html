@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Квартира</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-display{font-family:var(--font-num);font-size:40px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+.bar{background:rgba(26,28,34,0.94);border:1px solid var(--card-2);border-radius:999px;padding:6px;display:flex;align-items:center;gap:6px}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--card-2);color:var(--text);display:grid;place-items:center;border:0;flex-shrink:0}
+.prow{background:var(--card);border:1px solid #23262D;border-radius:999px;padding:6px 16px 6px 6px;display:flex;align-items:center;gap:12px}
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:600;flex-shrink:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--text); font-family: var(--font); display: flex; flex-direction: column; padding: 54px 20px 30px; gap: 14px; overflow: hidden">
+
+  <div class="bar" style="align-self: flex-start; padding-right: 20px">
+    <a href="Main.dc.html" class="circ" aria-label="Назад"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <h1 class="t-headline" style="margin: 0">Квартира 42</h1>
+  </div>
+
+  <div style="background: var(--lime); color: var(--on-lime); border-radius: 28px; padding: 20px; display: flex; flex-direction: column; gap: 12px; position: relative; overflow: hidden">
+    <svg style="position: absolute; right: -40px; top: -40px" width="170" height="170" viewBox="0 0 170 170" aria-hidden="true"><circle cx="85" cy="85" r="76" fill="none" stroke="#1A2300" stroke-opacity="0.08" stroke-width="20"/></svg>
+    <span class="t-label" style="position: relative">Код приглашения</span>
+    <span class="t-display" style="letter-spacing: 0.04em; position: relative">7KQ-29P</span>
+    <div style="display: flex; gap: 8px; background: rgba(26,35,0,0.08); border-radius: 999px; padding: 5px; position: relative">
+      <button type="button" style="flex: 1; background: var(--on-lime); color: var(--lime); border: 0; border-radius: 999px; padding: 12px; font-family: var(--font); font-size: 15px; font-weight: 600">Поделиться</button>
+      <button type="button" style="background: transparent; color: var(--on-lime); border: 0; border-radius: 999px; padding: 12px 20px; font-family: var(--font); font-size: 15px; font-weight: 600">QR</button>
+    </div>
+  </div>
+
+  <span class="t-headline" style="padding: 4px 6px 0">Соседи</span>
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div class="prow"><span class="av" style="background: var(--lime); color: var(--on-lime)">Е</span><div style="display: flex; flex-direction: column"><span class="t-body">Ерасыл (ты)</span><span class="t-caption">админ</span></div></div>
+    <div class="prow"><span class="av" style="background: #2F5D8A">А</span><div style="display: flex; flex-direction: column"><span class="t-body">Айдос</span><span class="t-caption">Kaspi есть</span></div></div>
+    <div class="prow" style="border-color: #5A3A28"><span class="av" style="background: #8A5A2F">Д</span><div style="display: flex; flex-direction: column"><span class="t-body">Даня</span><span class="t-caption" style="color: var(--orange)">нет номера Kaspi</span></div></div>
+    <div class="prow"><span class="av" style="background: #6B4C8A">Н</span><div style="display: flex; flex-direction: column"><span class="t-body">Нурик</span><span class="t-caption">в отъезде до 14.11</span></div></div>
+  </div>
+
+  <div class="prow" style="padding-left: 20px; margin-top: 4px"><div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-body">Напоминания</span><span class="t-caption">каждый день в 19:00</span></div><span role="switch" aria-checked="true" aria-label="Напоминания" style="width: 50px; height: 30px; border-radius: 15px; background: var(--lime); position: relative; flex-shrink: 0"><span style="position: absolute; right: 3px; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--on-lime)"></span></span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

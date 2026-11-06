@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Рассчитаться с Айдосом</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-display{font-family:var(--font-num);font-size:40px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.t-amount{font-family:var(--font-num);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+.bar{background:rgba(26,28,34,0.94);border:1px solid var(--card-2);border-radius:999px;padding:6px;display:flex;align-items:center;gap:6px}
+.pill{border:0;border-radius:999px;padding:13px 18px;font-family:var(--font);font-size:15px;font-weight:600;background:transparent;color:var(--muted);text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px}
+.pill.on{background:var(--card-2);color:var(--text)}
+.pill.lime{background:var(--lime);color:var(--on-lime)}
+.circ{width:44px;height:44px;border-radius:50%;background:var(--card-2);color:var(--text);display:grid;place-items:center;border:0;flex-shrink:0}
+.card{background:var(--card);border:1px solid #23262D;border-radius:28px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: var(--bg); color: var(--text); font-family: var(--font); display: flex; flex-direction: column; padding: 54px 20px 0; gap: 16px; overflow: hidden; position: relative">
+
+  <div class="bar" style="align-self: flex-start; padding-right: 20px">
+    <a href="Main.dc.html" class="circ" aria-label="Назад"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <h1 class="t-headline" style="margin: 0">Расчёт с Айдосом</h1>
+  </div>
+
+  <div class="card" style="padding: 20px 16px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: grid; grid-template-columns: 60px 1fr 60px; align-items: center">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span class="t-headline" style="width: 52px; height: 52px; border-radius: 50%; background: var(--lime); color: var(--on-lime); display: grid; place-items: center">Е</span><span class="t-label">Ты</span></div>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 6px">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px"><span class="t-amount" style="font-size: 17px; color: var(--orange)">2 000 ₸</span><svg width="100%" height="12" viewBox="0 0 160 12" preserveAspectRatio="none" aria-hidden="true"><path d="M2 6h150" stroke="#FF8A5B" stroke-width="2.5" fill="none"/><path d="M148 1l8 5-8 5" fill="#FF8A5B"/></svg></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px"><svg width="100%" height="12" viewBox="0 0 160 12" preserveAspectRatio="none" aria-hidden="true"><path d="M8 6h150" stroke="#C8F25A" stroke-width="2.5" fill="none"/><path d="M12 1 4 6l8 5" fill="#C8F25A"/></svg><span class="t-amount" style="font-size: 17px; color: var(--lime)">1 800 ₸</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span class="t-headline" style="width: 52px; height: 52px; border-radius: 50%; background: #2F5D8A; display: grid; place-items: center">А</span><span class="t-label">Айдос</span></div>
+    </div>
+    <div style="background: var(--bg); border: 1px solid #23262D; border-radius: 999px; padding: 14px 20px; display: flex; align-items: baseline; justify-content: center; gap: 8px">
+      <span class="t-amount" style="color: var(--orange)">2 000</span><span class="t-amount" style="color: var(--muted)">−</span><span class="t-amount" style="color: var(--lime)">1 800</span><span class="t-amount" style="color: var(--muted)">=</span><span class="t-display" style="font-size: 34px">200 ₸</span>
+    </div>
+    <span class="t-caption" style="text-align: center">Один перевод вместо двух</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+    <div class="card" style="border-radius: 20px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+      <span class="t-label" style="color: var(--orange)">Ты → Айдосу</span>
+      <div class="t-body" style="display: flex; justify-content: space-between"><span>Хлеб, яйца</span><span>600</span></div>
+      <div class="t-body" style="display: flex; justify-content: space-between"><span>Интернет</span><span>1 400</span></div>
+    </div>
+    <div class="card" style="border-radius: 20px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+      <span class="t-label" style="color: var(--lime)">Айдос → тебе</span>
+      <div class="t-body" style="display: flex; justify-content: space-between"><span>Картошка</span><span>1 500</span></div>
+      <div class="t-body" style="display: flex; justify-content: space-between"><span>Вода</span><span>300</span></div>
+    </div>
+  </div>
+
+  <div class="bar" style="padding: 6px 6px 6px 20px">
+    <div style="display: flex; flex-direction: column; flex-grow: 1"><span class="t-caption">Kaspi Айдоса</span><span class="t-headline" style="font-variant-numeric: tabular-nums">+7 7•• ••• 45 67</span></div>
+    <span class="pill on" style="padding: 10px 14px; font-size: 13px; color: var(--lime)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>скопирован</span>
+  </div>
+
+  <div class="bar" style="position: absolute; left: 20px; right: 20px; bottom: 28px">
+    <a href="Main.dc.html" class="pill on">Я оплатил</a>
+    <a href="Main.dc.html" class="pill lime" style="flex-grow: 1">Перевести 200 ₸<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

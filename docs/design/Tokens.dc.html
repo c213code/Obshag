@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Токены</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+:root{--bg:#0E0F13;--card:#1A1C22;--card-2:#2C2F37;--text:#F2F3F5;--muted:#8B8F98;--lime:#C8F25A;--on-lime:#1A2300;--lime-soft:#2A2D1A;--orange:#FF8A5B;--on-orange:#2B0E02;--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--font-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif}
+.t-display{font-family:var(--font-num);font-size:40px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.t-amount{font-family:var(--font-num);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.t-title{font-size:22px;font-weight:700;letter-spacing:-0.01em;margin:0}
+.t-headline{font-size:17px;font-weight:600}
+.t-body{font-size:15px;font-weight:400}
+.t-caption{font-size:13px;color:var(--muted)}
+.t-label{font-size:12px;font-weight:500}
+</style>
+</helmet>
+<div style="width: 880px; height: 844px; box-sizing: border-box; background: #0E0F13; color: #F2F3F5; font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif; padding: 40px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+
+  <div style="display: flex; flex-direction: column; gap: 18px">
+    <h1 class="t-title">Текст · SF Pro</h1>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">display · Rounded 40 / Bold</span><span class="t-display">+7 550 ₸</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">title · 22 / Bold</span><span class="t-title">Рассчитаться</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">amount · Rounded 20 / Bold</span><span class="t-amount">6 000 ₸</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">headline · 17 / Semibold</span><span class="t-headline">Последние покупки</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">body · 15 / Regular</span><span class="t-body">Хлеб, картошка, лук</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">caption · 13 / Regular, muted</span><span class="t-caption">Magnum · ты · 18:40</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><span class="t-label" style="color: #8B8F98">label · 12 / Medium</span><span class="t-label">2 из 3 скинули</span></div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 22px">
+    <h2 class="t-title">Цвета</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #0E0F13; border: 1px solid #2C2F37"></span><span class="t-label">bg</span><span class="t-caption">#0E0F13</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #1A1C22"></span><span class="t-label">card</span><span class="t-caption">#1A1C22</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #2C2F37"></span><span class="t-label">card-2</span><span class="t-caption">#2C2F37</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #8B8F98"></span><span class="t-label">muted</span><span class="t-caption">#8B8F98</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #F2F3F5"></span><span class="t-label">text</span><span class="t-caption">#F2F3F5</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #C8F25A"></span><span class="t-label">lime</span><span class="t-caption">#C8F25A</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #1A2300; border: 1px solid #2C2F37"></span><span class="t-label">on-lime</span><span class="t-caption">#1A2300</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="height: 52px; border-radius: 12px; background: #FF8A5B"></span><span class="t-label">orange</span><span class="t-caption">#FF8A5B</span></div>
+    </div>
+
+    <h2 class="t-title">Отступы</h2>
+    <div style="display: flex; align-items: flex-end; gap: 14px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 4px; height: 4px; background: #C8F25A"></span><span class="t-caption">4</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; background: #C8F25A"></span><span class="t-caption">8</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; background: #C8F25A"></span><span class="t-caption">12</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 16px; height: 16px; background: #C8F25A"></span><span class="t-caption">16</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 24px; height: 24px; background: #C8F25A"></span><span class="t-caption">24</span></div>
+    </div>
+
+    <h2 class="t-title">Скругления</h2>
+    <div style="display: flex; gap: 12px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 44px; background: #1A1C22; border-radius: 12px"></span><span class="t-caption">sm 12</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 44px; background: #1A1C22; border-radius: 20px"></span><span class="t-caption">md 20</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 44px; background: #1A1C22; border-radius: 28px"></span><span class="t-caption">lg 28</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 64px; height: 44px; background: #1A1C22; border-radius: 999px"></span><span class="t-caption">pill</span></div>
+    </div>
+
+    <h2 class="t-title">Капсулы</h2>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div style="flex-grow: 1; background: rgba(26,28,34,0.94); border: 1px solid #2C2F37; border-radius: 999px; padding: 6px; display: flex; gap: 6px">
+        <span style="background: #2C2F37; border-radius: 999px; padding: 12px 16px; font-size: 15px; font-weight: 600">Активная</span>
+        <span style="border-radius: 999px; padding: 12px 16px; font-size: 15px; font-weight: 600; color: #8B8F98">Обычная</span>
+        <span style="flex-grow: 1; background: #C8F25A; color: #1A2300; border-radius: 999px; padding: 12px 16px; font-size: 15px; font-weight: 600; text-align: center">Главная</span>
+      </div>
+      <span style="width: 58px; height: 58px; border-radius: 50%; background: #C8F25A; color: #1A2300; display: grid; place-items: center; font-size: 28px; font-weight: 500">+</span>
+    </div>
+    <span class="t-caption">bar: фон card 94%, обводка card-2, pill внутри · fab: лаймовый круг 58</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
