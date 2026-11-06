@@ -14,3 +14,8 @@ export function formatTenge(value: number, options: FormatTengeOptions = {}): st
   const prefix = rounded < 0 ? MINUS : options.sign && rounded > 0 ? "+" : "";
   return `${prefix}${digits}${NBSP}₸`;
 }
+
+/** "6 000" without the currency sign. */
+export function formatNumber(value: number): string {
+  return formatTenge(value).replace(/ ₸$/, "");
+}

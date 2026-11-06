@@ -1,7 +1,7 @@
 import { cx } from "./cx";
 
 export type AvatarColor = "blue" | "brown" | "purple" | "me";
-export type AvatarSize = 26 | 40 | 44 | 52;
+export type AvatarSize = 26 | 32 | 40 | 44 | 52;
 
 const colorClass: Record<AvatarColor, string> = {
   blue: "bg-person-blue text-text",
@@ -12,6 +12,7 @@ const colorClass: Record<AvatarColor, string> = {
 
 const sizeClass: Record<AvatarSize, string> = {
   26: "size-[26px] text-[12px]",
+  32: "size-[32px] text-[13px]",
   40: "size-[40px] text-[15px]",
   44: "size-[44px] text-[17px]",
   52: "size-[52px] text-[20px]",

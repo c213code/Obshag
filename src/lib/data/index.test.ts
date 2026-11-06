@@ -13,10 +13,12 @@ describe("createRepo", () => {
     const a = createRepo();
     const b = createRepo();
     expect(a).not.toBe(b);
-    expect((await a.getMe()).display_name).toBe("Ерасыл");
+    await a.verifyOtp("erasyl@obshak.test", "000000");
+    expect((await a.getMe())?.display_name).toBe("Ерасыл");
     await a.createHousehold("Дача");
     expect(await a.listHouseholds()).toHaveLength(2);
-    expect(await b.listHouseholds()).toHaveLength(1);
+    // outside the browser each mock repo has its own memory store
+    expect(await b.getSession()).toBeNull();
   });
 
   it("refuses mock mode in a production build", async () => {
@@ -26,11 +28,15 @@ describe("createRepo", () => {
     expect(() => createRepo()).toThrow(/not allowed in production/);
   });
 
-  it("is not implemented for supabase yet", async () => {
+  it("builds the supabase repo when configured, and fails closed without config", async () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_MODE", "supabase");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
     const { createRepo } = await import("./index");
-    expect(() => createRepo()).toThrow(/slice 1/);
+    expect(typeof createRepo().getSession).toBe("function");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.resetModules();
+    const again = await import("./index");
+    expect(() => again.createRepo()).toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
   });
 });

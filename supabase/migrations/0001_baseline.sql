@@ -67,9 +67,9 @@ create table public.purchases (
   id           uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
   payer_id     uuid not null,
-  amount       integer not null check (amount > 0),
-  description  text not null default '',
-  merchant     text,
+  amount       integer not null check (amount > 0 and amount <= 10000000),
+  description  text not null check (char_length(description) between 1 and 200),
+  merchant     text check (char_length(merchant) <= 120),
   source       text not null default 'manual' check (source in ('apple_pay', 'manual', 'monthly')),
   status       text not null default 'shared' check (status in ('pending', 'shared', 'personal')),
   created_at   timestamptz not null default now(),
@@ -286,8 +286,10 @@ grant select on public.households, public.members, public.shares, public.settlem
 grant select, insert, update (display_name, kaspi_phone, avatar_color) on public.profiles to authenticated;
 grant update (name) on public.households to authenticated;
 grant update (away_until) on public.members to authenticated;
-grant select, insert, delete on public.purchases to authenticated;
-grant update (description, merchant, status) on public.purchases to authenticated;
+-- purchases: NO client insert (rows come from create_purchase_with_shares so the shares always exist and sum up;
+-- bills get their own RPC later). `status` is not client-writable either: it changes through an RPC (slice 4).
+grant select, delete on public.purchases to authenticated;
+grant update (description, merchant) on public.purchases to authenticated;
 grant select, insert, update, delete on public.bills to authenticated;
 grant select, insert, delete on public.push_subscriptions to authenticated;
 -- the token hash is never readable by clients
@@ -329,11 +331,9 @@ create policy members_update_self on public.members for update to authenticated
   using (user_id = (select auth.uid()) and active)
   with check (user_id = (select auth.uid()) and active);
 
--- purchases: personal ones only for the payer; clients write only their own
+-- purchases: personal ones only for the payer; clients edit/delete only their own, and never insert (no grant)
 create policy purchases_select on public.purchases for select to authenticated
   using (private.is_member(household_id) and (status <> 'personal' or payer_id = (select auth.uid())));
-create policy purchases_insert on public.purchases for insert to authenticated
-  with check (private.is_member(household_id) and payer_id = (select auth.uid()));
 create policy purchases_update on public.purchases for update to authenticated
   using (private.is_member(household_id) and payer_id = (select auth.uid()))
   with check (private.is_member(household_id) and payer_id = (select auth.uid()));

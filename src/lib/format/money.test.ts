@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTenge } from "./money";
+import { formatNumber, formatTenge } from "./money";
 
 const NBSP = " ";
 
@@ -32,5 +32,12 @@ describe("formatTenge", () => {
   });
   it("rounds non-integers", () => {
     expect(formatTenge(199.6)).toBe(`200${NBSP}₸`);
+  });
+});
+
+describe("formatNumber", () => {
+  it("formats without the currency sign", () => {
+    expect(formatNumber(6000)).toBe(`6${NBSP}000`);
+    expect(formatNumber(333)).toBe("333");
   });
 });

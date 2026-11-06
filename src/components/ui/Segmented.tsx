@@ -7,7 +7,13 @@ import { Bar } from "./Bar";
 import { cx } from "./cx";
 import { pillClass } from "./Pill";
 
-export type SegmentedOption<T extends string> = { value: T; label: string };
+export type SegmentedOption<T extends string> = {
+  value: T;
+  label: string;
+  disabled?: boolean;
+  /** Small text after the label of a disabled option, e.g. «скоро». */
+  soon?: string;
+};
 
 export function Segmented<T extends string>({
   options,
@@ -35,9 +41,11 @@ export function Segmented<T extends string>({
               key={o.value}
               type="button"
               aria-pressed={active}
+              disabled={o.disabled}
               onClick={() => onChange(o.value)}
               className={cx(
-                pillClass("ghost", "md", "relative flex-1 transition-colors"),
+                pillClass("ghost", "bar", "relative min-w-0 flex-1 transition-colors"),
+                o.disabled && "!opacity-45 cursor-not-allowed",
                 active && (activeVariant === "lime" ? "!text-on-lime" : "!text-text"),
               )}
             >
@@ -50,6 +58,7 @@ export function Segmented<T extends string>({
                 />
               ) : null}
               <span className="relative">{o.label}</span>
+              {o.disabled && o.soon ? <span className="relative text-[11px] font-normal opacity-70">{o.soon}</span> : null}
             </button>
           );
         })}

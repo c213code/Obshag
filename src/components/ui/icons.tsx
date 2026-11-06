@@ -10,7 +10,7 @@ function Svg({ size = 22, children, ...rest }: IconProps & { children: React.Rea
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -24,27 +24,24 @@ function Svg({ size = 22, children, ...rest }: IconProps & { children: React.Rea
 
 export const HomeIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M4 11 12 4l8 7" />
-    <path d="M6 10v9h12v-9" />
+    <path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
   </Svg>
 );
 export const ListIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M9 6h11M9 12h11M9 18h11" />
-    <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+    <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
   </Svg>
 );
 export const CalendarIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-    <path d="M16 3v4M8 3v4M4 11h16M11 15h1M12 15v3" />
+    <rect x="4" y="5" width="16" height="15" rx="2" />
+    <path d="M4 10h16M8 3v4M16 3v4" />
   </Svg>
 );
 export const UsersIcon = (p: IconProps) => (
   <Svg {...p}>
-    <circle cx="9" cy="9" r="3.5" />
-    <path d="M2.5 19c.6-3.2 3.1-5 6.5-5s5.9 1.8 6.5 5" />
-    <path d="M16 5.6a3.5 3.5 0 0 1 0 6.8M18 14.3c1.8.6 3 2 3.5 4.7" />
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 20a6.5 6.5 0 0 0-3-5.5" />
   </Svg>
 );
 export const PlusIcon = (p: IconProps) => (
@@ -57,6 +54,20 @@ export const BackIcon = (p: IconProps) => (
     <path d="m15 5-7 7 7 7" />
   </Svg>
 );
+export const CloseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Svg>
+);
+/** Basket tile icon from Main.dc.html (recent purchases). */
+export const BasketIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6h15l-1.5 9h-12z" />
+    <path d="M6 6 5 3H2" />
+    <circle cx="9" cy="20" r="1.5" />
+    <circle cx="18" cy="20" r="1.5" />
+  </Svg>
+);
 export const CheckIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="m5 12.5 4.5 4.5L19 7.5" />
@@ -64,8 +75,8 @@ export const CheckIcon = (p: IconProps) => (
 );
 export const BellIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" />
-    <path d="M10 21h4" />
+    <path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9" />
+    <path d="M10 20a2 2 0 0 0 4 0" />
   </Svg>
 );
 export const CartIcon = (p: IconProps) => (
@@ -78,8 +89,7 @@ export const CartIcon = (p: IconProps) => (
 );
 export const TransferIcon = (p: IconProps) => (
   <Svg {...p}>
-    <path d="M4 8h15m-4-4 4 4-4 4" />
-    <path d="M20 16H5m4-4-4 4 4 4" />
+    <path d="M7 10h13l-4-4M17 14H4l4 4" />
   </Svg>
 );
 export const ExternalIcon = (p: IconProps) => (
@@ -101,6 +111,7 @@ export const icons = {
   users: UsersIcon,
   plus: PlusIcon,
   back: BackIcon,
+  close: CloseIcon,
   check: CheckIcon,
   bell: BellIcon,
   cart: CartIcon,
@@ -110,3 +121,9 @@ export const icons = {
 } as const;
 
 export type IconName = keyof typeof icons;
+export const KeyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="m11 12 9-9M16 7l3 3M14 9l2 2" />
+  </Svg>
+);

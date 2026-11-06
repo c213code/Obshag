@@ -16,12 +16,13 @@ type FabProps = Omit<HTMLMotionProps<"button">, "children" | "aria-label" | "ref
 /** 58px lime circle. Never rotates: it only scales (press .94, hidden .6) and fades. */
 export function Fab({ className, children, hidden = false, ref, ...rest }: FabProps) {
   const { reduced } = useReducedMotionSafe();
+  const shown = hidden ? 0 : rest.disabled ? 0.4 : 1;
   return (
     <motion.button
       ref={ref}
       type="button"
-      whileTap={hidden || reduced ? undefined : { scale: 0.94 }}
-      animate={reduced ? { opacity: hidden ? 0 : 1 } : { scale: hidden ? 0.6 : 1, opacity: hidden ? 0 : 1 }}
+      whileTap={hidden || reduced || rest.disabled ? undefined : { scale: 0.94 }}
+      animate={reduced ? { opacity: shown } : { scale: hidden ? 0.6 : 1, opacity: shown }}
       transition={
         reduced
           ? { duration: 0.2, ease: "linear" }

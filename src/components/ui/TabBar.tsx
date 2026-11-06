@@ -46,12 +46,15 @@ export function TabBar({
   onAction,
   tabs = defaultTabs,
   position = "fixed",
+  soonActions = [],
 }: {
   value: TabId;
   onChange?: (id: TabId) => void;
   onAction?: (action: FabAction) => void;
   tabs?: ReadonlyArray<TabDef>;
   position?: "fixed" | "static";
+  /** Menu actions whose screen does not exist yet: shown disabled with a «скоро» badge, skipped by the arrow keys. */
+  soonActions?: ReadonlyArray<FabAction>;
 }) {
   const group = useId();
   const pathname = usePathname();
@@ -61,6 +64,7 @@ export function TabBar({
   const fabRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
 
+  const monthlySoon = soonActions.includes("monthly");
   const activeId = tabs.find((t) => t.href && isHrefActive(pathname, t.href))?.id ?? value;
 
   const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[data-menu-focus]") ?? []);
@@ -121,22 +125,23 @@ export function TabBar({
       <div
         className={cx(
           position === "fixed" &&
-            "fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(env(safe-area-inset-bottom),16px)]",
+            "fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(env(safe-area-inset-bottom),28px)]",
         )}
       >
         <div
           className={cx(
-            "relative flex items-center justify-between gap-[10px]",
-            position === "fixed" ? "w-full max-w-[390px] px-4" : "w-full",
+            "relative flex items-center justify-between gap-3",
+            position === "fixed" ? "w-full max-w-[390px] px-5" : "w-full",
           )}
         >
           <LayoutGroup id={group}>
-            <nav aria-label={ru.nav.label} className="min-w-0">
-              <Bar>
+            <nav aria-label={ru.nav.label} className="min-w-0 flex-1">
+              <Bar className="justify-between">
                 {tabs.map((tab) => {
                   const active = tab.id === activeId;
                   const cls = cx(
-                    "relative inline-flex h-11 items-center justify-center gap-2 rounded-pill px-3 whitespace-nowrap",
+                    "relative inline-flex h-11 items-center justify-center gap-2 rounded-pill whitespace-nowrap",
+                    active ? "px-4" : "px-[10px]",
                     "text-label transition-colors duration-200 ease-smooth active:scale-[0.97]",
                     active ? "text-text" : "text-muted",
                   );
@@ -200,7 +205,7 @@ export function TabBar({
             tabIndex={menuOpen ? -1 : 0}
             onClick={() => setMenuOpen(true)}
           >
-            <PlusIcon size={26} />
+            <PlusIcon size={26} strokeWidth={2.4} />
           </Fab>
 
           <motion.div
@@ -214,7 +219,7 @@ export function TabBar({
             onKeyDown={onMenuKeyDown}
             style={{ transformOrigin: "bottom right" }}
             className={cx(
-              "absolute right-4 bottom-0 z-10 flex w-[220px] flex-col gap-[6px] rounded-lg border border-card-2 bg-card p-2",
+              "absolute right-5 bottom-0 z-10 flex w-[220px] flex-col gap-[6px] rounded-lg border border-card-2 bg-card p-2",
               // reduced motion: fade only, even before hydration knows the preference
               "motion-reduce:transform-none!",
               !menuOpen && "pointer-events-none",
@@ -233,12 +238,18 @@ export function TabBar({
             <button
               type="button"
               role="menuitem"
-              data-menu-focus
-              className={menuItem}
+              data-menu-focus={monthlySoon ? undefined : ""}
+              disabled={monthlySoon}
+              className={cx(menuItem, monthlySoon && "cursor-not-allowed text-muted")}
               onClick={() => choose("monthly")}
             >
-              <CalendarIcon size={18} className="text-lime" />
+              <CalendarIcon size={18} className={monthlySoon ? "text-muted" : "text-lime"} />
               {ru.nav.addMonthly}
+              {monthlySoon ? (
+                <span className="ml-auto rounded-pill bg-card-2 px-[7px] py-[2px] text-[10px] leading-[12px] font-medium text-muted">
+                  {ru.main.quick.soon}
+                </span>
+              ) : null}
             </button>
             <button
               type="button"

@@ -1,0 +1,26 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { getPublicEnv } from "@/lib/env/public";
+import { updateSession } from "@/lib/supabase/proxy";
+
+/** Session refresh + anonymous redirect. Mock mode has no server session, so it passes through. */
+export async function proxy(request: NextRequest) {
+  // A malformed %-escape (/join/%E0%A4%A) would make Next's own route matching answer with a bare 500: say 400 instead.
+  try {
+    decodeURIComponent(request.nextUrl.pathname);
+  } catch {
+    return new NextResponse(null, { status: 400 });
+  }
+  const env = getPublicEnv();
+  if (env.NEXT_PUBLIC_DATA_MODE === "mock" || !env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.next();
+  }
+  return updateSession(request, env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+// Everything except Next internals, public assets and the gallery. Exclusions are anchored (`kit(?:/|$)`), so a
+// real route such as /kitchen is still protected, and static files are matched by extension.
+export const config = {
+  matcher: [
+    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|icons(?:/|$)|api/mock-store(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
+  ],
+};

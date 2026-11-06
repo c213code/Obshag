@@ -2,15 +2,25 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+// Supabase REST/Auth (https) and Realtime (wss) origin, when configured.
+const supabaseOrigin = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : null;
+  } catch {
+    return null;
+  }
+})();
+const connectExtra = supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")}` : "";
+
 // CSP for Next.js: hydration needs inline scripts (no nonce pipeline yet) and motion sets inline
-// styles. No external origins yet; slice 1 adds the Supabase origin to connect-src.
+// styles. The only external origin is the Supabase project (connect-src), taken from NEXT_PUBLIC_SUPABASE_URL.
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self'${connectExtra}${isDev ? " ws: wss:" : ""}`,
   "manifest-src 'self'",
   "worker-src 'self'",
   "object-src 'none'",

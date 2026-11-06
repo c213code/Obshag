@@ -1,7 +1,7 @@
 # Общак
 
 PWA для общих расходов: покупки, ежемесячные платежи, расчёты «один перевод вместо двух».
-Сейчас готов slice 0 (каркас): UI-кит, мок-данные, SQL-схема с RLS, тесты.
+Готовы slice 0 (каркас) и slice 1 (вход по коду, квартира, покупка поровну, Главная).
 
 ## Запуск в mock-режиме (без секретов)
 
@@ -11,7 +11,19 @@ npx playwright install webkit   # один раз, для E2E
 NEXT_PUBLIC_DATA_MODE=mock npm run dev
 ```
 
-Откройте http://localhost:3000/kit, там галерея всех компонентов.
+Откройте http://localhost:3000: вход по почте, код всегда `000000`, письмо не уходит.
+Почта `erasyl@obshak.test` входит в демо-квартиру «Квартира 42» (код приглашения `KV42AB7K9M3X`).
+Состояние mock-режима хранится в `localStorage`, перезагрузка его не сбрасывает.
+Галерея компонентов: http://localhost:3000/kit.
+
+## Реальный Supabase
+
+1. Создайте проект, в `.env.local` задайте `NEXT_PUBLIC_DATA_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (см. `.env.example`).
+2. Примените `supabase/migrations/0001_baseline.sql`, затем `0002_slice1_rpcs.sql` (`supabase db push` или SQL Editor).
+3. Authentication → Providers → Email: включить, подтверждение по коду (OTP), шаблон письма «Magic Link» и «Confirm signup» с `{{ .Token }}`;
+   длина кода 6; Site URL = адрес приложения.
+4. Фронтенд ходит напрямую в Supabase: чтение через RLS, запись только через RPC.
 
 ## Скрипты
 
@@ -28,19 +40,24 @@ NEXT_PUBLIC_DATA_MODE=mock npm run dev
 ## Структура
 
 ```
-src/app/             страницы App Router (/ и /kit)
+src/app/(shell)/     экраны: login, onboarding, household, join, (app) = Главная, покупки, квартира
+src/app/kit/         галерея компонентов
+src/proxy.ts         обновление сессии Supabase (в mock-режиме пропускает)
 src/components/ui/   UI-кит: Bar, Pill, Fab, Header, Segmented, ListRow, Avatar, Card,
                      BalanceCard, CardStack, Money, Skeleton, Sheet, BottomActions, TabBar, icons
 src/lib/format/      formatTenge
 src/lib/motion/      кривые, пружины, useReducedMotionSafe, useTapLock
 src/lib/i18n/        ru.ts, весь русский текст
-src/lib/data/        types, Repo, mockRepo, seed
+src/lib/data/        types, Repo, mockRepo, supabaseRepo, seed, контрактный тест
+src/lib/domain/      splitEqual, balance, schemas (zod), guard, summary
+src/lib/supabase/    клиенты (browser, server) и обновление сессии
+src/components/app/  экраны и провайдеры (AppDataProvider, Guard, Toast)
 src/lib/env/public.ts  NEXT_PUBLIC_*; mock в production запрещён (кроме NEXT_PUBLIC_E2E=1)
 src/lib/env/server.ts  секреты, `import "server-only"`
 src/styles/tokens.css  дизайн-токены (единственное место с hex-цветами)
 supabase/migrations/ SQL-схема и RLS
 tests/e2e/           Playwright
-tests/db/            проверка миграции на PGlite
+tests/db/            проверка миграций 0001 и 0002 на PGlite
 docs/                SDD и план
 ```
 

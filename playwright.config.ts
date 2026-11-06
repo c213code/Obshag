@@ -15,6 +15,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/kit`,
     reuseExistingServer: false,
     timeout: 300_000,
-    env: { NEXT_PUBLIC_DATA_MODE: "mock", NEXT_PUBLIC_E2E: "1" },
+    env: { NEXT_PUBLIC_DATA_MODE: "mock", NEXT_PUBLIC_E2E: "1", E2E_ALLOW_MOCK_STORE: "1" },
   },
 });

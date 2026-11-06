@@ -6,24 +6,37 @@ import { ease, useReducedMotionSafe, useTapLock } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { BalanceCard, CARD_HEIGHT, type BalanceCardData } from "./BalanceCard";
 
-const STEP = 20;
-const SCALE_STEP = 0.06;
+/** Main.dc.html: each layer behind peeks out 10px above the one in front and is ~7% narrower. */
+const PEEK = 10;
+const SCALE_STEP = 0.07;
+const STEP = PEEK + SCALE_STEP * CARD_HEIGHT;
 const MAX_DEPTH = 2;
 /** The front card slides down and back this long before the order rotates. */
 const SLIDE_MS = 220;
 const LOCK_MS = 700;
 
 /**
- * 2-3 BalanceCards (approved reference #5). The front card slides down and back, then the
- * next card comes forward. Cards are bottom-anchored; deeper cards sit higher, smaller and
- * darker (a dim overlay, not a filter). Transform + opacity only.
+ * 2-3 BalanceCards (approved reference #5, static look from Main.dc.html). The front card slides
+ * down and back, then the next card comes forward. Cards are bottom-anchored; deeper cards sit
+ * higher and smaller and wear a neutral face (stack grey, then card-2), so only a 10px sliver of
+ * each shows. Transform + opacity only.
  *
  * The order is derived from `cards` plus a rotation offset, so the `cards` prop stays the source of truth.
  * With a single card nothing is interactive.
  */
-export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) {
+export function CardStack({
+  cards,
+  frontId,
+  onFrontChange,
+}: {
+  cards: ReadonlyArray<BalanceCardData>;
+  /** Which card starts in front (e.g. the one the page below it is showing). */
+  frontId?: string;
+  /** Called with the id of the card that came to the front. */
+  onFrontChange?: (id: string) => void;
+}) {
   const n = cards.length;
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(() => Math.max(0, cards.findIndex((c) => c.id === frontId)));
   const [sliding, setSliding] = useState(false);
   const lock = useTapLock(LOCK_MS);
   const { reduced } = useReducedMotionSafe();
@@ -33,6 +46,14 @@ export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) 
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const frontIndex = n > 0 ? offset % n : 0;
+  const frontCardId = cards[frontIndex]?.id;
+  const onFrontChangeRef = useRef(onFrontChange);
+  useEffect(() => {
+    onFrontChangeRef.current = onFrontChange;
+  });
+  useEffect(() => {
+    if (frontCardId) onFrontChangeRef.current?.(frontCardId);
+  }, [frontCardId]);
   const interactive = n >= 2;
 
   const advance = () => {
@@ -47,9 +68,11 @@ export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) 
   };
 
   const depthOf = (i: number) => (i - frontIndex + n) % n;
-  const rows = Math.max(Math.min(n - 1, MAX_DEPTH), 0);
-  // How far the deepest card pokes above the front one (its top also drops as it scales down).
-  const peek = Math.ceil(rows * (STEP - SCALE_STEP * CARD_HEIGHT));
+  // Always two peeking layers, like the mockup: with fewer than three cards the missing ones are decorative faces.
+  const rows = n > 0 ? MAX_DEPTH : 0;
+  // How far the deepest layer pokes above the front card (its top also drops as it scales down).
+  const peek = rows * PEEK;
+  const decorative = Array.from({ length: Math.max(rows + 1 - n, 0) }, (_, i) => n + i);
 
   return (
     <div
@@ -58,6 +81,15 @@ export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) 
       className="relative"
       style={{ height: CARD_HEIGHT + peek }}
     >
+      {decorative.map((d) => (
+        <div
+          key={`peek-${d}`}
+          data-testid="stack-peek"
+          aria-hidden="true"
+          className={d === 1 ? "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-stack" : "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-card-2"}
+          style={{ height: CARD_HEIGHT, zIndex: MAX_DEPTH + 1 - d, transform: `translateY(${-d * STEP}px) scale(${1 - d * SCALE_STEP})` }}
+        />
+      ))}
       {cards.map((card, i) => {
         const depth = depthOf(i);
         const d = Math.min(depth, MAX_DEPTH);
@@ -73,7 +105,7 @@ export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) 
           <motion.div
             key={card.id}
             className="absolute inset-x-0 bottom-0 origin-bottom"
-            style={{ zIndex: n - depth }}
+            style={{ zIndex: MAX_DEPTH + 1 + n - depth }}
             initial={false}
             animate={target}
             transition={{ duration: slidingFront ? SLIDE_MS / 1000 : 0.6, ease: ease.smooth }}
@@ -101,12 +133,19 @@ export function CardStack({ cards }: { cards: ReadonlyArray<BalanceCardData> }) 
                 <BalanceCard data={card} balanceId={balanceId} />
               </div>
             )}
-            {/* depth shading: an opacity-animated overlay (not a filter) */}
+            {/* neutral faces for the layers behind (opacity only, never a filter) */}
             <motion.div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 rounded-lg bg-island"
+              className="pointer-events-none absolute -inset-px rounded-lg bg-stack"
               initial={false}
-              animate={{ opacity: reduced ? 0 : d * 0.25 }}
+              animate={{ opacity: reduced ? 0 : d >= 1 ? 1 : 0 }}
+              transition={{ duration: 0.6, ease: ease.smooth }}
+            />
+            <motion.div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-px rounded-lg bg-card-2"
+              initial={false}
+              animate={{ opacity: reduced ? 0 : d >= 2 ? 1 : 0 }}
               transition={{ duration: 0.6, ease: ease.smooth }}
             />
           </motion.div>

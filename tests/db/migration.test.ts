@@ -143,7 +143,7 @@ describe("schema shape", () => {
   it("enforces membership through composite foreign keys (C4)", async () => {
     await admin();
     // payer B is not a member of household A
-    await expectCode(db.query(`insert into purchases(household_id, payer_id, amount) values ('${HA}','${B}',100)`), FK);
+    await expectCode(db.query(`insert into purchases(household_id, payer_id, amount, description) values ('${HA}','${B}',100,'x')`), FK);
     // debtor B is not a member of household A
     await expectCode(
       db.query(`insert into shares(purchase_id, household_id, debtor_id, amount) values ('${P1}','${HA}','${B}',1)`),
@@ -314,24 +314,26 @@ describe("ledger is locked down (C4)", () => {
     await expectCode(db.query(`delete from settlements`), RLS);
   });
 
-  it("a member inserts their own purchase (positive control)", async () => {
+  it("no client can insert a purchase directly (rows come from the RPC only)", async () => {
     await as(C);
-    const r = await db.query(
-      `insert into purchases(household_id, payer_id, amount, description) values ('${HA}','${C}',500,'Хлеб')`,
+    await expectCode(
+      db.query(`insert into purchases(household_id, payer_id, amount, description) values ('${HA}','${C}',500,'Хлеб')`),
+      RLS,
     );
-    expect(r.affectedRows).toBe(1);
-  });
-
-  it("cannot record a purchase as somebody else, nor into a foreign household", async () => {
-    await as(C);
-    await expectCode(db.query(`insert into purchases(household_id, payer_id, amount) values ('${HA}','${A}',100)`), RLS);
+    await expectCode(
+      db.query(`insert into purchases(household_id, payer_id, amount, description) values ('${HA}','${A}',100,'x')`),
+      RLS,
+    );
     await as(A);
-    await expectCode(db.query(`insert into purchases(household_id, payer_id, amount) values ('${HB}','${A}',100)`), RLS);
+    await expectCode(
+      db.query(`insert into purchases(household_id, payer_id, amount, description) values ('${HB}','${A}',100,'x')`),
+      RLS,
+    );
   });
 
   it("personal takeover: a member cannot flip, edit or remove someone else's purchase", async () => {
     await as(C);
-    expect((await db.query(`update purchases set status = 'personal' where id = '${P1}'`)).affectedRows).toBe(0);
+    await expectCode(db.query(`update purchases set status = 'personal' where id = '${P1}'`), RLS); // no column grant
     expect((await db.query(`update purchases set description = 'hacked' where id = '${P1}'`)).affectedRows).toBe(0);
     expect((await db.query(`delete from purchases where id = '${P1}'`)).affectedRows).toBe(0);
     await admin();
@@ -341,9 +343,10 @@ describe("ledger is locked down (C4)", () => {
     expect(row.rows[0]).toEqual({ status: "shared", description: "Magnum" });
   });
 
-  it("the payer may edit description/merchant/status but not amount, payer or household", async () => {
+  it("the payer may edit description/merchant but not status, amount, payer or household", async () => {
     await as(A);
     expect((await db.query(`update purchases set description = 'Magnum 2' where id = '${P1}'`)).affectedRows).toBe(1);
+    await expectCode(db.query(`update purchases set status = 'personal' where id = '${P1}'`), RLS);
     await expectCode(db.query(`update purchases set amount = 1 where id = '${P1}'`), RLS);
     await expectCode(db.query(`update purchases set payer_id = '${C}' where id = '${P1}'`), RLS);
     await expectCode(db.query(`update purchases set household_id = '${HB}' where id = '${P1}'`), RLS);

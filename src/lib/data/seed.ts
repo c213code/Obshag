@@ -2,19 +2,28 @@ import type { Household, Member, Profile, Purchase, Share } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
+export const SEED_EMAIL = "erasyl@obshak.test";
+/** In mock mode every email code is this one. */
+export const MOCK_OTP = "000000";
 
-export type Seed = {
-  me: Profile;
+export type MockUser = { id: string; email: string };
+
+/** Everything the mock "backend" stores. Plain JSON so it survives localStorage and the E2E store route. */
+export type MockDb = {
+  users: MockUser[];
   profiles: Profile[];
   households: Household[];
   members: Member[];
   purchases: Purchase[];
   shares: Share[];
+  /** join_household attempts (rate limit: 10 per user per hour). */
+  joinAttempts: Array<{ user_id: string; at: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();
 
-export function createSeed(): Seed {
+/** The demo household: Ерасыл (log in with SEED_EMAIL) plus three housemates. */
+export function createSeed(): MockDb {
   const person = (n: number, name: string, color: string, phone: string | null): Profile => ({
     id: `00000000-0000-4000-8000-00000000000${n}`,
     display_name: name,
@@ -39,6 +48,7 @@ export function createSeed(): Seed {
     household_id: household.id,
     user_id: p.id,
     role: i === 0 ? "admin" : "member",
+    active: true,
     away_until: null,
     joined_at: day(1),
   }));
@@ -79,22 +89,26 @@ export function createSeed(): Seed {
     },
   ];
 
+  const open = (purchase_id: string, debtor_id: string, amount: number): Share => ({
+    purchase_id,
+    debtor_id,
+    amount,
+    settled_at: null,
+    settlement_id: null,
+  });
   const shares: Share[] = [
-    ...[aidos, danya, nurik].map((p) => ({
-      purchase_id: purchases[0].id,
-      debtor_id: p.id,
-      amount: 1500,
-      settled_at: null,
-      settlement_id: null,
-    })),
-    ...[me, danya, nurik].map((p) => ({
-      purchase_id: purchases[1].id,
-      debtor_id: p.id,
-      amount: 500,
-      settled_at: null,
-      settlement_id: null,
-    })),
+    { ...open(purchases[0].id, me.id, 1500), settled_at: purchases[0].created_at },
+    ...[aidos, danya, nurik].map((p) => open(purchases[0].id, p.id, 1500)),
+    { ...open(purchases[1].id, aidos.id, 500), settled_at: purchases[1].created_at },
+    ...[me, danya, nurik].map((p) => open(purchases[1].id, p.id, 500)),
   ];
 
-  return { me, profiles, households: [household], members, purchases, shares };
+  const users: MockUser[] = [
+    { id: me.id, email: SEED_EMAIL },
+    { id: aidos.id, email: "aidos@obshak.test" },
+    { id: danya.id, email: "danya@obshak.test" },
+    { id: nurik.id, email: "nurik@obshak.test" },
+  ];
+
+  return { users, profiles, households: [household], members, purchases, shares, joinAttempts: [] };
 }

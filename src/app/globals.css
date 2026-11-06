@@ -30,18 +30,23 @@ a,
   -webkit-touch-callout: none;
 }
 
-/* >=16px prevents iOS focus zoom */
-input,
-textarea,
-select {
-  font-size: 16px;
+/* >=16px prevents iOS focus zoom. In the base layer so a Tailwind text-* utility can still raise it. */
+@layer base {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 .money {
   font-variant-numeric: tabular-nums;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-lime);
-  outline-offset: 2px;
+/* Base layer: inputs that draw their own focus state (capsule border, active digit) opt out with outline-none. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 2px;
+  }
 }

@@ -62,3 +62,70 @@ Nothing committed. Dev/prod servers stopped.
 - TabBar active tab for href tabs relies on usePathname; no href tabs are used in /kit yet (covered by code path only, no e2e).
 - CSP uses 'unsafe-inline' for scripts (no nonce pipeline yet); tighten in a later slice.
 - Real RPC bodies for join/leave/roles/shares/settlements remain slice 1+ (writes stay denied).
+
+---
+
+# Generator State — Slice 1 "First end-to-end path" (iteration 001)
+
+Nothing committed. No servers running.
+
+## Results
+- `npm run verify`: green (lint, tsc, 133 Vitest tests incl. PGlite DB tests, coverage ~92% lines on src/lib, build).
+- `npm run test:e2e`: 25/25 (18 kit + 7 slice 1), WebKit iPhone 15, production build, mock + NEXT_PUBLIC_E2E=1.
+- Screenshots: gan-harness/screenshots/s1-ref-*.png (docs/design) vs s1-app-*.png; side by side: s1-cmp-main.png, s1-cmp-addpurchase.png; e2e shots s1-e2e-*.png.
+
+## What was built
+- Domain (TDD, src/lib/domain): split.ts (splitEqual, perPersonRange), balance.ts (balanceFor, netPair), schemas.ts (zod, phone +7XXXXXXXXXX, amount 1..10_000_000), guard.ts (stage -> redirect), summary.ts, avatar.ts, phoneFormat.ts.
+- Repo: extended interface (session, OTP, profile, households, createPurchase with participant_ids). mockRepo = load/mutate/save over a MockStorage (localStorage in the browser, /api/mock-store only when NEXT_PUBLIC_E2E=1), per-device session in localStorage; mirrors the SQL rules and the join rate limit. supabaseRepo (browser client, RPC writes, RLS reads) is type-checked and unit-tested with a fake client; never run live. Shared contract test (repoContract.ts) runs against mockRepo.
+- SQL: supabase/migrations/0002_slice1_rpcs.sql (upsert_profile, join_household, create_purchase_with_shares, private.join_attempts, case-insensitive invite index). tests/db/slice1.test.ts (17 tests).
+- Next: src/proxy.ts + src/lib/supabase/{client,server,proxy}.ts (session refresh, anonymous redirect in supabase mode).
+- Screens under src/app/(shell): /login, /login/verify, /onboarding, /household, /household/new, /join, /join/[code]; (app): / (Главная), /purchases/new, /flat (invite code, neighbours, sign out), /purchases and /monthly placeholders. Guard + AppDataProvider (optimistic addPurchase with rollback and Toast).
+- UI kit adjustments to match Main/AddPurchase 1:1: BalanceCard (192px, rings, avatars, month), CardStack (10px peeks, stack grey faces, frontId/onFrontChange), Segmented disabled options + 42px "bar" pills, Header close variant, Pill lg (48px) and disabled, TextField, TabBar/BottomActions spacing (px 20, bottom 28, gap 12), icons from the mockups, new token --color-stack.
+
+## Deviations and notes
+- join_household returns NULL for a wrong code (a raised exception would roll back the recorded attempt and the rate limit could never trip); the repo turns NULL, errors and an exhausted limit into the same generic `join_failed`.
+- No Server Actions: the browser client + RLS + RPCs cover slice 1; server.ts exists for later slices.
+- Card chip "N из M" = housemates who are even with me; purchase progress shows "N из M" (+ sr-only "скинули").
+- Disabled: Напомнить, Расчёт, Ежемесячно (marked «скоро»), Рассчитаться, other payers, «Свои суммы».
+- Global input font-size and :focus-visible moved into @layer base so Tailwind utilities (outline-none, text-*) can override.
+- Remaining visual deltas vs mockups: 1-2px vertical offsets in the amount block (input line-height), disabled Рассчитаться is dimmed.
+
+---
+
+# Slice 1 — iteration 2
+
+Nothing committed (per instruction). No servers running. Migrations 0001/0002 edited in place.
+
+## Results
+- `npm run verify`: green. 24 test files, 175 tests (was 133), coverage 93.2% stmts / 93.6% lines, build OK.
+- `npm run test:e2e`: 27 passed (18 kit + 9 slice 1; slice 1 gained: malformed deep link, stale members, over-limit/too-small/no-debtor, single-row, peek layers, chip, bell, Fab menu, invite format).
+- Screenshots: gan-harness/screenshots/s1i2-cmp-main.png, s1i2-cmp-addpurchase.png (left = docs/design reference, right = app); app-only s1i2-app-*.png. Script: gan-harness/shoot-s1i2.mjs.
+
+## Per item
+- A1 done: `create_purchase_with_shares` returns jsonb (purchase + shares); supabaseRepo does one RPC, no follow-up select. Tests: DB shape test, fake-client "no read after RPC".
+- A2 done: monotonically increasing load token (stale loads ignored; `refresh()` waits for the newest), `PurchaseTracker` re-merges in-flight and just-confirmed rows into every snapshot (de-duplicated by id). Unit tests in purchaseTracker.test.ts.
+- A3 done: stable `clientKey`, inherited by the real row and kept across later loads. E2E `expectSingleRowFor` (count stays 1).
+- A4 done: cache headers from `setAll(cookies, headers)` copied to the response and the redirect (proxy.ts); `getClaims()` in try/catch (outage passes through). server.ts gets `onCacheHeaders` for Route Handlers (Server Components cannot set headers). Tests with a fake ssr client.
+- M1 done: advisory xact lock before counting attempts (DB test checks the lock precedes the count; PGlite is single-connection so true concurrency is not exercised).
+- M2 done: reactivation sets role 'member', away_until null, only `where not active`; mock mirrors. Tests in DB, mock.
+- M3 done: insert revoked on purchases (policy removed), checks description 1..200, merchant <=120, amount <=10M, status removed from update grant. Tests (existing migration tests adapted).
+- L1 done: code >64 returns null after recording the attempt; >50 participants rejected (SQL + zod).
+- L2 done: `codeFromPath` try/catch; additionally the proxy answers a malformed %-escape with 400 (Next itself returned a bare 500 before the page ran).
+- L3 done: anchored matcher exclusions + extension exclusion; matcher test.
+- L4 done: fixed messages in mapDbError, raw errors via dev-only console.debug; test.
+- Mock-store hardening done: needs `E2E_ALLOW_MOCK_STORE=1` (set in playwright.config webServer env, documented in .env.example) and refuses with `NEXT_PUBLIC_SUPABASE_URL`; also compare-and-set revision (409). Gate tested.
+- C1 done: roster refetch on entering /purchases/new and on window focus/visibility (throttled 3 s, silent); ✓ disabled with no debtor + "Выбери, с кем делить" (or an "alone in the flat" hint); "Максимум 10 000 000 ₸" message (input allows up to 11 digits so the message can show).
+- C2 done: disabled lime = flat lime/35% with on-lime text; other disabled segmented options 45% opacity plus «скоро» (Свои суммы inside the option, payers on the label row); "Выйти" is an orange-outlined capsule.
+- C3 done: «скоро» as a tiny badge on the circle (row height asserted < 96px); two decorative peek layers with one or two households (card top now at the mockup's y); chip hidden when M=0; bell dot only with unread (slice 1: never, slot kept); invite code `XXXX-XXXX-XXXX` on one line; key icon on "У меня есть код"; verify hint uses nbsp + text-balance; Fab menu monthly row disabled with «скоро» via `soonActions`.
+- C4 done: amount < participants rejected in schema, SQL, form message "Сумма меньше числа людей". splitEqual unchanged (callers guarantee amount >= n).
+- C5 done: pendingJoin cleared on signOut and when the user already has a household; redirect only at stage 2 and ready.
+- C6 done: per-repo promise chain for `tx`, revision check (409 from the route, retry with fresh data), stored as `{version, rev, db}` validated by zod (mismatch reseeds), localStorage access in try/catch. Tests.
+- C7 done: getMe and listHouseholds in parallel; three contexts (`useAppActions` stable, `useAppData`, `useNotice`); PurchaseCard memo, payer names passed as Map; `.order` tie-breakers (id / user_id).
+- C8 done: signOut returns boolean and shows a notice on failure; FlatScreen resets `leaving` in finally.
+- C9 done: fake client records and asserts select/eq/order calls; every e2e test uses `withPhone` (try/finally context close); new e2e for stale members, no duplicate rows, disabled ✓.
+- D partial: done: avatar comment corrected (different hash than SQL, documented), "Ты" in ru.ts, fallback name for a payer who left, `newId()` fallback for crypto.randomUUID, email parse memoized, FlatScreen timeout cleared on unmount, RepoProvider now logs creation errors. Not done: RepoProvider still uses useMemo (kept: it must stay client-only to avoid hydration mismatch).
+
+## Known issues / notes
+- Disabled payers on Новая покупка are dimmer than in the mockup (deliberate, per C2); everything else matches the reference side by side.
+- Disabled "Рассчитаться" is a flat translucent lime as specified; it still reads olive on the dark card.
+- Duplicate purchase after a network failure whose request actually reached the server is still possible (no idempotency key); only the follow-up-read cause was removed.

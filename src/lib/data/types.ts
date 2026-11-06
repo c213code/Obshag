@@ -29,6 +29,8 @@ export type Member = {
   household_id: Uuid;
   user_id: Uuid;
   role: Role;
+  /** Soft leave flag: ledger rows keep pointing at inactive members. */
+  active: boolean;
   away_until: IsoDate | null;
   joined_at: IsoDateTime;
 };
