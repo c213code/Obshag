@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
-import { Pill } from "@/components/ui/Pill";
+import { Pill, pillClass } from "@/components/ui/Pill";
+import { SHORTCUT_ICLOUD_URL } from "@/lib/shortcutLink";
 import { copyText } from "@/lib/clipboard";
 import type { CaptureTokenInfo } from "@/lib/data/types";
 import { getPublicEnv } from "@/lib/env/public";
@@ -59,6 +60,7 @@ export function ShortcutScreen() {
   const repo = useRepo();
   const { me } = useAppData();
   const [info, setInfo] = useState<CaptureTokenInfo | null | undefined>(undefined); // undefined = loading
+  const [installCopied, setInstallCopied] = useState(false);
   const [token, setToken] = useState<string | null>(null); // plaintext, in memory only, shown once
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +125,25 @@ export function ShortcutScreen() {
             <p role="note" data-testid="token-warning" className="rounded-sm bg-lime-soft px-3 py-2 text-[13px] font-medium text-lime">
               {ru.shortcut.saveWarning}
             </p>
+            <a
+              href={SHORTCUT_ICLOUD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="install-shortcut"
+              // copy inside the tap (iOS only allows clipboard writes during the gesture), then the link opens Shortcuts
+              onClick={() => {
+                void copyText(token);
+                setInstallCopied(true);
+              }}
+              className={pillClass("lime", "lg", "w-full")}
+            >
+              {ru.shortcut.install}
+            </a>
+            {installCopied ? (
+              <p role="status" className="text-center text-caption">
+                {ru.shortcut.installCopied}
+              </p>
+            ) : null}
           </>
         ) : info === undefined ? (
           <div aria-hidden="true" className="h-[44px] animate-pulse rounded-pill bg-card-2" />
@@ -150,9 +171,20 @@ export function ShortcutScreen() {
         ) : null}
       </section>
 
+      <section aria-labelledby="quick-title" className="flex flex-col gap-3">
+        <h2 id="quick-title" className="text-headline">
+          {ru.shortcut.quick.title}
+        </h2>
+        <ol className="flex list-decimal flex-col gap-2 pl-5 text-body">
+          <li>{ru.shortcut.quick.one}</li>
+          <li>{ru.shortcut.quick.two}</li>
+          <li>{ru.shortcut.quick.three}</li>
+        </ol>
+      </section>
+
       <section aria-labelledby="steps-title" className="flex flex-col gap-3">
         <h2 id="steps-title" className="text-headline">
-          {ru.shortcut.steps.title}
+          {ru.shortcut.manualTitle}
         </h2>
         <Steps urlField={<CopyField label={ru.shortcut.urlLabel} value={url} testId="capture-url" />} />
       </section>

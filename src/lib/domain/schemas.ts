@@ -115,6 +115,8 @@ export const captureBodySchema = z.object({
   merchant: z.string().max(120).nullish(),
   /** Optional answer from the Shortcut menu; anything unrecognised means "decide later". */
   choice: z.unknown().optional(),
+  /** Same as `choice`; the shared Shortcut sends this spelling. */
+  choise: z.unknown().optional(),
 });
 
 export const pushSubscriptionSchema = z.object({

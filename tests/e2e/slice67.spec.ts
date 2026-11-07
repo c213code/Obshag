@@ -245,7 +245,9 @@ test.describe("slices 6+7", () => {
       await expect(page.getByTestId("invite-code")).toHaveText("QW7E-R4TY-9UI2");
       await page.getByRole("button", { name: "Поделиться" }).click();
       await expect(page.getByRole("button", { name: "Скопировано" })).toBeVisible();
-      expect(await page.evaluate(() => (window as unknown as { __copied: string }).__copied)).toBe(`${baseURL}/join/${CODE}`);
+      const copied = await page.evaluate(() => (window as unknown as { __copied: string }).__copied);
+      expect(copied).toContain(`${baseURL}/join/${CODE}`);
+      expect(copied).toContain("https://www.icloud.com/shortcuts/");
 
       await page.getByTestId("invite-qr-open").click();
       const qr = page.getByTestId("invite-qr");

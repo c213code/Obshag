@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatInviteCode } from "@/lib/domain/inviteCode";
 import { ru } from "@/lib/i18n/ru";
+import { SHORTCUT_ICLOUD_URL } from "@/lib/shortcutLink";
 import { QrSheet } from "./QrSheet";
 
 /** The lime invite card of Invite.dc.html: code, «Поделиться» (Web Share, copy as the fallback) and «QR». */
@@ -16,12 +17,14 @@ export function InviteCard({ code, householdName }: { code: string; householdNam
 
   const share = async () => {
     const url = link();
+    // one message: the join link and the Apple Pay Shortcut (url is inside the text so the order stays readable)
+    const text = ru.flat.shareWithShortcut(householdName, url, SHORTCUT_ICLOUD_URL);
     try {
       if (typeof navigator.share === "function") {
-        await navigator.share({ title: householdName, text: ru.flat.shareText(householdName), url });
+        await navigator.share({ title: householdName, text });
         return;
       }
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 2000);
