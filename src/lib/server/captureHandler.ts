@@ -1,6 +1,7 @@
 import { parseAmount } from "@/lib/domain/parseAmount";
 import { captureBodySchema } from "@/lib/domain/schemas";
 import { RepoError, type Repo } from "@/lib/data/repo";
+import type { CaptureChoice } from "@/lib/data/types";
 import type { PushSender } from "./push";
 
 export type CaptureDeps = {
@@ -15,6 +16,15 @@ export type CaptureOutcome = {
   /** Runs after the response was sent (Next `after`): push to every device, prune dead endpoints. Never throws. */
   afterResponse?: () => Promise<void>;
 };
+
+/** Lenient: trim, lowercase, Russian too. Anything else (later, потом, empty, junk, not a string) = decide later. */
+export function parseChoice(raw: unknown): CaptureChoice | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().toLowerCase();
+  if (v === "shared" || v === "общее") return "shared";
+  if (v === "personal" || v === "моё" || v === "мое") return "personal";
+  return null;
+}
 
 const fail = (status: 400 | 401 | 429 | 500): CaptureOutcome => ({ status, body: { ok: false } });
 
@@ -32,7 +42,7 @@ export async function handleCapture(raw: unknown, deps: CaptureDeps): Promise<Ca
 
   let captured;
   try {
-    captured = await deps.repo.capture(token, amount, merchant);
+    captured = await deps.repo.capture(token, amount, merchant, parseChoice(body.data.choice));
   } catch (e) {
     if (e instanceof RepoError) {
       if (e.code === "unauthenticated") return fail(401);
@@ -43,7 +53,7 @@ export async function handleCapture(raw: unknown, deps: CaptureDeps): Promise<Ca
   }
 
   const { push, repo } = deps;
-  if (!push || captured.subscriptions.length === 0) return { status: 201, body: { ok: true } };
+  if (!push || captured.status !== "pending" || captured.subscriptions.length === 0) return { status: 201, body: { ok: true } };
   const payload = { type: "pending" as const, purchaseId: captured.purchase_id, merchant: captured.merchant, amount: captured.amount };
   return {
     status: 201,

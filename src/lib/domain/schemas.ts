@@ -113,6 +113,8 @@ export const captureBodySchema = z.object({
   token: z.string().min(20).max(200),
   amount: z.union([z.string().max(64), z.number()]),
   merchant: z.string().max(120).nullish(),
+  /** Optional answer from the Shortcut menu; anything unrecognised means "decide later". */
+  choice: z.unknown().optional(),
 });
 
 export const pushSubscriptionSchema = z.object({

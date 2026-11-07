@@ -25,7 +25,11 @@ export type Profile = {
 export type PushSubscriptionInput = { endpoint: string; p256dh: string; auth: string };
 
 /** What the capture RPC returns: the new pending purchase plus the owner's push subscriptions. */
+export type CaptureChoice = "shared" | "personal";
+
 export type CaptureResult = {
+  /** pending unless the Shortcut sent a choice (then the purchase is already shared / personal and no push goes out). */
+  status: "pending" | "shared" | "personal";
   purchase_id: Uuid;
   household_id: Uuid;
   amount: number;

@@ -392,8 +392,10 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       return token;
     },
 
-    async capture(token, amount, merchant) {
-      return ok<CaptureResult>(await client.rpc("capture_purchase", { p_token: token, p_amount: amount, p_merchant: merchant ?? null }));
+    async capture(token, amount, merchant, choice) {
+      return ok<CaptureResult>(
+        await client.rpc("capture_purchase", { p_token: token, p_amount: amount, p_merchant: merchant ?? null, p_choice: choice ?? null }),
+      );
     },
 
     async prunePushSubscription(token, endpoint) {

@@ -297,3 +297,14 @@ Nothing committed. Servers stopped. 0001-0006 and `.env.local` untouched; no tok
 - Tests: tests/db/slice9.test.ts (14), contract test, e2e Профиль Telegram in slice67.spec.ts. verify green (557+ tests); e2e 64/64.
 - E2E isolation fix: slice67's cron helper drops reminder-log rows the cron added for the seeded flat, and slice52 clears the log before its remind test (the cron raced it into the 6 h cooldown).
 - Gaps: pg_net/vault path is never executed in tests (PGlite has neither); real sending untested live. Callback of net.http_post failures is not inspected. A user can set any free handle (no uniqueness).
+
+---
+
+# Slice 10 "Decide in the Shortcut" (one pass)
+
+Nothing committed. 0001-0007 and `.env.local` untouched; nothing applied to the live DB.
+
+- SQL `supabase/migrations/0008_slice10_capture_choice.sql`: drops `capture_purchase(text,integer,text)` and creates `capture_purchase(p_token, p_amount, p_merchant, p_choice text default null)` (security definer, `search_path=''`, anon only). `shared`/`общее` -> shared at once, equal split among active members not away (everyone if all are away; stays pending if amount < head count), `personal`/`моё`/`мое` -> personal, anything else -> pending as before. Returns `status`; subscriptions are `[]` unless pending. Dedupe now per outcome. Anon surface stays 4 functions (the 4-arg one replaced the 3-arg one).
+- App: `parseChoice` in `captureHandler.ts` (lenient, Russian too), `choice` passed through `Repo.capture` (mock + supabase), `CaptureResult.status`; no push unless pending. Old Shortcut without `choice` is unchanged.
+- Tests: `tests/db/slice10.test.ts` (PGlite), choice cases in `captureHandler.test.ts`, supabaseRepo arg test updated.
+- Gap: the Shortcut recipe text in /settings/shortcut is not updated (out of spec); mock-mode `away` uses the Almaty day like SQL.

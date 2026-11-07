@@ -293,7 +293,7 @@ describe("supabaseRepo", () => {
       const result = { purchase_id: "p1", household_id: "h1", amount: 6000, merchant: "Magnum", subscriptions: [] };
       const f = fakeClient({ rpc: { capture_purchase: { data: result, error: null } } });
       expect(await createSupabaseRepo(f.client).capture("t".repeat(43), 6000, "Magnum")).toEqual(result);
-      expect(f.calls[0]).toEqual({ fn: "capture_purchase", args: { p_token: "t".repeat(43), p_amount: 6000, p_merchant: "Magnum" } });
+      expect(f.calls[0]).toEqual({ fn: "capture_purchase", args: { p_token: "t".repeat(43), p_amount: 6000, p_merchant: "Magnum", p_choice: null } });
       for (const [error, code] of [
         [{ code: "28000", message: "invalid token" }, "unauthenticated"],
         [{ code: "P0001", message: "rate_limited" }, "rate_limited"],

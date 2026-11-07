@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockRepo, memorySession, memoryStorage } from "@/lib/data/mockRepo";
 import type { Repo } from "@/lib/data/repo";
-import { handleCapture } from "./captureHandler";
+import { handleCapture, parseChoice } from "./captureHandler";
 import { createRecordingSender, type PushSender } from "./push";
 
 let owner: Repo;
@@ -117,6 +117,46 @@ describe("handleCapture", () => {
       const out = await handleCapture({ token, amount: 100 }, deps(push));
       await expect(out.afterResponse!()).resolves.toBeUndefined();
       expect(seen).toHaveLength(2);
+    });
+  });
+
+  describe("choice from the Shortcut menu", () => {
+    const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/1", p256dh: "k", auth: "a" };
+
+    it("parses English and Russian forms leniently; everything else means later", () => {
+      for (const v of ["shared", " Shared ", "ОБЩЕЕ", "общее"]) expect(parseChoice(v), v).toBe("shared");
+      for (const v of ["personal", "PERSONAL", "моё", "Моё ", "мое"]) expect(parseChoice(v), v).toBe("personal");
+      for (const v of ["later", "потом", "", "  ", "yes", 1, null, undefined, {}]) expect(parseChoice(v), String(v)).toBeNull();
+    });
+
+    it("shared: created shared at once, split among the home members, no push", async () => {
+      await owner.savePushSubscription(sub);
+      const push = createRecordingSender();
+      const out = await handleCapture({ token, amount: 1000, merchant: "Magnum", choice: "Общее" }, deps(push));
+      expect(out).toMatchObject({ status: 201, body: { ok: true } });
+      expect(out.afterResponse).toBeUndefined();
+      expect(await owner.listPending(householdId)).toEqual([]);
+      const [p] = await owner.listPurchases(householdId);
+      expect(p).toMatchObject({ status: "shared", amount: 1000, description: "Magnum", source: "apple_pay" });
+    });
+
+    it("personal: created personal, no push", async () => {
+      await owner.savePushSubscription(sub);
+      const out = await handleCapture({ token, amount: 500, choice: "моё" }, deps(createRecordingSender()));
+      expect(out.status).toBe(201);
+      expect(out.afterResponse).toBeUndefined();
+      expect(await owner.listPending(householdId)).toEqual([]);
+      const [p] = await owner.listPurchases(householdId);
+      expect(p).toMatchObject({ status: "personal", description: "Покупка" });
+    });
+
+    it("later, junk or no choice: still pending with a push", async () => {
+      await owner.savePushSubscription(sub);
+      for (const [i, choice] of [undefined, "later", "потом", "", "xyz"].entries()) {
+        const out = await handleCapture({ token, amount: 100 + i, choice }, deps(createRecordingSender()));
+        expect(out.afterResponse, String(choice)).toBeDefined();
+      }
+      expect(await owner.listPending(householdId)).toHaveLength(5);
     });
   });
 });

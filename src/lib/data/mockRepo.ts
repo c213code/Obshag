@@ -14,6 +14,7 @@ import {
   tengeSchema,
 } from "@/lib/domain/schemas";
 import { almatyDay } from "@/lib/domain/almaty";
+import { isAway } from "@/lib/domain/away";
 import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
@@ -30,7 +31,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
-import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
+import type { Bill, BillNotice, CaptureChoice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -712,7 +713,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       return token;
     },
 
-    async capture(token, amount, merchant): Promise<CaptureResult> {
+    async capture(token, amount, merchant, choice): Promise<CaptureResult> {
       const unknown = () => new RepoError("unauthenticated", "Invalid token");
       if (typeof token !== "string" || token.length < 20 || token.length > 200) throw unknown();
       const hash = await sha256Hex(token);
@@ -737,11 +738,24 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           [...active].sort((a, b) => b.joined_at.localeCompare(a.joined_at) || a.household_id.localeCompare(b.household_id))[0];
         if (!target) throw new RepoError("invalid", "No household");
 
-        // a Shortcut retry (same amount and merchant within 60 s) returns the existing pending purchase, with no second push
+        // the Shortcut's own answer: shared = split between everyone at home (or everyone if nobody is), personal = mine
+        let status: CaptureResult["status"] = "pending";
+        let who: Uuid[] = [];
+        if (choice === "personal") status = "personal";
+        else if (choice === "shared") {
+          const roster = db.members
+            .filter((m) => m.household_id === target.household_id && m.active)
+            .sort((a, b) => a.joined_at.localeCompare(b.joined_at) || a.user_id.localeCompare(b.user_id));
+          const home = roster.filter((m) => !isAway(m.away_until, almatyDay(now()).date));
+          who = (home.length > 0 ? home : roster).map((m) => m.user_id);
+          if (who.length > 0 && amount >= who.length) status = "shared";
+        }
+
+        // a Shortcut retry (same amount, merchant and outcome within 60 s) returns the existing purchase, with no second push
         const twin = db.purchases.find(
-          (p) => p.payer_id === userId && p.source === "apple_pay" && p.status === "pending" && p.amount === amount && p.merchant === name && t - Date.parse(p.created_at) < 60_000,
+          (p) => p.payer_id === userId && p.source === "apple_pay" && p.status === status && p.amount === amount && p.merchant === name && t - Date.parse(p.created_at) < 60_000,
         );
-        if (twin) return { purchase_id: twin.id, household_id: twin.household_id, amount, merchant: name, subscriptions: [] };
+        if (twin) return { status, purchase_id: twin.id, household_id: twin.household_id, amount, merchant: name, subscriptions: [] };
 
         db.captureOps.push({ user_id: userId, at: now().toISOString() });
         owner.last_used_at = now().toISOString();
@@ -753,16 +767,23 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           description: name ?? "Покупка",
           merchant: name,
           source: "apple_pay",
-          status: "pending",
+          status,
           created_at: now().toISOString(),
         };
         db.purchases.push(purchase);
+        if (status === "shared") {
+          for (const s of splitEqual(amount, who, userId)) {
+            db.shares.push({ purchase_id: purchase.id, debtor_id: s.debtor_id, amount: s.amount, settled_at: s.settled ? purchase.created_at : null, settlement_id: null });
+          }
+        }
         return {
+          status,
           purchase_id: purchase.id,
           household_id: purchase.household_id,
           amount,
           merchant: name,
-          subscriptions: db.pushSubscriptions.filter((x) => x.user_id === userId).map(({ endpoint, p256dh, auth }) => ({ endpoint, p256dh, auth })),
+          subscriptions:
+            status === "pending" ? db.pushSubscriptions.filter((x) => x.user_id === userId).map(({ endpoint, p256dh, auth }) => ({ endpoint, p256dh, auth })) : [],
         };
       });
     },
