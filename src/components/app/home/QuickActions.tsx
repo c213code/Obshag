@@ -34,7 +34,15 @@ export function QuickActions() {
         </span>
         {ru.main.quick.purchase}
       </Link>
-      <Soon icon={<BellIcon />} label={ru.main.quick.remind} />
+      <Link
+        href="/settle"
+        className="flex flex-col items-center gap-2 text-label text-text transition-transform duration-200 ease-smooth active:scale-[0.96]"
+      >
+        <span className={cx(circle, "bg-card text-text")}>
+          <BellIcon />
+        </span>
+        {ru.main.quick.remind}
+      </Link>
       <Link
         href="/settle"
         className="flex flex-col items-center gap-2 text-label text-text transition-transform duration-200 ease-smooth active:scale-[0.96]"

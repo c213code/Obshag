@@ -34,6 +34,16 @@ export type CaptureResult = {
 /** Whether the user has a capture token (the plaintext is never readable again). */
 export type CaptureTokenInfo = { created_at: IsoDateTime; last_used_at: IsoDateTime | null };
 
+/** What the reminder RPCs return: who to push, the text data and the recipient's devices. */
+export type ReminderTarget = {
+  to_user: Uuid;
+  from_user: Uuid;
+  /** The creditor's display name (the route puts it into the dative case). */
+  from_name_dative: string;
+  amount: number;
+  subscriptions: PushSubscriptionInput[];
+};
+
 export type Household = {
   id: Uuid;
   name: string;
@@ -50,6 +60,8 @@ export type Member = {
   active: boolean;
   away_until: IsoDate | null;
   joined_at: IsoDateTime;
+  /** Whether the daily 19:00 reminder may be sent to me (default true). Older mock rows may lack it. */
+  reminders_enabled?: boolean;
 };
 
 export type Purchase = {

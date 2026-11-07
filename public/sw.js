@@ -16,7 +16,21 @@ function pendingUrl(purchaseId, choice) {
   return choice === "shared" || choice === "personal" ? base + "?choice=" + choice : base;
 }
 
+function showReminder(data) {
+  // «Ты должен Айдосу 200 ₸» · «Рассчитаться»; tapping opens the settlement with the creditor
+  const who = typeof data.fromName === "string" && data.fromName ? data.fromName : "соседу";
+  return self.registration.showNotification("Ты должен " + who + " " + tenge(data.amount), {
+    body: "Рассчитаться",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "reminder-" + data.fromUserId,
+    renotify: true,
+    data: { url: "/settle/" + encodeURIComponent(data.fromUserId) },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "reminder" && typeof data.fromUserId === "string") return showReminder(data);
   const ok = data && data.type === "pending" && typeof data.purchaseId === "string";
   if (!ok) {
     // iOS revokes push permission for a worker that receives a push without showing a notification: always show one

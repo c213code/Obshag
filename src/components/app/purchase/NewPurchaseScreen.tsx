@@ -7,7 +7,8 @@ import { Fab } from "@/components/ui/Fab";
 import { Header } from "@/components/ui/Header";
 import { CheckIcon } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/Segmented";
-import { MAX_AMOUNT, createPurchaseSchema } from "@/lib/domain/schemas";
+import { customSplit } from "@/lib/domain/customSplit";
+import { MAX_AMOUNT, createPurchaseCustomSchema, createPurchaseSchema } from "@/lib/domain/schemas";
 import { perPersonRange } from "@/lib/domain/split";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
@@ -15,11 +16,12 @@ import { useAppActions, useAppData } from "../AppDataProvider";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { AmountInput } from "./AmountInput";
+import { PersonAmountRow } from "./PersonAmountRow";
 import { PersonChip } from "./PersonChip";
 
 const label = "pl-[6px] text-caption";
 
-/** Новая покупка, per AddPurchase.dc.html. Slice 1: payer = me, equal split only. */
+/** Новая покупка, per AddPurchase.dc.html. Payer = me; equal split or «Свои суммы». */
 export function NewPurchaseScreen() {
   const router = useRouter();
   const { me, members, activeId } = useAppData();
@@ -31,6 +33,8 @@ export function NewPurchaseScreen() {
   // null = everyone (the default), otherwise the explicit set of chosen ids
   const [picked, setPicked] = useState<ReadonlySet<string> | null>(null);
   const [sent, setSent] = useState(false);
+  const [mode, setMode] = useState<"equal" | "custom">("equal");
+  const [texts, setTexts] = useState<Readonly<Record<string, string>>>({});
 
   // A neighbour may have joined since Главная loaded: fetch the roster again whenever this screen opens.
   useEffect(() => {
@@ -45,21 +49,31 @@ export function NewPurchaseScreen() {
   const n = participantIds.length;
   const range = perPersonRange(amount ?? 0, n);
 
+  const custom = mode === "custom";
+  const split = customSplit(amount, participantIds, texts, me.id);
   const parsed = createPurchaseSchema.safeParse({
     household_id: activeId,
     amount: amount ?? 0,
     description: what,
     participant_ids: participantIds,
   });
+  const parsedCustom = createPurchaseCustomSchema.safeParse({
+    household_id: activeId,
+    amount: amount ?? 0,
+    description: what,
+    shares: split.entries,
+  });
   // someone other than the payer must owe something, otherwise the purchase changes no balance
   const debtors = participantIds.filter((id) => id !== me.id).length;
   const amountError =
     amount !== null && amount > MAX_AMOUNT
       ? ru.purchase.overLimit(formatTenge(MAX_AMOUNT))
-      : amount !== null && n > 0 && amount < n
+      : !custom && amount !== null && n > 0 && amount < n
         ? ru.purchase.tooSmall
         : null;
-  const canSubmit = parsed.success && !sent && debtors > 0 && !amountError;
+  const canSubmit = custom
+    ? parsedCustom.success && !sent && split.ready && !amountError
+    : parsed.success && !sent && debtors > 0 && !amountError;
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -70,9 +84,16 @@ export function NewPurchaseScreen() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!parsed.success || sent || debtors === 0 || amountError) return;
+    if (!canSubmit) return;
     setSent(true);
-    addPurchase({ ...parsed.data, merchant: null }); // optimistic: the list shows it at once, rollback with a notice on failure
+    // optimistic: the list shows it at once, rollback with a notice on failure
+    if (custom) {
+      if (!parsedCustom.success) return;
+      addPurchase({ ...parsedCustom.data, merchant: null });
+    } else {
+      if (!parsed.success) return;
+      addPurchase({ ...parsed.data, merchant: null });
+    }
     router.push("/");
   };
 
@@ -85,7 +106,10 @@ export function NewPurchaseScreen() {
           ? ru.purchase.enterAmount
           : !what.trim()
             ? ru.purchase.enterWhat
-            : null;
+            : custom && !split.hasOther
+              ? ru.purchase.customNeedsOther
+              : null;
+  const leftText = split.remaining === 0 ? ru.purchase.allSplit : split.remaining > 0 ? ru.purchase.left(formatTenge(split.remaining)) : ru.purchase.over(formatTenge(-split.remaining));
   const per =
     !amount || n === 0 || amountError
       ? "—"
@@ -140,10 +164,10 @@ export function NewPurchaseScreen() {
             label={ru.purchase.split}
             options={[
               { value: "equal", label: ru.purchase.equal },
-              { value: "custom", label: ru.purchase.custom, disabled: true, soon: ru.main.quick.soon },
+              { value: "custom", label: ru.purchase.custom },
             ]}
-            value="equal"
-            onChange={() => undefined}
+            value={mode}
+            onChange={setMode}
           />
         </div>
 
@@ -164,6 +188,23 @@ export function NewPurchaseScreen() {
               );
             })}
           </div>
+          {custom && n > 0 ? (
+            <div className="flex flex-col gap-2" data-testid="custom-rows">
+              {roster
+                .filter((m) => selected.has(m.user_id))
+                .map((m) => (
+                  <PersonAmountRow
+                    key={m.user_id}
+                    name={m.user_id === me.id ? ru.purchase.me : m.profile.display_name}
+                    initialsOf={m.profile.display_name}
+                    color={avatarColorFor(m.profile, me.id)}
+                    value={texts[m.user_id] ?? ""}
+                    onChange={(next) => setTexts((t) => ({ ...t, [m.user_id]: next }))}
+                    invalid={split.remaining < 0}
+                  />
+                ))}
+            </div>
+          ) : null}
           {debtors === 0 ? (
             <p role="status" className="pl-[6px] text-label text-orange">
               {others.length === 0 ? ru.purchase.aloneInFlat : ru.purchase.pickDebtor}
@@ -181,8 +222,19 @@ export function NewPurchaseScreen() {
         }
       >
         <div aria-live="polite" className="flex flex-1 flex-col">
-          <span className={hint ? "text-headline text-muted" : "text-headline"}>{ru.purchase.per(per)}</span>
-          <span className="text-caption">{hint ?? ru.purchase.people(n)}</span>
+          {custom ? (
+            <>
+              <span className={split.remaining < 0 ? "text-headline text-orange" : amount ? "text-headline" : "text-headline text-muted"}>
+                {amount ? leftText : "—"}
+              </span>
+              <span className="text-caption">{hint ?? ru.purchase.leftOf(formatTenge(amount ?? 0))}</span>
+            </>
+          ) : (
+            <>
+              <span className={hint ? "text-headline text-muted" : "text-headline"}>{ru.purchase.per(per)}</span>
+              <span className="text-caption">{hint ?? ru.purchase.people(n)}</span>
+            </>
+          )}
         </div>
       </BottomActions>
     </form>

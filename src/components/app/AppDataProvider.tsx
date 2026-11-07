@@ -8,7 +8,7 @@ import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
-import { RepoError, type AuthSession, type MemberWithProfile, type NewPurchase, type Repo } from "@/lib/data/repo";
+import { RepoError, type AuthSession, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
 import type { Household, Profile, Settlement } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
@@ -44,8 +44,14 @@ export type AppActions = {
   refreshMembers(householdId: string): Promise<void>;
   /** Resolves true when the user was signed out; on failure a notice explains and it resolves false. */
   signOut(): Promise<boolean>;
-  /** Optimistic: the purchase shows up at once, and is rolled back (with a notice) if the server refuses it. */
-  addPurchase(input: NewPurchase): void;
+  /** Optimistic: the purchase shows up at once, and is rolled back (with a notice) if the server refuses it. Equal split, or explicit `shares` («Свои суммы»). */
+  addPurchase(input: NewPurchase | NewCustomPurchase): void;
+  /** Payer only. Optimistic: the row disappears at once and comes back with a notice if the server refuses (e.g. something was already paid). */
+  deletePurchase(purchaseId: string): Promise<boolean>;
+  /** Payer only. Optimistic: the new description shows at once; rolled back with a notice on failure. */
+  editDescription(purchaseId: string, description: string): Promise<boolean>;
+  /** My own «Напоминания» switch for one household. Optimistic, rolled back with a notice on failure. */
+  setRemindersEnabled(householdId: string, enabled: boolean): Promise<boolean>;
   /** «Я оплатил»: optimistic `marked` settlement to `toUserId` for the current net. Resolves true when the server accepted it. */
   markPaid(householdId: string, toUserId: string): Promise<boolean>;
   /** «Получил»: optimistic confirm; the covered shares show as settled at once. Rolled back with a notice on failure. */
@@ -286,20 +292,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [repo, tracker, settlementTracker, commit]);
 
   const addPurchase = useCallback(
-    (input: NewPurchase) => {
+    (input: NewPurchase | NewCustomPurchase) => {
       const me = meRef.current;
       if (!me) return;
       const id = `optimistic-${++tempId.current}`;
       const createdAt = new Date().toISOString();
       let shares;
       try {
-        shares = splitEqual(input.amount, input.participant_ids, me.id).map((s) => ({
-          purchase_id: id,
-          debtor_id: s.debtor_id,
-          amount: s.amount,
-          settled_at: s.settled ? createdAt : null,
-          settlement_id: null,
-        }));
+        shares =
+          "shares" in input
+            ? input.shares.map((r) => ({
+                purchase_id: id,
+                debtor_id: r.user_id,
+                amount: r.amount,
+                settled_at: r.user_id === me.id ? createdAt : null,
+                settlement_id: null,
+              }))
+            : splitEqual(input.amount, input.participant_ids, me.id).map((s) => ({
+                purchase_id: id,
+                debtor_id: s.debtor_id,
+                amount: s.amount,
+                settled_at: s.settled ? createdAt : null,
+                settlement_id: null,
+              }));
       } catch {
         setNotice(ru.errors.purchaseFailed);
         return;
@@ -319,8 +334,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       });
       patchPurchases(input.household_id);
 
-      repo
-        .createPurchase(input)
+      ("shares" in input ? repo.createPurchaseCustom(input) : repo.createPurchase(input))
         .then((real) => {
           tracker.resolve(id, real); // the real row inherits the optimistic row's key: no second row appears
           if (alive.current) patchPurchases(input.household_id);
@@ -333,6 +347,92 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
     },
     [repo, tracker, patchPurchases],
+  );
+
+  const findPurchase = useCallback(
+    (id: string) =>
+      Object.values(snapRef.current.purchases)
+        .flat()
+        .find((p) => p.id === id),
+    [],
+  );
+
+  const deletePurchase = useCallback(
+    async (purchaseId: string): Promise<boolean> => {
+      const me = meRef.current;
+      const current = findPurchase(purchaseId);
+      if (!me || !current || current.payer_id !== me.id || purchaseId.startsWith("optimistic-")) return false;
+      tracker.remove(purchaseId);
+      patchPurchases(current.household_id);
+      try {
+        await repo.deletePurchase(purchaseId);
+        if (alive.current) void refresh({ silent: true });
+        return true;
+      } catch (e) {
+        tracker.restore(purchaseId);
+        if (alive.current) {
+          patchPurchases(current.household_id);
+          setNotice(e instanceof RepoError && e.code === "has_payments" ? ru.detail.errors.hasPayments : ru.detail.errors.deleteFailed);
+          void refresh({ silent: true });
+        }
+        return false;
+      }
+    },
+    [repo, tracker, patchPurchases, refresh, findPurchase],
+  );
+
+  const editDescription = useCallback(
+    async (purchaseId: string, description: string): Promise<boolean> => {
+      const me = meRef.current;
+      const current = findPurchase(purchaseId);
+      const text = description.trim();
+      if (!me || !current || current.payer_id !== me.id || text === "" || text.length > 200) return false;
+      if (text === current.description) return true;
+      tracker.rename(purchaseId, text);
+      patchPurchases(current.household_id);
+      try {
+        await repo.updatePurchaseDescription(purchaseId, text);
+        if (alive.current) void refresh({ silent: true });
+        return true;
+      } catch {
+        tracker.unrename(purchaseId);
+        if (alive.current) {
+          patchPurchases(current.household_id);
+          setNotice(ru.detail.errors.editFailed);
+          void refresh({ silent: true });
+        }
+        return false;
+      }
+    },
+    [repo, tracker, patchPurchases, refresh, findPurchase],
+  );
+
+  const setRemindersEnabled = useCallback(
+    async (householdId: string, enabled: boolean): Promise<boolean> => {
+      const me = meRef.current;
+      if (!me) return false;
+      const apply = (value: boolean) =>
+        commit((s) => ({
+          ...s,
+          members: {
+            ...s.members,
+            [householdId]: (s.members[householdId] ?? []).map((m) => (m.user_id === me.id ? { ...m, reminders_enabled: value } : m)),
+          },
+        }));
+      const before = (snapRef.current.members[householdId] ?? []).find((m) => m.user_id === me.id)?.reminders_enabled !== false;
+      apply(enabled);
+      try {
+        await repo.setRemindersEnabled(householdId, enabled);
+        return true;
+      } catch {
+        if (alive.current) {
+          apply(before);
+          setNotice(ru.flat.remindersFailed);
+        }
+        return false;
+      }
+    },
+    [repo, commit],
   );
 
   const markPaid = useCallback(
@@ -465,8 +565,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const data = useMemo<AppData>(() => {

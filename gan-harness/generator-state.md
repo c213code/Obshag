@@ -235,3 +235,26 @@ Nothing committed. No servers running. 0001-0003 and `.env.local` untouched; no 
 - D1-D5: «Ждут решения» at the top of Главная, scrim 15%, island geometry (11px inset, 368 wide), «моё» for personal purchases, full wrapped token on /settings/shortcut.
 - U: signup 5xx/unexpected_failure and no-session map to signup_unavailable with the user message from ru.ts, dev-only console.debug; fake-client test.
 - verify green (413 unit tests), e2e 45/45 green once. Screenshots: gan-harness/screenshots/s4f-cmp-island.png, s4f-app-main.png (shoot script: gan-harness/shoot-s4f.mjs).
+
+---
+
+# Slices 5+2 "Reminders + purchase detail" (one pass)
+
+Nothing committed. No servers running. 0001-0004 and `.env.local` untouched; no service-role key anywhere.
+
+## Built
+- SQL `supabase/migrations/0005_slice5_2.sql` (+ `tests/db/slice52.test.ts`, 24 PGlite tests): `private.server_secrets` + `private.server_secret_ok` (sha256 hex of the secret vs the 'cron' row, no rows inserted), `members.reminders_enabled`, `run_daily_reminders(secret)` (anon), `remind(secret, household, debtor)` (6h cooldown, HINT = seconds left), `set_reminders_enabled`, `create_purchase_custom`, `delete_purchase` (23514 has_payments), `update_purchase_description`; direct client update/delete on purchases revoked (policies dropped). anon can execute only capture_purchase, prune_push_subscription, run_daily_reminders (tested).
+- Server: `GET /api/cron/daily` (constant-time bearer, `after()` pushes), `POST /api/remind` (200/400/401/403/429+retry_after), `vercel.json` cron `0 14 * * *`, proxy matcher excludes `/api/cron`. `reminderHandler.ts`, `cronAuth.ts`, `reminderDeps.ts`; `PushPayload` union (+ `reminder` type); `public/sw.js` shows «Ты должен Айдосу 200 ₸ · Рассчитаться» and opens `/settle/<creditor>`. Mock mode: `x-mock-user` header (E2E gate only) + `CRON_SECRET` as the mock server secret.
+- Repo/mock/supabase: `createPurchaseCustom`, `deletePurchase`, `updatePurchaseDescription`, `setRemindersEnabled`, `remind`, `runDailyReminders`; `RepoError.retryAfter`, code `has_payments`; mock schema v6 (`reminderLog`).
+- UI: `/purchases` (days, filters Все/Мои/Должен я), `/purchases/[id]` (Purchase.dc.html: lime card, «Кто скинул», edit, two-step delete), «Свои суммы» in Новая покупка, `RemindButton` (sending / Напомнили / Можно через N ч) on `/settle` rows, pair screen and detail rows, «Напоминания» switch on Квартира, «Напомнить» quick action live. Removed «скоро» from Напомнить, Свои суммы, remind pill and the Покупки tab; «Ежемесячно» and other payers stay «скоро».
+- Optimistic delete/edit via `PurchaseTracker.remove/restore/rename`; `listRedirect` no longer redirects when the single counterparty owes me (the list carries the pill).
+
+## Results
+- `npm run verify`: green (46 test files, 479 tests, lint, tsc, build). `npm run test:e2e`: 54/54 (45 old + 9 new; slice 1 and 3 assertions about «скоро» / the single-counterparty redirect were updated).
+- Screenshot: `gan-harness/screenshots/s52-cmp-purchase.png` (left Purchase.dc.html, right the app; script `gan-harness/shoot-s52.mjs`).
+
+## Known gaps
+- Dead push endpoints from reminders are not pruned (prune RPC is capture-token gated; anon surface stays at 3 functions).
+- Visual deltas vs Purchase.dc.html: «на 4 человека» (correct plural instead of «человек»), 1-2px row/avatar offsets, thinner check stroke.
+- `from_name_dative` in the RPC result is the raw display name; the route declines it (declension.ts).
+- Cron in Supabase mode is untested live (fake client + PGlite only).

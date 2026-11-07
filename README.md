@@ -48,6 +48,24 @@ NEXT_PUBLIC_DATA_MODE=mock npm run dev
 
 Без них capture всё равно сохраняет покупку, просто уведомления не приходят. Ключ service-role для этого не нужен: `/api/capture` ходит в базу с anon-ключом через функцию `capture_purchase`. Миграция `supabase/migrations/0004_slice4_capture.sql` применяется поверх 0001–0003.
 
+## Напоминания: CRON_SECRET
+
+Ежедневные напоминания (19:00 Asia/Almaty, `vercel.json` → `0 14 * * *` UTC) и кнопка «Напомнить» работают без service-role ключа:
+сервер передаёт `CRON_SECRET` в RPC, а база хранит только его sha256.
+
+1. Придумай секрет (от 16 символов): `openssl rand -hex 32`.
+2. Vercel → Settings → Environment Variables: `CRON_SECRET` = секрет (Production). Vercel Cron сам шлёт `Authorization: Bearer $CRON_SECRET`.
+3. Посчитай хеш локально: `printf %s "$CRON_SECRET" | shasum -a 256` (только hex-часть).
+4. Supabase → SQL Editor, после применения `0005_slice5_2.sql`:
+
+   ```sql
+   insert into private.server_secrets (name, hash) values ('cron', '<sha256-hex>')
+   on conflict (name) do update set hash = excluded.hash;
+   ```
+5. Redeploy. Проверка: `curl -i https://<домен>/api/cron/daily` → 401, с правильным Bearer → 200 `{"ok":true,"reminders":N}`.
+
+Смена секрета: повтори шаги 2–4. Пока строки `cron` нет, `remind` и `run_daily_reminders` отвечают 28000.
+
 ## Скрипты
 
 | Команда | Что делает |

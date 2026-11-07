@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { UserNet } from "./netting";
 import { listRedirect, pairScreenState } from "./settleNav";
 
-const cp = (userId: string, active = true) => ({ userId, iOwe: 100, theyOwe: 0, net: 100, direction: "i_pay" as const, active });
+const cp = (userId: string, active = true) => ({ userId, iOwe: 100, theyOwe: 0, net: 100, direction: "i_pay" as "i_pay" | "they_pay", active });
 const net = (...counterparties: ReturnType<typeof cp>[]): UserNet => ({ counterparties, owe: 0, owed: 0, total: 0 });
 const present = (...ids: string[]) => (id: string) => ids.includes(id);
 
 describe("listRedirect", () => {
   it("sends the user to the one neighbour they settle with", () => {
     expect(listRedirect(net(cp("a")), present("a"))).toBe("a");
+  });
+
+  it("stays on the list when the one neighbour owes ME (their «Напомнить» pill lives there)", () => {
+    const owesMe = { ...cp("a"), direction: "they_pay" as const };
+    expect(listRedirect(net(owesMe), present("a"))).toBeNull();
   });
 
   it("does nothing with several counterparties or none", () => {

@@ -17,10 +17,10 @@ export async function proxy(request: NextRequest) {
   return updateSession(request, env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-// Everything except Next internals, public assets, the gallery and /api/capture (the iOS Shortcut has no cookie: the token is its credential). Exclusions are anchored (`kit(?:/|$)`), so a
+// Everything except Next internals, public assets, the gallery /api/capture (the iOS Shortcut has no cookie: the token is its credential) and /api/cron (Vercel Cron: the bearer CRON_SECRET). Exclusions are anchored (`kit(?:/|$)`), so a
 // real route such as /kitchen is still protected, and static files are matched by extension.
 export const config = {
   matcher: [
-    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
+    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|api/cron(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
   ],
 };

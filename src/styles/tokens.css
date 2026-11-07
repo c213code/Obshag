@@ -19,6 +19,10 @@
   --color-outline: #3a3d45;
   /* nearest back layer of the home card stack (Main.dc.html) */
   --color-stack: #4a4e58;
+  /* Purchase.dc.html: delete pill text, its hairline, and the border of a row still waiting for money */
+  --color-danger: #ff6b6b;
+  --color-danger-line: #3a2a2a;
+  --color-wait-line: #5a3a28;
   --color-transparent: transparent;
   --color-current: currentColor;
 

@@ -61,6 +61,17 @@ describe("sw.js", () => {
     });
   });
 
+  it("push: a reminder shows «Ты должен Айдосу 200 ₸» · «Рассчитаться» and opens /settle/<creditor>", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "reminder", fromUserId: "u1", fromName: "Айдосу", amount: 200 }));
+    expect(sw.shown[0].title).toBe("Ты должен Айдосу 200\u00a0₸");
+    expect(sw.shown[0].options).toMatchObject({ body: "Рассчитаться", tag: "reminder-u1", data: { url: "/settle/u1" } });
+    expect(sw.shown[0].options.actions).toBeUndefined();
+    // tapping it opens the settlement
+    await sw.wait(sw.handlers.notificationclick, click("", sw.shown[0].options.data));
+    expect(sw.opened).toEqual(["/settle/u1"]);
+  });
+
   it("push: no merchant falls back to «Покупка Apple Pay»", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "pending", purchaseId: "x", merchant: null, amount: 250 }));

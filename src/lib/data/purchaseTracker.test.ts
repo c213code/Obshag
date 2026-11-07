@@ -119,4 +119,41 @@ describe("PurchaseTracker overrides (optimistic resolve of a pending purchase)",
     t.clear();
     expect(t.view("h1", [pending])[0].status).toBe("pending");
   });
+
+  const mk = (id: string, created_at: string): PurchaseWithShares => ({ ...pending, id, status: "shared", created_at, description: id });
+
+  it("a removed row stays hidden until the server list stops carrying it, and comes back on restore", () => {
+    const t = new PurchaseTracker();
+    const a = mk("a", "2026-11-01T10:00:00Z");
+    const b = mk("b", "2026-11-02T10:00:00Z");
+    t.remove("a");
+    expect(t.view("h1", [a, b]).map((p) => p.id)).toEqual(["b"]);
+    expect(t.view("h1", [a, b]).map((p) => p.id)).toEqual(["b"]);
+    expect(t.view("h1", [b]).map((p) => p.id)).toEqual(["b"]); // the server caught up: tombstone dropped
+    expect(t.view("h1", [a, b]).map((p) => p.id)).toEqual(["b", "a"]);
+    t.remove("a");
+    t.restore("a");
+    expect(t.view("h1", [a, b]).map((p) => p.id)).toEqual(["b", "a"]);
+  });
+
+  it("a removed row does not stay hidden forever when the server never confirms", () => {
+    const t = new PurchaseTracker();
+    const a = mk("a", "2026-11-01T10:00:00Z");
+    t.remove("a", Date.now() - 60_000);
+    expect(t.view("h1", [a]).map((p) => p.id)).toEqual(["a"]);
+  });
+
+  it("a renamed row shows the new text until the server carries it", () => {
+    const t = new PurchaseTracker();
+    const a = mk("a", "2026-11-01T10:00:00Z");
+    t.rename("a", "Хлеб");
+    expect(t.view("h1", [a])[0].description).toBe("Хлеб");
+    expect(t.view("h1", [{ ...a, description: "Хлеб" }])[0].description).toBe("Хлеб"); // caught up, override dropped
+    expect(t.view("h1", [a])[0].description).toBe("a");
+    t.rename("a", "Вода");
+    t.unrename("a");
+    expect(t.view("h1", [a])[0].description).toBe("a");
+    t.rename("a", "Старое", Date.now() - 60_000);
+    expect(t.view("h1", [a])[0].description).toBe("a"); // expired
+  });
 });

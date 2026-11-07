@@ -64,6 +64,27 @@ export const createPurchaseSchema = z
   });
 export type CreatePurchaseInput = z.input<typeof createPurchaseSchema>;
 
+/** Custom split: explicit amounts that sum to the total; at least one entry is not the payer (checked where the payer is known). */
+export const createPurchaseCustomSchema = z
+  .object({
+    household_id: z.string().min(1),
+    amount: tengeSchema,
+    description: z.string().trim().min(1, "Description is required").max(200),
+    merchant: z.string().trim().max(120).nullish(),
+    shares: z
+      .array(z.object({ user_id: z.string().min(1), amount: z.number().int().min(0).max(MAX_AMOUNT) }))
+      .min(1, "At least one entry is required")
+      .max(MAX_PARTICIPANTS, "Too many participants")
+      .refine((rows) => new Set(rows.map((r) => r.user_id)).size === rows.length, "Duplicate participant"),
+  })
+  .refine((p) => p.shares.reduce((sum, r) => sum + r.amount, 0) === p.amount, { path: ["shares"], message: "Amounts must add up to the total" });
+export type CreatePurchaseCustomInput = z.input<typeof createPurchaseCustomSchema>;
+
+export const descriptionSchema = z.string().trim().min(1, "Description is required").max(200);
+
+/** The body of POST /api/remind. */
+export const remindBodySchema = z.object({ household_id: z.string().min(1).max(64), debtor_id: z.string().min(1).max(64) }).strict();
+
 export const RESOLVE_DESCRIPTION_MAX = 200;
 
 /** resolve_pending input. Shared needs participants (the payer included, like a new purchase); personal ignores them. */

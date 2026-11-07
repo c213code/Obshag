@@ -441,13 +441,17 @@ test.describe("slice 3: netting and settlement", () => {
 
   test("the debtor's pair screen when THEY owe: Напомнить is disabled and the incoming row is on the screen", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous tests");
-    // Айдос is the creditor: nothing to remind with yet (still «скоро»)
+    // Айдос is the creditor: the list stays (it carries the «Напомнить» pill), the pair screen has a live «Напомнить»
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
       await page.getByRole("link", { name: "Расчёт", exact: true }).click();
+      await expect(page).toHaveURL(/\/settle$/);
+      await expect(page.getByRole("button", { name: /^Напомнить: / })).toBeEnabled();
+      await page.getByRole("link", { name: /Рассчитаться с / }).click();
       await expect(page).toHaveURL(/\/settle\/[0-9a-f-]{36}$/);
-      await expect(page.getByRole("button", { name: /Напомнить/ })).toBeDisabled();
-      await expect(page.getByRole("button", { name: /Напомнить/ })).toContainText("скоро");
+      await expect(page.getByTestId("remind-pair")).toBeEnabled();
+      await expect(page.getByTestId("remind-pair")).toContainText("Напомнить");
+      await expect(page.getByTestId("remind-pair")).not.toContainText("скоро");
       await expect(page.getByRole("button", { name: "Я оплатил" })).toHaveCount(0);
       await expect(page.getByTestId("kaspi-bar")).toContainText("Kaspi Ерасыла");
       await expect(page.getByTestId("kaspi-bar")).toContainText("+7 7•• ••• 01 11"); // Ерасыл's number

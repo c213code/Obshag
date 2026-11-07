@@ -1,6 +1,6 @@
 import "server-only";
 import { sendNotification } from "web-push";
-import type { PendingPushPayload, PushResult, PushSender } from "./push";
+import type { PushPayload, PushResult, PushSender } from "./push";
 import { isAllowedPushEndpoint } from "@/lib/domain/pushEndpoint";
 import type { PushSubscriptionInput } from "@/lib/data/types";
 
@@ -17,7 +17,7 @@ export function readVapid(env: Record<string, string | undefined> = process.env)
 /** The real sender. Notification text is composed in the service worker, so the payload stays small. */
 export function createWebPushSender(config: VapidConfig): PushSender {
   return {
-    async send(subscription: PushSubscriptionInput, payload: PendingPushPayload): Promise<PushResult> {
+    async send(subscription: PushSubscriptionInput, payload: PushPayload): Promise<PushResult> {
       // a stored endpoint is never trusted: only real push services, never an internal URL
       if (!isAllowedPushEndpoint(subscription.endpoint)) return { ok: false, gone: true };
       try {

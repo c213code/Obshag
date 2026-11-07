@@ -23,8 +23,9 @@ export function householdSummary(
 /** "N из M скинули": non-payer shares settled so far vs all non-payer shares of a purchase. */
 export function purchaseProgress(
   payerId: string,
-  shares: ReadonlyArray<{ debtor_id: string; settled_at: string | null }>,
+  shares: ReadonlyArray<{ debtor_id: string; settled_at: string | null; amount?: number }>,
 ): { paid: number; total: number } {
-  const owed = shares.filter((s) => s.debtor_id !== payerId);
+  // a «Свои суммы» entry of 0 ₸ owes nothing, so it is neither waited for nor counted
+  const owed = shares.filter((s) => s.debtor_id !== payerId && (s.amount ?? 1) > 0);
   return { paid: owed.filter((s) => s.settled_at !== null).length, total: owed.length };
 }

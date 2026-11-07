@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  createPurchaseCustomSchema,
   createPurchaseSchema,
+  descriptionSchema,
   emailSchema,
   pushSubscriptionSchema,
   resolvePendingSchema,
@@ -13,15 +15,16 @@ import {
   RepoError,
   type AuthSession,
   type MemberWithProfile,
+  type NewCustomPurchase,
   type NewPurchase,
   type ProfileDraft,
   type PurchaseWithShares,
   type Repo,
   type RepoErrorCode,
 } from "./repo";
-import type { CaptureResult, CaptureTokenInfo, Household, Member, Profile, Settlement, SettlementShare, Share } from "./types";
+import type { CaptureResult, CaptureTokenInfo, Household, Member, Profile, ReminderTarget, Settlement, SettlementShare, Share } from "./types";
 
-type DbError = { code?: string; message?: string } | null;
+type DbError = { code?: string; message?: string; hint?: string } | null;
 
 const JOIN_FAILED = "Invalid or unavailable invite code";
 
@@ -37,6 +40,7 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   email_taken: "Email is already registered",
   weak_password: "Password is too weak",
   rate_limited: "Too many requests",
+  has_payments: "Something was already paid for this purchase",
   stale: "The amounts changed since the payment was marked",
   signup_unavailable: "Sign-up is unavailable",
   unknown: "Request failed",
@@ -55,12 +59,15 @@ export function mapDbError(error: NonNullable<DbError>): RepoError {
   if (error.code === "28000") code = "unauthenticated";
   else if (error.code === "42501") code = "forbidden";
   else if (error.code === "23514" && message.includes("stale_settlement")) code = "stale";
+  else if (error.code === "23514" && message.includes("has_payments")) code = "has_payments";
   else if (["23514", "23503", "23505", "22023", "22P02"].includes(error.code ?? "")) code = "invalid";
   else if (error.code === "P0002") code = "not_found";
   else if (message.includes("rate_limited")) code = "rate_limited";
   else if (message.includes("join_failed")) code = "join_failed";
   else if (message.includes("profile_required")) code = "profile_required";
-  return new RepoError(code, MESSAGES[code]);
+  // the cooldown RPC puts the seconds left into the HINT
+  const retry = code === "rate_limited" ? Number(error.hint) : NaN;
+  return new RepoError(code, MESSAGES[code], Number.isInteger(retry) && retry > 0 ? retry : undefined);
 }
 
 type AuthError = { code?: string; status?: number; message?: string };
@@ -254,6 +261,49 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       );
       if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
       return toPurchase(row);
+    },
+
+    async createPurchaseCustom(raw: NewCustomPurchase) {
+      const parsed = createPurchaseCustomSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      const row = ok<PurchaseRow>(
+        await client.rpc("create_purchase_custom", {
+          p_household: input.household_id,
+          p_amount: input.amount,
+          p_description: input.description,
+          p_merchant: input.merchant ? input.merchant : null,
+          p_shares: input.shares.map(({ user_id, amount }) => ({ user_id, amount })),
+        }),
+      );
+      if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
+      return toPurchase(row);
+    },
+
+    async deletePurchase(purchaseId) {
+      const { error } = await client.rpc("delete_purchase", { p_id: purchaseId });
+      if (error) throw mapDbError(error);
+    },
+
+    async updatePurchaseDescription(purchaseId, description) {
+      const parsed = descriptionSchema.safeParse(description);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const row = ok<PurchaseRow>(await client.rpc("update_purchase_description", { p_id: purchaseId, p_text: parsed.data }));
+      if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
+      return toPurchase(row);
+    },
+
+    async setRemindersEnabled(householdId, enabled) {
+      const { error } = await client.rpc("set_reminders_enabled", { p_household: householdId, p_enabled: enabled });
+      if (error) throw mapDbError(error);
+    },
+
+    async remind(secret, householdId, debtorId) {
+      return ok<ReminderTarget>(await client.rpc("remind", { p_secret: secret, p_household: householdId, p_debtor: debtorId }));
+    },
+
+    async runDailyReminders(secret) {
+      return ok<ReminderTarget[]>(await client.rpc("run_daily_reminders", { p_secret: secret }));
     },
 
     async listSettlements(householdId) {

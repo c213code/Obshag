@@ -21,6 +21,8 @@ export default defineConfig({
       NEXT_PUBLIC_DATA_MODE: "mock",
       NEXT_PUBLIC_E2E: "1",
       E2E_ALLOW_MOCK_STORE: "1",
+      // the bearer of /api/cron/daily and the server secret of /api/remind in the E2E mock backend
+      CRON_SECRET: "e2e-cron-secret-0123456789abcdef",
       NEXT_PUBLIC_SUPABASE_URL: "",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
     },

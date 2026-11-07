@@ -17,7 +17,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <Guard page="app">
       {children}
-      {pathname === "/purchases/new" || pathname.startsWith("/settle") || pathname.startsWith("/settings") ? null : <TabBar value="home" tabs={tabs} onAction={onAction} soonActions={["monthly"]} />}
+      {pathname.startsWith("/purchases/") || pathname.startsWith("/settle") || pathname.startsWith("/settings") ? null : <TabBar value="home" tabs={tabs} onAction={onAction} soonActions={["monthly"]} />}
     </Guard>
   );
 }

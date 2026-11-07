@@ -27,6 +27,11 @@ export const HomeIcon = (p: IconProps) => (
     <path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
   </Svg>
 );
+export const EditIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20h4L19 9l-4-4L4 16z" />
+  </Svg>
+);
 export const ListIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />

@@ -27,6 +27,8 @@ export type MockDb = {
   pushSubscriptions: Array<{ user_id: string; endpoint: string; p256dh: string; auth: string; created_at: string }>;
   /** successful captures (rate limit: 30 per user per hour). */
   captureOps: Array<{ user_id: string; at: string }>;
+  /** reminders sent (SQL reminder_log): from = creditor, to = debtor; 6h cooldown per pair. */
+  reminderLog: Array<{ from_id: string; to_id: string; at: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();
@@ -131,5 +133,6 @@ export function createSeed(): MockDb {
     captureTokens: [],
     pushSubscriptions: [],
     captureOps: [],
+    reminderLog: [],
   };
 }

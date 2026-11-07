@@ -1,7 +1,9 @@
 import { pickAvatarColor } from "@/lib/domain/avatar";
 import { newId } from "@/lib/domain/uuid";
 import {
+  createPurchaseCustomSchema,
   createPurchaseSchema,
+  descriptionSchema,
   emailSchema,
   householdNameSchema,
   inviteCodeSchema,
@@ -16,6 +18,7 @@ import {
   RepoError,
   type AuthSession,
   type MemberWithProfile,
+  type NewCustomPurchase,
   type NewPurchase,
   type ProfileDraft,
   type PurchaseWithShares,
@@ -23,7 +26,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, type MockDb } from "./seed";
-import type { CaptureResult, CaptureTokenInfo, Household, Profile, Purchase, Settlement, Share, Uuid } from "./types";
+import type { CaptureResult, CaptureTokenInfo, Household, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -33,6 +36,8 @@ export type MockRepoOptions = {
   session?: SessionStore;
   /** Test seam for the join rate limit. */
   now?: () => Date;
+  /** The CRON_SECRET the server-only reminder calls must present (the SQL stores its hash). Unset = they always fail. */
+  serverSecret?: string;
 };
 
 export function memoryStorage(initial?: MockDb): MockStorage {
@@ -59,6 +64,16 @@ const SETTLEMENT_OPS_LIMIT = 20;
 const CAPTURE_LIMIT = 30;
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_RETRIES = 8;
+const DAY_MS = 24 * HOUR_MS;
+const REMIND_COOLDOWN_MS = 6 * HOUR_MS;
+
+/** Constant-time string compare (the secret is short; lengths are compared after padding to the longer one). */
+function sameSecret(a: string, b: string): boolean {
+  const n = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
 
 function randomCode(length = 12): string {
   let out = "";
@@ -177,6 +192,25 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
   };
   const withShares = (db: MockDb, p: Purchase): PurchaseWithShares =>
     structuredClone({ ...p, shares: db.shares.filter((s) => s.purchase_id === p.id) });
+
+  const requireSecret = (secret: string) => {
+    if (typeof secret !== "string" || secret === "" || !opts.serverSecret || !sameSecret(secret, opts.serverSecret)) {
+      throw new RepoError("unauthenticated", "Invalid server secret");
+    }
+  };
+  const subscriptionsOf = (db: MockDb, userId: Uuid) =>
+    db.pushSubscriptions.filter((x) => x.user_id === userId).map(({ endpoint, p256dh, auth }) => ({ endpoint, p256dh, auth }));
+  const lastReminder = (db: MockDb, from: Uuid, to: Uuid, t: number) => {
+    const times = db.reminderLog.filter((l) => l.from_id === from && l.to_id === to && t - Date.parse(l.at) < REMIND_COOLDOWN_MS).map((l) => Date.parse(l.at));
+    return times.length ? Math.max(...times) : null;
+  };
+  const target = (db: MockDb, debtor: Uuid, creditor: Uuid, amount: number): ReminderTarget => ({
+    to_user: debtor,
+    from_user: creditor,
+    from_name_dative: profileOf(db, creditor)?.display_name ?? "",
+    amount,
+    subscriptions: subscriptionsOf(db, debtor),
+  });
 
   return {
     async getSession() {
@@ -353,6 +387,125 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         db.purchases.push(purchase);
         db.shares.push(...shares);
         return structuredClone({ ...purchase, shares });
+      });
+    },
+
+    async createPurchaseCustom(raw: NewCustomPurchase) {
+      const id = uid();
+      const parsed = createPurchaseCustomSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      return tx((db): PurchaseWithShares => {
+        requireMember(db, input.household_id, id);
+        if (!input.shares.every((r) => isMember(db, input.household_id, r.user_id))) {
+          throw new RepoError("invalid", "Every entry must be an active member of the household");
+        }
+        if (!input.shares.some((r) => r.user_id !== id)) throw new RepoError("invalid", "At least one entry must not be the payer");
+        const createdAt = now().toISOString();
+        const purchase: Purchase = {
+          id: newId(),
+          household_id: input.household_id,
+          payer_id: id,
+          amount: input.amount,
+          description: input.description,
+          merchant: input.merchant ? input.merchant : null,
+          source: "manual",
+          status: "shared",
+          created_at: createdAt,
+        };
+        const shares: Share[] = input.shares.map((r) => ({
+          purchase_id: purchase.id,
+          debtor_id: r.user_id,
+          amount: r.amount,
+          settled_at: r.user_id === id ? createdAt : null,
+          settlement_id: null,
+        }));
+        db.purchases.push(purchase);
+        db.shares.push(...shares);
+        return structuredClone({ ...purchase, shares });
+      });
+    },
+
+    async deletePurchase(purchaseId) {
+      const id = uid();
+      await tx((db) => {
+        const p = db.purchases.find((x) => x.id === purchaseId);
+        if (!p || !isMember(db, p.household_id, id) || (p.status !== "shared" && p.payer_id !== id)) throw new RepoError("not_found", "Purchase not found");
+        if (p.payer_id !== id) throw new RepoError("forbidden", "Only the payer can delete");
+        const paid = db.shares.some((s) => s.purchase_id === p.id && s.settled_at !== null && s.debtor_id !== p.payer_id);
+        const covered = db.settlements.some((s) => s.status !== "cancelled" && s.covered.some((c) => c.purchase_id === p.id));
+        if (paid || covered) throw new RepoError("has_payments", "Something was already paid for this purchase");
+        db.purchases = db.purchases.filter((x) => x.id !== p.id);
+        db.shares = db.shares.filter((s) => s.purchase_id !== p.id);
+      });
+    },
+
+    async updatePurchaseDescription(purchaseId, description) {
+      const id = uid();
+      const parsed = descriptionSchema.safeParse(description);
+      return tx((db): PurchaseWithShares => {
+        const p = db.purchases.find((x) => x.id === purchaseId);
+        if (!p || !isMember(db, p.household_id, id) || (p.status !== "shared" && p.payer_id !== id)) throw new RepoError("not_found", "Purchase not found");
+        if (p.payer_id !== id) throw new RepoError("forbidden", "Only the payer can edit");
+        if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+        p.description = parsed.data;
+        return withShares(db, p);
+      });
+    },
+
+    async setRemindersEnabled(householdId, enabled) {
+      const id = uid();
+      await tx((db) => {
+        requireMember(db, householdId, id);
+        const m = db.members.find((x) => x.household_id === householdId && x.user_id === id && x.active);
+        if (m) m.reminders_enabled = enabled;
+      });
+    },
+
+    async remind(secret, householdId, debtorId): Promise<ReminderTarget> {
+      requireSecret(secret);
+      const id = uid();
+      return tx((db) => {
+        if (!householdId || !debtorId || debtorId === id || !isMember(db, householdId, id) || !isMember(db, householdId, debtorId)) {
+          throw new RepoError("forbidden", "Not allowed");
+        }
+        const pair = netPair(debtorId, id, householdShares(db, householdId), householdPurchases(db, householdId));
+        if (pair.direction !== "i_pay") throw new RepoError("forbidden", "Not a creditor");
+        const t = now().getTime();
+        const last = lastReminder(db, id, debtorId, t);
+        if (last !== null) {
+          throw new RepoError("rate_limited", "Reminder cooldown", Math.max(1, Math.ceil((last + REMIND_COOLDOWN_MS - t) / 1000)));
+        }
+        db.reminderLog.push({ from_id: id, to_id: debtorId, at: now().toISOString() });
+        return target(db, debtorId, id, pair.net);
+      });
+    },
+
+    async runDailyReminders(secret): Promise<ReminderTarget[]> {
+      requireSecret(secret);
+      return tx((db) => {
+        const t = now().getTime();
+        db.reminderLog = db.reminderLog.filter((l) => t - Date.parse(l.at) < 7 * DAY_MS);
+        const out: ReminderTarget[] = [];
+        const active = db.members.filter((m) => m.active);
+        const sorted = [...active].sort((a, b) => a.household_id.localeCompare(b.household_id) || a.user_id.localeCompare(b.user_id));
+        for (const d of sorted) {
+          if (d.reminders_enabled === false) continue;
+          for (const c of sorted.filter((x) => x.household_id === d.household_id && x.user_id !== d.user_id)) {
+            const shares = householdShares(db, d.household_id);
+            const purchases = householdPurchases(db, d.household_id);
+            const pair = netPair(d.user_id, c.user_id, shares, purchases);
+            if (pair.direction !== "i_pay") continue;
+            // the oldest open share the debtor owes this creditor
+            const owed = new Set(pair.myItems.map((i) => i.purchase_id));
+            const oldest = Math.min(...purchases.filter((p) => owed.has(p.id)).map((p) => Date.parse(p.created_at)));
+            if (!Number.isFinite(oldest) || t - oldest <= DAY_MS) continue;
+            if (lastReminder(db, c.user_id, d.user_id, t) !== null) continue;
+            db.reminderLog.push({ from_id: c.user_id, to_id: d.user_id, at: now().toISOString() });
+            out.push(target(db, d.user_id, c.user_id, pair.net));
+          }
+        }
+        return out;
       });
     },
 

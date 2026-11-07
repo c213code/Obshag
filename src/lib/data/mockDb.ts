@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { MockDb } from "./seed";
 
 /** Bump when the shape of MockDb changes: older saved data is then discarded and reseeded. */
-export const MOCK_SCHEMA_VERSION = 5;
+export const MOCK_SCHEMA_VERSION = 6;
 
 const uuid = z.string().min(1).max(64);
 const iso = z.string().min(1).max(40);
@@ -29,6 +29,7 @@ const member = z.object({
   active: z.boolean(),
   away_until: z.string().max(20).nullable(),
   joined_at: iso,
+  reminders_enabled: z.boolean().optional(),
 });
 const purchase = z.object({
   id: uuid,
@@ -78,6 +79,7 @@ export const mockDbSchema = z.object({
     .array(z.object({ user_id: uuid, endpoint: z.string().max(2100), p256dh: z.string().max(300), auth: z.string().max(300), created_at: iso }))
     .max(2000),
   captureOps: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
+  reminderLog: z.array(z.object({ from_id: uuid, to_id: uuid, at: iso })).max(5000),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

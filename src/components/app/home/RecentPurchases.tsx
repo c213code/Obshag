@@ -51,7 +51,13 @@ export function RecentPurchases({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4, ease: ease.smooth }}
               >
-                <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
+                {p.id.startsWith("optimistic-") ? (
+                  <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
+                ) : (
+                  <Link href={`/purchases/${p.id}`} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
+                    <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
+                  </Link>
+                )}
               </motion.li>
             ))}
           </AnimatePresence>

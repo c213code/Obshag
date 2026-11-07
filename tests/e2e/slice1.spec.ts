@@ -311,8 +311,8 @@ test.describe("slice 1: first end-to-end path", () => {
         await expect(payers.getByRole("button", { name: "Айдос" })).toBeDisabled();
         expect(await payers.getByRole("button", { name: "Айдос" }).evaluate((el) => parseFloat(getComputedStyle(el).opacity))).toBeLessThan(0.6);
         const custom = one.page.getByRole("button", { name: /Свои суммы/ });
-        await expect(custom).toBeDisabled();
-        await expect(custom).toContainText("скоро");
+        await expect(custom).toBeEnabled(); // «Свои суммы» is live since slice 2
+        await expect(custom).not.toContainText("скоро");
         await one.page.screenshot({ path: `${SHOTS}/s1-e2e-purchase.png` });
 
         // optimistic: hold the save back, the row must already be on Главная

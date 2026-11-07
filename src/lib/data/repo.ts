@@ -6,6 +6,7 @@ import type {
   Profile,
   Purchase,
   PushSubscriptionInput,
+  ReminderTarget,
   Settlement,
   Share,
   Uuid,
@@ -13,6 +14,15 @@ import type {
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
 
 export type MemberWithProfile = Member & { profile: Profile };
+export type NewCustomPurchase = {
+  household_id: Uuid;
+  amount: number;
+  description: string;
+  merchant?: string | null;
+  /** Explicit amount per person (the payer may be one of them); they must add up to `amount`. */
+  shares: ReadonlyArray<{ user_id: Uuid; amount: number }>;
+};
+
 export type PurchaseWithShares = Purchase & { shares: Share[] };
 
 export type AuthSession = { user_id: Uuid; email: string };
@@ -55,6 +65,24 @@ export interface Repo {
   /** Always fails with `join_failed` for any bad code (never reveals whether a code exists). */
   joinHousehold(inviteCode: string): Promise<Household>;
   createPurchase(input: NewPurchase): Promise<PurchaseWithShares>;
+  /** «Свои суммы»: payer only; every entry an active member, no duplicates, integer amounts >= 0 that sum to the total, someone besides the payer. */
+  createPurchaseCustom(input: NewCustomPurchase): Promise<PurchaseWithShares>;
+  /**
+   * Payer only. has_payments = a share was paid or a pending settlement covers it (nothing is deleted).
+   * not_found = unknown or not visible, forbidden = a housemate's purchase.
+   */
+  deletePurchase(purchaseId: Uuid): Promise<void>;
+  /** Payer only, 1..200 characters. */
+  updatePurchaseDescription(purchaseId: Uuid, description: string): Promise<PurchaseWithShares>;
+  /** Self only: whether the daily reminder may be sent to me in this household. */
+  setRemindersEnabled(householdId: Uuid, enabled: boolean): Promise<void>;
+  /**
+   * SERVER ONLY (needs CRON_SECRET, so a browser cannot use it). The signed-in creditor reminds a debtor:
+   * forbidden = not a creditor, rate_limited = 6h cooldown (RepoError.retryAfter = seconds left), unauthenticated = bad secret.
+   */
+  remind(secret: string, householdId: Uuid, debtorId: Uuid): Promise<ReminderTarget>;
+  /** SERVER ONLY (anon client + CRON_SECRET): the reminders to send now; they are logged as sent. */
+  runDailyReminders(secret: string): Promise<ReminderTarget[]>;
 
   /** Every settlement of the household, newest first (members only). */
   listSettlements(householdId: Uuid): Promise<Settlement[]>;
@@ -112,6 +140,7 @@ export type RepoErrorCode =
   | "email_taken"
   | "weak_password"
   | "rate_limited"
+  | "has_payments"
   | "stale"
   | "signup_unavailable" // sign-up failed on the server (5xx / unexpected_failure, e.g. SMTP with «Confirm email» ON)
   | "unknown";
@@ -120,6 +149,8 @@ export class RepoError extends Error {
   constructor(
     readonly code: RepoErrorCode,
     message: string,
+    /** rate_limited by a cooldown: seconds until the next try. */
+    readonly retryAfter?: number,
   ) {
     super(message);
     this.name = "RepoError";

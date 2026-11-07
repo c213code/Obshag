@@ -28,8 +28,35 @@ export class PurchaseTracker {
   /** A pending purchase this device resolved: shown in its new state until a server list agrees (or the TTL ends). */
   private readonly overrides = new Map<string, { row: PurchaseWithShares; at: number }>();
 
+  /** Purchases this device is deleting (or deleted): hidden from every list until a server list no longer has them. */
+  private readonly removed = new Map<string, number>();
+  /** Descriptions this device is changing: shown until a server list carries the same text (or the TTL ends). */
+  private readonly renamed = new Map<string, { text: string; at: number }>();
+
+  /** Optimistic delete: the row disappears from every view at once. */
+  remove(id: string, now = Date.now()): void {
+    this.removed.set(id, now);
+  }
+
+  /** The delete failed: the row comes back. */
+  restore(id: string): void {
+    this.removed.delete(id);
+  }
+
+  /** Optimistic edit of the description. */
+  rename(id: string, text: string, now = Date.now()): void {
+    this.renamed.set(id, { text, at: now });
+  }
+
+  /** The edit failed: the server's text shows again. */
+  unrename(id: string): void {
+    this.renamed.delete(id);
+  }
+
   /** Sign-out: forget everything this device knew. */
   clear(): void {
+    this.removed.clear();
+    this.renamed.clear();
     this.keys.clear();
     this.inflight.clear();
     this.created.clear();
@@ -89,6 +116,18 @@ export class PurchaseTracker {
     }
     for (const r of this.created.values()) if (r.household_id === householdId && !rows.has(r.id)) rows.set(r.id, r);
     for (const r of this.inflight.values()) if (r.household_id === householdId) rows.set(r.id, r);
+
+    const now = Date.now();
+    for (const [id, at] of [...this.removed]) {
+      // gone from the server's list (or the delete never got confirmed within the TTL): stop tracking it
+      if (now - at > OVERRIDE_TTL_MS || (!present.has(id) && !this.created.has(id) && !this.inflight.has(id))) this.removed.delete(id);
+      else rows.delete(id);
+    }
+    for (const [id, r] of [...this.renamed]) {
+      const row = rows.get(id);
+      if (now - r.at > OVERRIDE_TTL_MS || (row && row.description === r.text)) this.renamed.delete(id);
+      else if (row) rows.set(id, { ...row, description: r.text });
+    }
     return [...rows.values()].sort(newestFirst);
   }
 }

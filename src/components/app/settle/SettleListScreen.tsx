@@ -11,6 +11,7 @@ import { formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 import { useAppData } from "../AppDataProvider";
 import { IncomingSection } from "../home/IncomingSection";
+import { RemindButton } from "../remind/RemindButton";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { EmptySettle } from "./EmptySettle";
@@ -65,6 +66,30 @@ export function SettleListScreen() {
               );
             }
             const name = member.profile.display_name;
+            if (c.direction === "they_pay") {
+              // they owe me: the row is the usual link; the «Напомнить» pill floats over its right end (a button must not live inside a link)
+              return (
+                <li key={c.userId} className="relative" data-testid="settle-owes-me-row">
+                  <Link
+                    href={`/settle/${c.userId}`}
+                    aria-label={`${ru.settle.open(name)}, ${caption}`}
+                    className="block transition-transform duration-200 ease-smooth active:scale-[0.98]"
+                  >
+                    <ListRow
+                      name={name}
+                      avatarColor={avatarColorFor(member.profile, me.id)}
+                      title={name}
+                      caption={caption}
+                      captionTone="lime"
+                      trailing={<span aria-hidden="true" className="block w-[136px]" />}
+                    />
+                  </Link>
+                  <div className="absolute top-1/2 right-[10px] z-10 -translate-y-1/2">
+                    <RemindButton householdId={data.householdId} debtorId={c.userId} name={name} testId={`remind-${c.userId}`} />
+                  </div>
+                </li>
+              );
+            }
             return (
               <li key={c.userId}>
                 <Link

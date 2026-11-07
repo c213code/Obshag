@@ -17,7 +17,7 @@ const formatAway = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "2-d
 /** Квартира tab (slice 1 placeholder, styled after Invite.dc.html): invite code, housemates, sign out. */
 export function FlatScreen() {
   const { me, households, members, activeId } = useAppData();
-  const { signOut } = useAppActions();
+  const { signOut, setRemindersEnabled } = useAppActions();
   const [copied, setCopied] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -27,6 +27,7 @@ export function FlatScreen() {
 
   const code = household.invite_code.toUpperCase();
   const roster = members[household.id] ?? [];
+  const remindersOn = roster.find((m) => m.user_id === me.id)?.reminders_enabled !== false;
 
   const share = async () => {
     const url = `${window.location.origin}/join/${encodeURIComponent(code)}`;
@@ -118,6 +119,28 @@ export function FlatScreen() {
           );
         })}
       </ul>
+
+      <div className="flex items-center gap-3 rounded-pill border border-hairline bg-card py-[6px] pr-[6px] pl-5">
+        <div className="min-w-0 flex-1">
+          <p id="reminders-label" className="text-body">
+            {ru.flat.reminders}
+          </p>
+          <p className="text-caption">{ru.flat.remindersCaption}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={remindersOn}
+          aria-labelledby="reminders-label"
+          onClick={() => void setRemindersEnabled(household.id, !remindersOn)}
+          className={`relative mr-[14px] h-[30px] w-[50px] shrink-0 rounded-[15px] transition-colors duration-200 ease-smooth ${remindersOn ? "bg-lime" : "bg-card-2"}`}
+        >
+          <span
+            aria-hidden="true"
+            className={`absolute top-[3px] left-[3px] size-[24px] rounded-full transition-transform duration-200 ease-smooth ${remindersOn ? "translate-x-[20px] bg-on-lime" : "translate-x-0 bg-muted"}`}
+          />
+        </button>
+      </div>
 
       <h2 className="px-[6px] pt-1 text-headline">{ru.flat.sectionApps}</h2>
       <Link

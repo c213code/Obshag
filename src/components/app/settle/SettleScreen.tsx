@@ -16,6 +16,7 @@ import type { NetItem, PairNet } from "@/lib/domain/netting";
 import { ease, useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
+import { RemindButton } from "../remind/RemindButton";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { EmptySettle } from "./EmptySettle";
@@ -270,10 +271,7 @@ export function SettleScreen() {
               </Pill>
             </>
           ) : (
-            <Pill variant="on" size="pay" disabled className="flex-1">
-              {ru.settle.remind}
-              <span className="text-label text-muted">{ru.main.quick.soon}</span>
-            </Pill>
+            <RemindButton householdId={data.householdId} debtorId={userId} name={name} variant="on" size="pay" className="flex-1" testId="remind-pair" />
           )}
         </BottomActions>
       ) : null}
