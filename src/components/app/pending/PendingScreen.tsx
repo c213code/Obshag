@@ -19,7 +19,7 @@ import { PendingCard, type Choice } from "./PendingCard";
 export function PendingScreen({ id, choice }: { id: string; choice: Choice | null }) {
   const router = useRouter();
   const { purchases, members, me, status } = useAppData();
-  const { resolvePending, showNotice } = useAppActions();
+  const { resolvePending, showNotice, refresh } = useAppActions();
 
   const found = useMemo(() => {
     for (const list of Object.values(purchases)) {
@@ -48,8 +48,22 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
     router.replace("/");
   };
 
+  // A push for a purchase captured after this app instance loaded its data: reload once before deciding it is gone.
+  const [reloaded, setReloaded] = useState(false);
+  const missing = status === "ready" && !held && !submitted && !found;
+  useEffect(() => {
+    if (!missing || reloaded) return;
+    let cancelled = false;
+    void refresh({ silent: true }).finally(() => {
+      if (!cancelled) setReloaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [missing, reloaded, refresh]);
+
   // an unknown, foreign or already resolved purchase (stale link, another device answered): say so and go home
-  const gone = status === "ready" && !held && !submitted && (!found || found.status !== "pending");
+  const gone = status === "ready" && !held && !submitted && (found ? found.status !== "pending" : reloaded);
   useEffect(() => {
     if (!gone || left.current) return;
     left.current = true;
