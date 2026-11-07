@@ -35,6 +35,10 @@ function fakeClient(opts: { rpc?: Record<string, Result>; tables?: Record<string
         error: null,
       })),
       signOut: vi.fn(async () => ({ error: null })),
+      resetPasswordForEmail: vi.fn(async (): Promise<{ error: unknown }> => ({ error: null })),
+      exchangeCodeForSession: vi.fn(async (): Promise<{ error: unknown }> => ({ error: null })),
+      verifyOtp: vi.fn(async (): Promise<{ error: unknown }> => ({ error: null })),
+      updateUser: vi.fn(async (): Promise<{ error: unknown }> => ({ error: null })),
     },
     rpc: async (fn: string, args: unknown) => {
       calls.push({ fn, args });
@@ -334,5 +338,29 @@ describe("supabaseRepo", () => {
       const none = fakeClient({ tables: { capture_tokens: { data: null, error: null } } });
       expect(await createSupabaseRepo(none.client).getCaptureTokenInfo()).toBeNull();
     });
+  });
+
+  it("password reset: neutral for unknown accounts, code or token hash, update validates", async () => {
+    const { client, auth } = fakeClient();
+    const repo = createSupabaseRepo(client);
+    await repo.requestPasswordReset("a@x.kz", "https://app.test/reset");
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@x.kz", { redirectTo: "https://app.test/reset" });
+    auth.resetPasswordForEmail.mockResolvedValueOnce({ error: { status: 400, code: "user_not_found" } });
+    await expect(repo.requestPasswordReset("a@x.kz", "https://app.test/reset")).resolves.toBeUndefined();
+    auth.resetPasswordForEmail.mockResolvedValueOnce({ error: { status: 429, code: "over_email_send_rate_limit" } });
+    await expect(repo.requestPasswordReset("a@x.kz", "https://app.test/reset")).rejects.toMatchObject({ code: "rate_limited" });
+    await expect(repo.requestPasswordReset("nope", "https://app.test/reset")).rejects.toMatchObject({ code: "invalid" });
+
+    await repo.startPasswordRecovery({ code: "c1" });
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("c1");
+    await repo.startPasswordRecovery({ tokenHash: "h1" });
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "h1" });
+    auth.verifyOtp.mockResolvedValueOnce({ error: { status: 403, code: "otp_expired" } });
+    await expect(repo.startPasswordRecovery({ tokenHash: "h2" })).rejects.toMatchObject({ code: "invalid_link" });
+    await expect(repo.startPasswordRecovery({})).rejects.toMatchObject({ code: "invalid_link" });
+
+    await expect(repo.updatePassword("short")).rejects.toMatchObject({ code: "weak_password" });
+    await repo.updatePassword("longenough1");
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "longenough1" });
   });
 });

@@ -48,6 +48,20 @@ NEXT_PUBLIC_DATA_MODE=mock npm run dev
 
 Без них capture всё равно сохраняет покупку, просто уведомления не приходят. Ключ service-role для этого не нужен: `/api/capture` ходит в базу с anon-ключом через функцию `capture_purchase`. Миграция `supabase/migrations/0004_slice4_capture.sql` применяется поверх 0001–0003.
 
+## Забыли пароль: настройка Supabase
+
+Письмо со ссылкой отправляет Supabase Auth, поэтому нужен рабочий SMTP (встроенный почтовый сервис Supabase годится только для пары писем в час).
+
+1. Authentication -> Emails -> SMTP Settings: включить Custom SMTP. Для Gmail: host `smtp.gmail.com`, port `465`, username = адрес Gmail, password = пароль приложения Google **без пробелов** (16 символов), sender email = тот же адрес.
+2. Authentication -> URL Configuration: **Site URL** = `https://obshak-gules.vercel.app`; **Redirect URLs** добавить `https://obshak-gules.vercel.app/reset` (для локальной проверки ещё `http://localhost:3000/reset`).
+3. Authentication -> Emails -> Templates -> Reset Password: ссылка в шаблоне должна оставаться `{{ .ConfirmationURL }}` (приходит `?code=`) либо вести на `{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}&type=recovery`; `/reset` понимает оба варианта.
+
+Экран `/forgot` всегда отвечает одинаково («Если такая почта есть — мы отправили письмо»), чтобы по нему нельзя было узнать, зарегистрирована ли почта. В mock-режиме письмо не уходит, а `/reset?mock=1` (с необязательным `&email=`) открывает форму нового пароля.
+
+## Офлайн
+
+`public/sw.js` кэширует только неизменяемую статику своего домена (`/_next/static/*`, `/icons/*`, шрифты, manifest) и страницу `/offline`. Никогда не кэшируются: `/api/*`, запросы с `Authorization`, чужие домены (Supabase, kaspi.kz), RSC-ответы, не-GET запросы, ответы с `Cache-Control: no-store`/`private`. Правила лежат в `public/sw-rules.js` и покрыты тестами (`src/lib/swRules.test.ts`). Проверка на реальном телефоне: `docs/DEVICE_CHECKLIST.md`.
+
 ## Напоминания: CRON_SECRET
 
 Ежедневные напоминания (19:00 Asia/Almaty, `vercel.json` → `0 14 * * *` UTC) и кнопка «Напомнить» работают без service-role ключа:

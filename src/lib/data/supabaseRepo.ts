@@ -46,6 +46,7 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   has_payments: "Something was already paid for this purchase",
   not_settled: "Settle up with everyone first",
   stale: "The amounts changed since the payment was marked",
+  invalid_link: "The reset link is invalid or expired",
   signup_unavailable: "Sign-up is unavailable",
   unknown: "Request failed",
 };
@@ -181,6 +182,34 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
         debugLog("signOut", error);
         throw new RepoError("unknown", MESSAGES.unknown);
       }
+    },
+
+    async requestPasswordReset(email, redirectTo) {
+      const e = emailSchema.safeParse(email);
+      if (!e.success) throw new RepoError("invalid", firstIssue(e.error));
+      const { error } = await client.auth.resetPasswordForEmail(e.data, { redirectTo });
+      if (!error) return;
+      const mapped = mapAuthError(error);
+      // only a rate limit is shown; every other failure looks like success so the screen never reveals whether an account exists
+      if (mapped.code === "rate_limited") throw mapped;
+      debugLog("resetPasswordForEmail", error);
+    },
+
+    async startPasswordRecovery(link) {
+      let error: AuthError | null = null;
+      if (link.code) ({ error } = await client.auth.exchangeCodeForSession(link.code));
+      else if (link.tokenHash) ({ error } = await client.auth.verifyOtp({ type: "recovery", token_hash: link.tokenHash }));
+      else throw new RepoError("invalid_link", MESSAGES.invalid_link);
+      if (error) {
+        debugLog("recovery", error);
+        throw new RepoError("invalid_link", MESSAGES.invalid_link);
+      }
+    },
+
+    async updatePassword(password) {
+      if (!passwordSchema.safeParse(password).success) throw new RepoError("weak_password", MESSAGES.weak_password);
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw mapAuthError(error);
     },
 
     async getMe() {

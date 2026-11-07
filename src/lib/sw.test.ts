@@ -32,7 +32,10 @@ function load() {
       },
     },
   };
-  vm.runInNewContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), { self, URL, Number, String, Math, encodeURIComponent });
+  const rules = readFileSync(join(process.cwd(), "public/sw-rules.js"), "utf8");
+  const importScripts = () => vm.runInContext(rules, ctx);
+  const ctx = vm.createContext({ self, URL, Number, String, Math, encodeURIComponent, importScripts, Object, Promise, Set, Headers, setTimeout });
+  vm.runInContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), ctx);
   const wait = async (fn: Handler, event: Record<string, unknown>) => {
     let p: Promise<unknown> = Promise.resolve();
     fn({ ...event, waitUntil: (x: Promise<unknown>) => (p = x) });
@@ -148,10 +151,10 @@ describe("sw.js", () => {
     expect(sw.opened).toEqual([]);
   });
 
-  it("click without a purchase opens the app root; there is no fetch handler (nothing is cached)", async () => {
+  it("click without a purchase opens the app root; a fetch handler exists but only for static assets and navigations", async () => {
     const sw = load();
     await sw.wait(sw.handlers.notificationclick, click("shared", {}));
     expect(sw.opened).toEqual(["/"]);
-    expect(sw.handlers.fetch).toBeUndefined();
+    expect(typeof sw.handlers.fetch).toBe("function");
   });
 });

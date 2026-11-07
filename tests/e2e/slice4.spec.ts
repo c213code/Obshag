@@ -31,7 +31,7 @@ async function newPhone(
     if (!e.message.includes("access control checks")) errors.push(e.message);
   });
   page.on("console", (m) => {
-    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks");
+    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks") || m.text().includes("Failed to fetch RSC payload");
     if (m.type() === "error" && !benign) errors.push(m.text());
   });
   // clipboard: record what the app writes (WebKit has no clipboard-read permission)

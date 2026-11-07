@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Paths an anonymous visitor may open (everything else redirects to /login). */
-const PUBLIC_PREFIXES = ["/login", "/join"];
+const PUBLIC_PREFIXES = ["/login", "/join", "/forgot", "/reset", "/offline"];
 
 export const isPublicPath = (pathname: string) =>
   PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

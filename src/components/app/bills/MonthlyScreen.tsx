@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { Bar } from "@/components/ui/Bar";
 import { BottomActions } from "@/components/ui/BottomActions";
 import { cx } from "@/components/ui/cx";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PillLink } from "@/components/ui/Pill";
 import { BackIcon, ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
 import { almatyDay, shiftMonth } from "@/lib/domain/almaty";
 import { billState, monthTotals } from "@/lib/domain/bills";
@@ -109,10 +111,18 @@ export function MonthlyScreen() {
         </Bar>
 
         {states.length === 0 ? (
-          <div className="flex flex-col items-start gap-2 rounded-lg border border-hairline bg-card p-5">
-            <h2 className="text-headline">{ru.bills.emptyTitle}</h2>
-            <p className="text-body text-muted">{isAdmin ? ru.bills.emptyText : ru.bills.emptyMember}</p>
-          </div>
+          <EmptyState
+            testId="bills-empty"
+            title={ru.bills.emptyTitle}
+            text={isAdmin ? ru.bills.emptyText : ru.bills.emptyMember}
+            action={
+              isAdmin ? (
+                <PillLink href="/monthly/new" variant="lime">
+                  {ru.bills.add}
+                </PillLink>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="flex flex-col gap-4" aria-label={ru.bills.title}>
             {states.map(({ bill, state }) => (

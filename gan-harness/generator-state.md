@@ -271,4 +271,16 @@ Nothing committed. Servers stopped. 0001-0005 and `.env.local` untouched; no ser
 - Results: `npm run verify` green (53 files, 526 tests); `npm run test:e2e` 59/59 (5 new in slice67.spec.ts, own household injected into the mock store).
 - Screenshots: gan-harness/screenshots/s67-cmp-bills.png, s67-cmp-flat.png (script gan-harness/shoot-s67.mjs).
 
-Known gaps: variable-bill notice repeats on every daily cron until the amount is entered; Bills «Всего» counts only known amounts; 1-2px vertical deltas vs the mockups; the month bar has arrows (spec) so it is wider than the mockup's; the black pill at the top of app screenshots is the iPhone emulation, not app UI; Supabase path only tested with fake client and PGlite.
+Known gaps (slices 6+7): variable-bill notice repeats on every daily cron until the amount is entered; Bills «Всего» counts only known amounts; 1-2px vertical deltas vs the mockups; the month bar has arrows (spec) so it is wider than the mockup's; the black pill at the top of app screenshots is the iPhone emulation, not app UI; Supabase path only tested with fake client and PGlite.
+
+---
+
+# Slice 8 "Polish, offline, forgot password" (one pass)
+
+Nothing committed. Servers stopped. No SQL changes, `.env.local` untouched.
+
+- SW: `public/sw-rules.js` (pure `strategyFor` / `shouldCache`, loaded by `importScripts`) + `public/sw.js` (precache `/offline`, manifest, icons and the offline page's `/_next/static` assets under `obshak-static-v1`, old caches deleted on activate; cache-first for static, network-first navigation with 4 s timeout then `/offline`; everything else is not intercepted). Never cached: `/api/*`, Authorization, cross-origin, RSC, non-GET, no-store/private, HTML pages. `/offline` and the sw files are excluded from the proxy matcher and public in the supabase proxy.
+- UI: `/offline`, `error.tsx`, `not-found.tsx`, `loading.tsx` for Главная/Покупки/Ежемесячно/Квартира, `EmptyState` (capsule illustration) on Главная, Покупки, Ежемесячно, OfflineBanner, BadgeSync (`badgeCount`, `applyBadge`), InstallPrompt (iOS hint / beforeinstallprompt, 14-day snooze), TabBar links `prefetch`.
+- Forgot password: «Забыли пароль?» on Вход, `/forgot`, `/reset` (code or token_hash, `?mock=1[&email=]` in mock mode); Repo `requestPasswordReset`, `startPasswordRecovery`, `updatePassword`; README section; `docs/DEVICE_CHECKLIST.md`.
+- Tests: verify green (55 files, 542 tests); e2e 63/63 (4 new in slice8.spec.ts). E2E noise filter also ignores "Failed to fetch RSC payload". The slice52 «Напомнили» test is timing-sensitive under load (failed in 2 of 4 full runs, passes alone).
+- Leftover: a duplicate `git stash` entry (stash@{0}) from a mistaken stash/apply; the working tree is intact; drop it with `git stash drop`.

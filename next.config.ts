@@ -45,6 +45,7 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // the worker file must always be revalidated, otherwise a fixed worker reaches phones days later
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "text/javascript; charset=utf-8" }] },
+      { source: "/sw-rules.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "text/javascript; charset=utf-8" }] },
     ];
   },
 };

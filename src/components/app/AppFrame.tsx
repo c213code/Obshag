@@ -3,7 +3,10 @@
 import type { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { TabBar, defaultTabs, type FabAction, type TabDef } from "@/components/ui/TabBar";
+import { BadgeSync } from "./BadgeSync";
 import { Guard } from "./Guard";
+import { InstallPrompt } from "./InstallPrompt";
+import { OfflineBanner } from "./OfflineBanner";
 
 const HREFS: Record<TabDef["id"], string> = { home: "/", purchases: "/purchases", monthly: "/monthly", household: "/flat" };
 const tabs: ReadonlyArray<TabDef> = defaultTabs.map((t) => ({ ...t, href: HREFS[t.id] }));
@@ -16,7 +19,10 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const ownBar = pathname.startsWith("/purchases/") || pathname.startsWith("/settle") || pathname.startsWith("/settings") || pathname.startsWith("/monthly");
   return (
     <Guard page="app">
+      <OfflineBanner />
+      <BadgeSync />
       {children}
+      <InstallPrompt />
       {ownBar ? null : <TabBar value="home" tabs={tabs} onAction={onAction} />}
     </Guard>
   );

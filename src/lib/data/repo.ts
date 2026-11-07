@@ -45,6 +45,9 @@ export type NewPurchase = {
  * Data access boundary. `mockRepo` (in-memory + localStorage) and `supabaseRepo` implement it,
  * and the same contract test runs against both. Inputs are validated with the shared zod schemas.
  */
+/** What /reset received in its URL. `mock` is honoured by the mock backend only. */
+export type RecoveryLink = { code?: string | null; tokenHash?: string | null; mock?: boolean; mockEmail?: string | null };
+
 export interface Repo {
   /** The signed-in user, or null. */
   getSession(): Promise<AuthSession | null>;
@@ -56,6 +59,15 @@ export interface Repo {
   /** invalid_credentials covers a wrong password and an unknown email alike (nothing reveals which emails exist). */
   signIn(email: string, password: string): Promise<AuthSession>;
   signOut(): Promise<void>;
+  /**
+   * «Забыли пароль?»: asks Supabase to mail a reset link that lands on `redirectTo`. Resolves the same way whether or not
+   * the account exists (nothing reveals which emails are registered); only a malformed email or a rate limit throws.
+   */
+  requestPasswordReset(email: string, redirectTo: string): Promise<void>;
+  /** /reset: turns the link's `code` (PKCE) or `token_hash` (OTP) into a recovery session. `invalid_link` when it is expired or used. */
+  startPasswordRecovery(link: RecoveryLink): Promise<void>;
+  /** Sets a new password for the signed-in (recovery) session. weak_password = shorter than 8 characters. */
+  updatePassword(password: string): Promise<void>;
 
   /** The current user's profile, or null before onboarding. */
   getMe(): Promise<Profile | null>;
@@ -174,6 +186,7 @@ export type RepoErrorCode =
   | "has_payments"
   | "not_settled" // removing or leaving while a net with someone is non-zero
   | "stale"
+  | "invalid_link" // the password reset link is expired, used or malformed
   | "signup_unavailable" // sign-up failed on the server (5xx / unexpected_failure, e.g. SMTP with «Confirm email» ON)
   | "unknown";
 

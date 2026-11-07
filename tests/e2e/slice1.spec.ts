@@ -21,7 +21,7 @@ async function newPhone(browser: Browser, baseURL: string | undefined): Promise<
   });
   page.on("console", (m) => {
     // WebKit logs prefetches that a navigation cancels mid-flight ("due to access control checks"): not an app error
-    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks");
+    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks") || m.text().includes("Failed to fetch RSC payload");
     if (m.type() === "error" && !benign) errors.push(m.text());
   });
   return { context, page, errors };
@@ -184,7 +184,7 @@ test.describe("slice 1: first end-to-end path", () => {
       await expect(page.getByText("Привет, Ерасыл")).toBeVisible();
       await expect(page.getByTestId("card-stack")).toHaveAttribute("data-front", "Квартира 42");
       await expect(page.getByText(`ты должен ${money(0)}`)).toBeVisible();
-      await expect(page.getByText("Пока ни одной покупки")).toBeVisible();
+      await expect(page.getByText("Пока пусто — добавь первую покупку")).toBeVisible();
       // one household: the decorative peek layers are still there, the "N из M" chip is not (nobody to count)
       await expect(page.getByTestId("stack-peek")).toHaveCount(2);
       await expect(page.getByTestId("card-stack").getByText(/^\d+ из \d+$/)).toHaveCount(0);

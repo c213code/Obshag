@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PillLink } from "@/components/ui/Pill";
 import { ease, useReducedMotionSafe } from "@/lib/motion";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
@@ -31,13 +32,16 @@ export function RecentPurchases({
         </Link>
       </div>
       {purchases.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 rounded-md bg-card p-4">
-          <p className="text-headline">{ru.main.emptyTitle}</p>
-          <p className="text-caption">{ru.main.emptyText}</p>
-          <PillLink href="/purchases/new" variant="lime">
-            {ru.main.emptyAction}
-          </PillLink>
-        </div>
+        <EmptyState
+          testId="home-empty"
+          title={ru.main.emptyTitle}
+          text={ru.main.emptyText}
+          action={
+            <PillLink href="/purchases/new" variant="lime">
+              {ru.main.emptyAction}
+            </PillLink>
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           <AnimatePresence initial={false}>

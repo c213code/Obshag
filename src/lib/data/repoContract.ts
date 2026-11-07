@@ -28,6 +28,20 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
       expect(await a.getSession()).toEqual(s);
     });
 
+    it("forgot password: neutral for any address; the mock link sets a new password for the seeded user", async () => {
+      const [a] = await makeRepos();
+      await expect(a.requestPasswordReset("nobody@x.kz", "https://app.test/reset")).resolves.toBeUndefined();
+      await expect(a.requestPasswordReset("nope", "https://app.test/reset")).rejects.toMatchObject({ code: "invalid" });
+      await expect(a.startPasswordRecovery({ code: "x" })).rejects.toMatchObject({ code: "invalid_link" });
+      await a.startPasswordRecovery({ mock: true });
+      await expect(a.updatePassword("short")).rejects.toMatchObject({ code: "weak_password" });
+      await a.updatePassword("brand-new-pass");
+      const who = await a.getSession();
+      await a.signOut();
+      await expect(a.signIn(who!.email, PASSWORD)).rejects.toMatchObject({ code: "invalid_credentials" });
+      expect((await a.signIn(who!.email, "brand-new-pass")).email).toBe(who!.email);
+    });
+
     it("refuses a bad password or an unknown email alike, a taken email, a weak password and a bad email", async () => {
       const [a, b] = await makeRepos();
       await a.signUp("a@x.kz", PASSWORD);

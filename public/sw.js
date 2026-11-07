@@ -1,8 +1,70 @@
-/* Общак service worker (slice 4): Web Push + notification actions only.
- * No fetch handler and no caches: auth and API responses are never cached here (offline caching is slice 8). */
+/* Общак service worker: Web Push, notification actions, and a deliberately small offline layer (slice 8).
+ * Only immutable same-origin static assets are cached (rules in sw-rules.js). API, auth, RSC, cross-origin, non-GET and
+ * private/no-store responses are never stored, so one person's data cannot reach another on the same device. */
+importScripts("/sw-rules.js");
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+const CACHE = "obshak-static-v1";
+const NAV_TIMEOUT_MS = 4000;
+
+async function precache() {
+  const cache = await caches.open(CACHE);
+  const page = await fetch(self.swRules.OFFLINE_URL, { credentials: "omit", cache: "reload" });
+  if (!page.ok || page.redirected) throw new Error("offline page unavailable");
+  const html = await page.clone().text();
+  await cache.put(self.swRules.OFFLINE_URL, page);
+  const assets = new Set(["/manifest.webmanifest", "/icons/icon-192.png", "/icons/apple-touch-icon.png"]);
+  for (const m of html.matchAll(/\/_next\/static\/[^"'\s\\)]+/g)) assets.add(m[0]);
+  await Promise.all(
+    [...assets].map(async (u) => {
+      try {
+        const res = await fetch(u, { credentials: "omit" });
+        if (self.swRules.shouldCache({ url: new URL(u, self.location.origin).href, method: "GET", headers: new Headers() }, self.location.origin, res)) await cache.put(u, res);
+      } catch {
+        // an asset that fails to precache is simply fetched later
+      }
+    }),
+  );
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(precache().catch(() => undefined).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", (event) =>
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  ),
+);
+
+async function cacheFirst(request) {
+  const cache = await caches.open(CACHE);
+  const hit = await cache.match(request.url);
+  if (hit) return hit;
+  const res = await fetch(request);
+  if (self.swRules.shouldCache(request, self.location.origin, res)) cache.put(request.url, res.clone());
+  return res;
+}
+
+async function networkFirstNavigation(request) {
+  try {
+    return await Promise.race([
+      fetch(request),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), NAV_TIMEOUT_MS)),
+    ]);
+  } catch {
+    const cache = await caches.open(CACHE);
+    return (await cache.match(self.swRules.OFFLINE_URL)) || Response.error();
+  }
+}
+
+self.addEventListener("fetch", (event) => {
+  const strategy = self.swRules.strategyFor(event.request, self.location.origin);
+  if (strategy === "cache-first") event.respondWith(cacheFirst(event.request));
+  else if (strategy === "network-first") event.respondWith(networkFirstNavigation(event.request));
+  // everything else (API, auth, RSC, cross-origin, writes): not intercepted at all
+});
 
 function tenge(amount) {
   const n = Math.round(Number(amount));

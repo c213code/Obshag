@@ -21,6 +21,6 @@ export async function proxy(request: NextRequest) {
 // real route such as /kitchen is still protected, and static files are matched by extension.
 export const config = {
   matcher: [
-    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|api/cron(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
+    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|sw-rules\\.js$|offline(?:/|$)|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|api/cron(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
   ],
 };

@@ -29,7 +29,7 @@ import {
   type Repo,
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
-import { createSeed, type MockDb } from "./seed";
+import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
 import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
@@ -310,6 +310,30 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
 
     async signOut() {
       session.set(null);
+    },
+
+    async requestPasswordReset(email) {
+      const e = emailSchema.safeParse(email);
+      if (!e.success) throw new RepoError("invalid", firstIssue(e.error));
+      // mock: succeeds silently for any address, like the real thing
+    },
+
+    async startPasswordRecovery(link) {
+      // mock mode has no mail: /reset?mock=1 signs in the seeded user so E2E can set a new password
+      if (!link.mock) throw new RepoError("invalid_link", "The reset link is invalid or expired");
+      const user = await read((db) => db.users.find((x) => x.email === (link.mockEmail?.trim().toLowerCase() || SEED_EMAIL)) ?? db.users[0]);
+      if (!user) throw new RepoError("invalid_link", "The reset link is invalid or expired");
+      session.set(user.id);
+    },
+
+    async updatePassword(password) {
+      if (!passwordSchema.safeParse(password).success) throw new RepoError("weak_password", "Password is too short");
+      const id = uid();
+      await tx((db) => {
+        const user = db.users.find((x) => x.id === id);
+        if (!user) throw new RepoError("unauthenticated", "Not signed in");
+        user.password = password;
+      });
     },
 
     async getMe() {

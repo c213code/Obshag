@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
@@ -135,6 +136,11 @@ function LoginForm() {
             clear("password");
           }}
         />
+        {signup ? null : (
+          <Link href="/forgot" className="-mt-2 self-start pl-[6px] text-caption !text-lime">
+            {ru.auth.forgotLink}
+          </Link>
+        )}
         <AnimatePresence initial={false}>
           {signup ? (
             <motion.div

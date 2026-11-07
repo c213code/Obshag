@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Bar } from "@/components/ui/Bar";
 import { BasketIcon, ChevronRightIcon } from "@/components/ui/icons";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Money } from "@/components/ui/Money";
 import { PillLink } from "@/components/ui/Pill";
 import { Segmented } from "@/components/ui/Segmented";
@@ -91,15 +92,18 @@ export function PurchasesScreen() {
       />
 
       {groups.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 rounded-md bg-card p-4" data-testid="purchases-empty">
-          <p className="text-headline">{empty.title}</p>
-          <p className="text-caption">{empty.text}</p>
-          {filter === "all" ? (
-            <PillLink href="/purchases/new" variant="lime">
-              {ru.purchases.emptyAction}
-            </PillLink>
-          ) : null}
-        </div>
+        <EmptyState
+          testId="purchases-empty"
+          title={empty.title}
+          text={empty.text}
+          action={
+            filter === "all" ? (
+              <PillLink href="/purchases/new" variant="lime">
+                {ru.purchases.emptyAction}
+              </PillLink>
+            ) : undefined
+          }
+        />
       ) : (
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div

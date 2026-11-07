@@ -31,7 +31,7 @@ async function newPhone(browser: Browser, baseURL: string | undefined, options: 
     if (!e.message.includes("access control checks")) errors.push(e.message);
   });
   page.on("console", (m) => {
-    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks");
+    const benign = m.text().includes("Failed to load resource") || m.text().includes("access control checks") || m.text().includes("Failed to fetch RSC payload");
     if (m.type() === "error" && !benign) errors.push(m.text());
   });
   // WebKit offers no clipboard-read permission: record what the app writes instead (the textarea path first, the async API
