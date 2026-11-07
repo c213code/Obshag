@@ -33,6 +33,13 @@ export const profileSchema = z.object({
   display_name: z.string().trim().min(1, "Name is required").max(40),
   kaspi_phone: phoneSchema,
 });
+/** `@name` / `name` -> `name`; empty -> null; anything not 5-32 of [A-Za-z0-9_] -> undefined (invalid). Mirrors set_telegram_username. */
+export function normalizeTelegramUsername(raw: string | null | undefined): string | null | undefined {
+  const v = (raw ?? "").trim().replace(/^@/, "");
+  if (v === "") return null;
+  return /^[A-Za-z0-9_]{5,32}$/.test(v) ? v : undefined;
+}
+
 export type ProfileInput = z.input<typeof profileSchema>;
 
 /** Case, spaces and dashes are ignored: "kv42-ab7k 9m3x" -> "KV42AB7K9M3X". */

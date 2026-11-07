@@ -60,6 +60,7 @@ type Stored = {
     shares: Array<{ purchase_id: string; debtor_id: string; amount: number; settled_at: string | null }>;
     members: Array<{ user_id: string; reminders_enabled?: boolean }>;
     pushSubscriptions: Array<Record<string, string>>;
+    reminderLog?: unknown[];
   };
 };
 async function readStore(request: APIRequestContext): Promise<Stored> {
@@ -72,6 +73,7 @@ const userId = (s: Stored, email: string) => s.db.users.find((u) => u.email === 
 async function addSubscription(request: APIRequestContext, email: string, endpoint: string) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const s = await readStore(request);
+    s.db.reminderLog = []; // another spec's daily cron may already have put the pair in the 6 h cooldown
     s.db.pushSubscriptions.push({ user_id: userId(s, email), endpoint, p256dh: "BPubKey", auth: "authSecret", created_at: new Date().toISOString() });
     const res = await request.put("/api/mock-store", { data: { version: s.version, rev: s.rev, db: s.db } });
     if (res.status() === 204) return;

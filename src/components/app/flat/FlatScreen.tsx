@@ -119,9 +119,10 @@ export function FlatScreen() {
     }
   };
 
-  const saveProfile = async (input: { display_name: string; kaspi_phone: string }): Promise<string | null> => {
+  const saveProfile = async (input: { display_name: string; kaspi_phone: string; telegram_username: string | null }): Promise<string | null> => {
     try {
-      await repo.upsertProfile(input);
+      await repo.upsertProfile({ display_name: input.display_name, kaspi_phone: input.kaspi_phone });
+      await repo.setTelegramUsername(input.telegram_username);
     } catch {
       return ru.flat.errors.profileFailed;
     }
@@ -292,7 +293,7 @@ export function FlatScreen() {
         onAction={(a) => void doMemberAction(a)}
       />
       <AwaySheet open={sheet === "away"} onClose={() => setSheet(null)} today={today} current={away} busy={busy} error={awayError} onSave={(u) => void saveAway(u)} />
-      <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} onSave={saveProfile} />
+      <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} initialTelegram={me.telegram_username ?? null} onSave={saveProfile} />
     </Screen>
   );
 }

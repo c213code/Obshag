@@ -72,6 +72,8 @@ export interface Repo {
   /** The current user's profile, or null before onboarding. */
   getMe(): Promise<Profile | null>;
   upsertProfile(input: ProfileDraft): Promise<Profile>;
+  /** Accepts `@name` or `name`; empty or null clears it. invalid = not 5-32 letters, digits or underscores. Returns the saved value. */
+  setTelegramUsername(username: string | null): Promise<string | null>;
 
   listHouseholds(): Promise<Household[]>;
   listMembers(householdId: Uuid): Promise<MemberWithProfile[]>;

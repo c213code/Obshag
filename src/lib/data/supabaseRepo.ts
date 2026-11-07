@@ -13,6 +13,7 @@ import {
   billSchema,
   billMonthSchema,
   tengeSchema,
+  normalizeTelegramUsername,
 } from "@/lib/domain/schemas";
 import {
   RepoError,
@@ -325,6 +326,13 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       const row = ok<PurchaseRow>(await client.rpc("update_purchase_description", { p_id: purchaseId, p_text: parsed.data }));
       if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
       return toPurchase(row);
+    },
+
+    async setTelegramUsername(username) {
+      const normalized = normalizeTelegramUsername(username);
+      if (normalized === undefined) throw new RepoError("invalid", MESSAGES.invalid);
+      const res = await client.rpc("set_telegram_username", { p_username: normalized });
+      return ok<string | null>(res);
     },
 
     async setRemindersEnabled(householdId, enabled) {

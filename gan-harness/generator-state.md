@@ -284,3 +284,16 @@ Nothing committed. Servers stopped. No SQL changes, `.env.local` untouched.
 - Forgot password: «Забыли пароль?» on Вход, `/forgot`, `/reset` (code or token_hash, `?mock=1[&email=]` in mock mode); Repo `requestPasswordReset`, `startPasswordRecovery`, `updatePassword`; README section; `docs/DEVICE_CHECKLIST.md`.
 - Tests: verify green (55 files, 542 tests); e2e 63/63 (4 new in slice8.spec.ts). E2E noise filter also ignores "Failed to fetch RSC payload". The slice52 «Напомнили» test is timing-sensitive under load (failed in 2 of 4 full runs, passes alone).
 - Leftover: a duplicate `git stash` entry (stash@{0}) from a mistaken stash/apply; the working tree is intact; drop it with `git stash drop`.
+
+---
+
+# Slice 9 "Telegram group notifications" (one pass)
+
+Nothing committed. Servers stopped. 0001-0006 and `.env.local` untouched; no token anywhere; nothing applied to the live DB.
+
+- SQL `supabase/migrations/0007_slice9_telegram.sql`: `profiles.telegram_username` (check `^[A-Za-z0-9_]{5,32}$`), `households.telegram_chat_id bigint`, `private.telegram_sent(kind, ref, sent_at, pk(kind, ref))`, RPC `public.set_telegram_username(text)` (authenticated only), private `tg_esc`, `tg_money`, `tg_tag`, `tg_purchase_message`, `tg_settlement_message`, `tg_send` (pg_net + vault `telegram_bot_token`, dynamic EXECUTE guarded by to_regprocedure/to_regclass), trigger functions `tg_on_purchase`, `tg_on_settlement`, deferred constraint triggers `tg_purchase_notify` (purchases insert/update) and `tg_settlement_notify` (settlements update). profiles insert is now column-granted (telegram_username excluded).
+- Status values: purchase posts when `status = 'shared'` on insert or `pending -> shared`; settlement posts on `status` becoming `'confirmed'`. Monthly bills = `bill_id is not null` (house icon).
+- App: Repo `setTelegramUsername` (mock + supabase + contract test), `normalizeTelegramUsername`, TextField `hint`, Telegram field in the Профиль sheet, ru.ts copy, README "Telegram" section.
+- Tests: tests/db/slice9.test.ts (14), contract test, e2e Профиль Telegram in slice67.spec.ts. verify green (557+ tests); e2e 64/64.
+- E2E isolation fix: slice67's cron helper drops reminder-log rows the cron added for the seeded flat, and slice52 clears the log before its remind test (the cron raced it into the 6 h cooldown).
+- Gaps: pg_net/vault path is never executed in tests (PGlite has neither); real sending untested live. Callback of net.http_post failures is not inspected. A user can set any free handle (no uniqueness).

@@ -13,6 +13,8 @@ export type Profile = {
   id: Uuid;
   display_name: string;
   kaspi_phone: string | null;
+  /** Telegram handle without the @ (the group bot tags it); null = not set. */
+  telegram_username?: string | null;
   avatar_color: string | null;
   created_at: IsoDateTime;
   /** Where Apple Pay captures land; null = the most recently joined active household. */

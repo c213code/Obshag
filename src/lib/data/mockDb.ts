@@ -14,6 +14,7 @@ const profile = z.object({
   avatar_color: z.string().max(20).nullable(),
   created_at: iso,
   default_household_id: uuid.nullish(),
+  telegram_username: z.string().max(40).nullish(),
 });
 const household = z.object({
   id: uuid,

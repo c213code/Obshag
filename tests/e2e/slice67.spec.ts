@@ -84,7 +84,21 @@ async function mutateStore(request: APIRequestContext, change: (s: Stored) => vo
 }
 const pushLog = async (request: APIRequestContext) =>
   ((await (await request.get("/api/mock-push-log")).json()) as { calls: Array<{ endpoint: string; payload: Record<string, unknown> }> }).calls;
-const cron = (request: APIRequestContext) => request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+/**
+ * The daily cron also reminds the seeded flat (other specs share the store); drop those log rows right away so
+ * slice52's «Напомнить» test never finds its pair already in the 6 h cooldown.
+ */
+async function cron(request: APIRequestContext) {
+  type Log = Array<{ from_id: string; to_id: string; at: string }>;
+  const logOf = (s: Stored) => (s.db as unknown as { reminderLog?: Log }).reminderLog ?? [];
+  const before = new Set(logOf(await readStore(request)).map((l) => l.at));
+  const res = await request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+  const mine = new Set([T.id, A.id, R.id]);
+  await mutateStore(request, (s) => {
+    (s.db as unknown as { reminderLog: Log }).reminderLog = logOf(s).filter((l) => before.has(l.at) || (mine.has(l.from_id) && mine.has(l.to_id)));
+  });
+  return res;
+}
 
 /** Three fresh users in their own household; Тимур is the admin. Safe to call more than once. */
 async function injectHousehold(request: APIRequestContext) {
@@ -194,6 +208,25 @@ test.describe("slices 6+7", () => {
       const made = s.db.purchases.find((p) => p.household_id === HOUSEHOLD && p.description === "Коммуналка");
       expect(made).toMatchObject({ amount: 9000, source: "monthly" });
       expect(s.db.shares.filter((x) => x.purchase_id === made!.id).map((x) => x.amount)).toEqual([3000, 3000, 3000]);
+    });
+  });
+
+  test("Профиль: the Telegram field validates and saves (the group bot tags it)", async ({ browser, baseURL }) => {
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, A);
+      await page.getByRole("link", { name: "Квартира", exact: true }).click();
+      await page.getByTestId("profile-row").click();
+      const field = page.getByLabel("Telegram");
+      await expect(field).toHaveAttribute("placeholder", "@username");
+      await expect(page.getByText("Чтобы бот отмечал тебя в группе")).toBeVisible();
+      await field.fill("ab");
+      await page.getByRole("button", { name: "Сохранить" }).click();
+      await expect(page.getByText("Ник: 5–32 символа, латиница, цифры и _")).toBeVisible();
+      await field.fill("@aliya_k");
+      await page.getByRole("button", { name: "Сохранить" }).click();
+      await expect(page.getByText("Профиль обновлён")).toBeVisible();
+      await page.getByTestId("profile-row").click();
+      await expect(page.getByLabel("Telegram")).toHaveValue("@aliya_k");
     });
   });
 

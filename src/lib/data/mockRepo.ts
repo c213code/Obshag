@@ -17,7 +17,7 @@ import { almatyDay } from "@/lib/domain/almaty";
 import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
-import { MAX_AMOUNT, pushSubscriptionSchema, resolvePendingSchema } from "@/lib/domain/schemas";
+import { MAX_AMOUNT, normalizeTelegramUsername, pushSubscriptionSchema, resolvePendingSchema } from "@/lib/domain/schemas";
 import {
   RepoError,
   type AuthSession,
@@ -535,6 +535,18 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
         p.description = parsed.data;
         return withShares(db, p);
+      });
+    },
+
+    async setTelegramUsername(username) {
+      const id = uid();
+      const normalized = normalizeTelegramUsername(username);
+      if (normalized === undefined) throw new RepoError("invalid", "Invalid Telegram username");
+      return tx((db) => {
+        const p = profileOf(db, id);
+        if (!p) throw new RepoError("profile_required", "Create a profile first");
+        p.telegram_username = normalized;
+        return normalized;
       });
     },
 

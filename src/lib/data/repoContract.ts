@@ -14,6 +14,16 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
       await repo.upsertProfile({ display_name, kaspi_phone });
     };
 
+    it("stores a Telegram username without the @, clears it, and rejects bad ones", async () => {
+      const [a] = await makeRepos();
+      await signIn(a, "tg@x.kz", "Тг", "+77001234567");
+      expect(await a.setTelegramUsername(" @Aidos_k ")).toBe("Aidos_k");
+      expect((await a.getMe())?.telegram_username).toBe("Aidos_k");
+      await expect(a.setTelegramUsername("ab")).rejects.toMatchObject({ code: "invalid" });
+      expect(await a.setTelegramUsername("")).toBeNull();
+      expect((await a.getMe())?.telegram_username ?? null).toBeNull();
+    });
+
     it("signs up with a password, signs out, signs back in, and signs out", async () => {
       const [a] = await makeRepos();
       expect(await a.getSession()).toBeNull();
