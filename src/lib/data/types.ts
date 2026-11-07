@@ -74,6 +74,9 @@ export type Purchase = {
   source: PurchaseSource;
   status: PurchaseStatus;
   created_at: IsoDateTime;
+  /** Set on purchases generated from a monthly bill. */
+  bill_id?: Uuid | null;
+  bill_month?: string | null;
 };
 
 export type Share = {
@@ -110,4 +113,33 @@ export type Bill = {
   day_of_month: number;
   payer_id: Uuid;
   last_generated_month: string | null;
+  /** Who splits it (active members at creation; leavers are removed). */
+  participants: Uuid[];
 };
+
+export type BillIcon = "home" | "drop" | "wifi" | "bolt" | "other";
+
+/** Form values of a monthly bill. `amount` is null for a variable bill. */
+export type BillInput = {
+  id?: Uuid | null;
+  household_id: Uuid;
+  title: string;
+  icon: BillIcon;
+  amount: number | null;
+  variable: boolean;
+  day_of_month: number;
+  payer_id: Uuid;
+  participants: Uuid[];
+};
+
+/** «Коммуналка: введи сумму за ноябрь» for the bill's payer. */
+export type BillNotice = {
+  to_user: Uuid;
+  bill_id: Uuid;
+  title: string;
+  /** 'YYYY-MM' */
+  month: string;
+  subscriptions: PushSubscriptionInput[];
+};
+
+export type MonthlyRun = { created: number; notices: BillNotice[] };

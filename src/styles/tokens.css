@@ -23,6 +23,10 @@
   --color-danger: #ff6b6b;
   --color-danger-line: #3a2a2a;
   --color-wait-line: #5a3a28;
+  /* Bills.dc.html: icon chips (orange = needs an amount, blue = internet / water) */
+  --color-orange-soft: #3a2318;
+  --color-blue-soft: #1e2a3a;
+  --color-blue: #7fb2ff;
   --color-transparent: transparent;
   --color-current: currentColor;
 

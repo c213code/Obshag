@@ -9,7 +9,11 @@ import {
   inviteCodeSchema,
   passwordSchema,
   profileSchema,
+  billSchema,
+  billMonthSchema,
+  tengeSchema,
 } from "@/lib/domain/schemas";
+import { almatyDay } from "@/lib/domain/almaty";
 import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
@@ -26,7 +30,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, type MockDb } from "./seed";
-import type { CaptureResult, CaptureTokenInfo, Household, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
+import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -211,6 +215,63 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     amount,
     subscriptions: subscriptionsOf(db, debtor),
   });
+
+  /** SQL private.create_bill_purchase: null when nothing can be created (payer gone, nobody left, amount too small, already there). */
+  const createBillPurchase = (db: MockDb, bill: Bill, month: string, amount: number): PurchaseWithShares | null => {
+    if (!isMember(db, bill.household_id, bill.payer_id)) return null;
+    const ids = bill.participants.filter((x) => isMember(db, bill.household_id, x));
+    if (ids.length < 1 || amount < ids.length || amount > MAX_AMOUNT) return null;
+    if (db.purchases.some((p) => p.bill_id === bill.id && p.bill_month === month)) return null;
+    const createdAt = now().toISOString();
+    const purchase: Purchase = {
+      id: newId(),
+      household_id: bill.household_id,
+      payer_id: bill.payer_id,
+      amount,
+      description: bill.title,
+      merchant: null,
+      source: "monthly",
+      status: "shared",
+      created_at: createdAt,
+      bill_id: bill.id,
+      bill_month: month,
+    };
+    db.purchases.push(purchase);
+    for (const s of splitEqual(amount, ids, bill.payer_id)) {
+      db.shares.push({ purchase_id: purchase.id, debtor_id: s.debtor_id, amount: s.amount, settled_at: s.settled ? createdAt : null, settlement_id: null });
+    }
+    return withShares(db, purchase);
+  };
+  const isAdmin = (db: MockDb, householdId: Uuid, userId: Uuid) =>
+    db.members.some((m) => m.household_id === householdId && m.user_id === userId && m.active && m.role === "admin");
+  const requireAdmin = (db: MockDb, householdId: Uuid, userId: Uuid) => {
+    if (!isAdmin(db, householdId, userId)) throw new RepoError("forbidden", "Admins only");
+  };
+  /** Non-zero net with anyone in the household (SQL private.has_open_net). */
+  const hasOpenNet = (db: MockDb, householdId: Uuid, userId: Uuid) => {
+    const shares = householdShares(db, householdId);
+    const purchases = householdPurchases(db, householdId);
+    return db.members.some(
+      (m) => m.household_id === householdId && m.user_id !== userId && netPair(userId, m.user_id, shares, purchases).direction !== "even",
+    );
+  };
+  /** SQL private.detach_member: leaves the bills, its bills pass to the first other admin, forgets the default household. */
+  const detachMember = (db: MockDb, householdId: Uuid, userId: Uuid) => {
+    const heir = db.members
+      .filter((m) => m.household_id === householdId && m.user_id !== userId && m.active && m.role === "admin")
+      .sort((a, b) => a.joined_at.localeCompare(b.joined_at) || a.user_id.localeCompare(b.user_id))[0];
+    for (const b of db.bills.filter((x) => x.household_id === householdId)) {
+      b.participants = b.participants.filter((x) => x !== userId);
+      if (b.payer_id === userId && heir) b.payer_id = heir.user_id;
+    }
+    const p = profileOf(db, userId);
+    if (p && p.default_household_id === householdId) p.default_household_id = null;
+  };
+  /** The SQL last-admin trigger: an active admin may not stop being one while no other active admin remains. */
+  const guardLastAdmin = (db: MockDb, householdId: Uuid, userId: Uuid) => {
+    const others = db.members.some((m) => m.household_id === householdId && m.user_id !== userId && m.role === "admin" && m.active);
+    if (!others) throw new RepoError("invalid", "A household must keep at least one active admin");
+  };
 
   return {
     async getSession() {
@@ -748,6 +809,160 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       await tx((db) => {
         requireMember(db, householdId, id);
         requireProfile(db, id).default_household_id = householdId;
+      });
+    },
+
+    async listBills(householdId) {
+      const id = uid();
+      return read((db) => {
+        requireMember(db, householdId, id);
+        return structuredClone(
+          db.bills.filter((b) => b.household_id === householdId).sort((a, b) => a.day_of_month - b.day_of_month || a.id.localeCompare(b.id)),
+        );
+      });
+    },
+
+    async upsertBill(raw) {
+      const id = uid();
+      const parsed = billSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      return tx((db): Bill => {
+        requireAdmin(db, input.household_id, id);
+        const people = [input.payer_id, ...input.participants];
+        if (!people.every((p) => isMember(db, input.household_id, p))) {
+          throw new RepoError("invalid", "Payer and participants must be active members");
+        }
+        const fields = {
+          title: input.title,
+          icon: input.icon,
+          amount: input.variable ? null : input.amount,
+          variable: input.variable,
+          day_of_month: input.day_of_month,
+          payer_id: input.payer_id,
+          participants: [...input.participants],
+        };
+        if (input.id) {
+          const bill = db.bills.find((b) => b.id === input.id && b.household_id === input.household_id);
+          if (!bill) throw new RepoError("not_found", "Bill not found");
+          Object.assign(bill, fields);
+          return structuredClone(bill);
+        }
+        const created: Bill = { id: newId(), household_id: input.household_id, last_generated_month: null, ...fields };
+        db.bills.push(created);
+        return structuredClone(created);
+      });
+    },
+
+    async deleteBill(billId) {
+      const id = uid();
+      await tx((db) => {
+        const bill = db.bills.find((b) => b.id === billId);
+        if (!bill) throw new RepoError("not_found", "Bill not found");
+        requireAdmin(db, bill.household_id, id);
+        db.bills = db.bills.filter((b) => b.id !== billId);
+        for (const p of db.purchases) if (p.bill_id === billId) p.bill_id = null; // generated purchases stay
+      });
+    },
+
+    async setBillAmount(billId, month, amount) {
+      const id = uid();
+      if (!billMonthSchema.safeParse(month).success || !tengeSchema.safeParse(amount).success) throw new RepoError("invalid", "Invalid input");
+      return tx((db) => {
+        const bill = db.bills.find((b) => b.id === billId);
+        if (!bill || !isMember(db, bill.household_id, id)) throw new RepoError("not_found", "Bill not found");
+        if (bill.payer_id !== id && !isAdmin(db, bill.household_id, id)) throw new RepoError("forbidden", "Payer or admin only");
+        const today = almatyDay(now());
+        if (!bill.variable || month > today.month || (month === today.month && today.day < bill.day_of_month)) {
+          throw new RepoError("invalid", "This bill cannot take an amount now");
+        }
+        const created = createBillPurchase(db, bill, month, amount);
+        if (!created) throw new RepoError("invalid", "The bill cannot be split now");
+        bill.last_generated_month = [bill.last_generated_month ?? "", month].sort().at(-1) ?? month;
+        return created;
+      });
+    },
+
+    async runMonthlyBills(secret): Promise<MonthlyRun> {
+      requireSecret(secret);
+      return tx((db) => {
+        const today = almatyDay(now());
+        let created = 0;
+        const notices: BillNotice[] = [];
+        const due = db.bills
+          .filter((b) => b.day_of_month <= today.day && (b.last_generated_month === null || b.last_generated_month < today.month))
+          .sort((a, b) => a.id.localeCompare(b.id));
+        for (const bill of due) {
+          if (bill.variable) {
+            notices.push({ to_user: bill.payer_id, bill_id: bill.id, title: bill.title, month: today.month, subscriptions: subscriptionsOf(db, bill.payer_id) });
+          } else if (bill.amount !== null) {
+            if (createBillPurchase(db, bill, today.month, bill.amount)) created++;
+            bill.last_generated_month = today.month;
+          }
+        }
+        return { created, notices };
+      });
+    },
+
+    async setMemberRole(householdId, userId, role) {
+      const id = uid();
+      if (role !== "admin" && role !== "member") throw new RepoError("invalid", "Invalid role");
+      await tx((db) => {
+        requireAdmin(db, householdId, id);
+        const m = db.members.find((x) => x.household_id === householdId && x.user_id === userId && x.active);
+        if (!m) throw new RepoError("not_found", "Member not found");
+        if (role === "member" && m.role === "admin") guardLastAdmin(db, householdId, userId);
+        m.role = role;
+      });
+    },
+
+    async removeMember(householdId, userId) {
+      const id = uid();
+      await tx((db) => {
+        requireAdmin(db, householdId, id);
+        if (userId === id) throw new RepoError("forbidden", "Use leave for yourself");
+        const m = db.members.find((x) => x.household_id === householdId && x.user_id === userId && x.active);
+        if (!m) throw new RepoError("not_found", "Member not found");
+        if (hasOpenNet(db, householdId, userId)) throw new RepoError("not_settled", "Settle up first");
+        detachMember(db, householdId, userId);
+        m.active = false;
+      });
+    },
+
+    async leaveHousehold(householdId) {
+      const id = uid();
+      await tx((db) => {
+        const m = db.members.find((x) => x.household_id === householdId && x.user_id === id && x.active);
+        if (!m) throw new RepoError("forbidden", "Not a member of this household");
+        if (hasOpenNet(db, householdId, id)) throw new RepoError("not_settled", "Settle up first");
+        if (m.role === "admin") guardLastAdmin(db, householdId, id);
+        detachMember(db, householdId, id);
+        m.active = false;
+      });
+    },
+
+    async rotateInviteCode(householdId) {
+      const id = uid();
+      return tx((db) => {
+        requireAdmin(db, householdId, id);
+        const h = db.households.find((x) => x.id === householdId);
+        if (!h) throw new RepoError("not_found", "Household not found");
+        h.invite_code = randomCode();
+        return structuredClone(h);
+      });
+    },
+
+    async setAway(householdId, until) {
+      const id = uid();
+      await tx((db) => {
+        const m = db.members.find((x) => x.household_id === householdId && x.user_id === id && x.active);
+        if (!m) throw new RepoError("forbidden", "Not a member of this household");
+        if (until !== null) {
+          const today = almatyDay(now());
+          const max = new Date(Date.parse(`${today.date}T00:00:00Z`) + 366 * DAY_MS).toISOString().slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || until < today.date || until > max) throw new RepoError("invalid", "Invalid date");
+        }
+        m.away_until = until;
       });
     },
   };

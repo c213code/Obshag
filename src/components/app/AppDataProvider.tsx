@@ -9,7 +9,7 @@ import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
 import { RepoError, type AuthSession, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
-import type { Household, Profile, Settlement } from "@/lib/data/types";
+import type { Bill, Household, Profile, Settlement } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { removeDevicePush, syncPush } from "@/lib/pushClient";
@@ -24,9 +24,10 @@ type Snapshot = {
   members: Record<string, MemberWithProfile[]>;
   purchases: Record<string, UiPurchase[]>;
   settlements: Record<string, Settlement[]>;
+  bills: Record<string, Bill[]>;
 };
 
-const EMPTY: Snapshot = { session: null, me: null, households: [], members: {}, purchases: {}, settlements: {} };
+const EMPTY: Snapshot = { session: null, me: null, households: [], members: {}, purchases: {}, settlements: {}, bills: {} };
 
 /** What screens read. Changes whenever data changes. */
 export type AppData = Snapshot & {
@@ -38,6 +39,8 @@ export type AppData = Snapshot & {
 /** What screens call. Every function has a stable identity for the life of the provider, so using actions alone never re-renders. */
 export type AppActions = {
   setActiveId(id: string): void;
+  /** Switches the active household and remembers it (profiles.default_household_id), so Apple Pay captures land there too. */
+  switchHousehold(id: string): Promise<void>;
   /** Reloads everything. By default a failure shows the retry screen; `silent` keeps the current data on screen. */
   refresh(opts?: { silent?: boolean }): Promise<void>;
   /** Reloads the roster of one household (a neighbour may have joined since the last load). */
@@ -93,8 +96,13 @@ async function loadSnapshot(repo: Repo): Promise<Loaded> {
   if (!me) return { ...EMPTY, session };
   const rows = await Promise.all(
     households.map(async (h) => {
-      const [members, purchases, settlements] = await Promise.all([repo.listMembers(h.id), repo.listPurchases(h.id), repo.listSettlements(h.id)]);
-      return { id: h.id, members, purchases, settlements };
+      const [members, purchases, settlements, bills] = await Promise.all([
+        repo.listMembers(h.id),
+        repo.listPurchases(h.id),
+        repo.listSettlements(h.id),
+        repo.listBills(h.id),
+      ]);
+      return { id: h.id, members, purchases, settlements, bills };
     }),
   );
   return {
@@ -104,6 +112,7 @@ async function loadSnapshot(repo: Repo): Promise<Loaded> {
     members: Object.fromEntries(rows.map((r) => [r.id, r.members])),
     purchases: Object.fromEntries(rows.map((r) => [r.id, r.purchases])),
     settlements: Object.fromEntries(rows.map((r) => [r.id, r.settlements])),
+    bills: Object.fromEntries(rows.map((r) => [r.id, r.bills])),
   };
 }
 
@@ -561,17 +570,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [repo, tracker, patchPurchases, refresh],
   );
 
+  const switchHousehold = useCallback(
+    async (id: string): Promise<void> => {
+      setActiveId(id);
+      commit((s) => (s.me ? { ...s, me: { ...s.me, default_household_id: id } } : s));
+      try {
+        await repo.setDefaultHousehold(id);
+      } catch {
+        if (alive.current) setNotice(ru.flat.errors.switchFailed);
+      }
+    },
+    [repo, commit],
+  );
+
   const showNotice = useCallback((text: string) => setNotice(text), []);
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const data = useMemo<AppData>(() => {
     const stage = stageOf({ hasSession: !!snap.session, hasProfile: !!snap.me, householdCount: snap.households.length });
-    const active = snap.households.some((h) => h.id === activeId) ? activeId : (snap.households[0]?.id ?? null);
+    const has = (id: string | null | undefined): id is string => !!id && snap.households.some((h) => h.id === id);
+    const active = has(activeId) ? activeId : has(snap.me?.default_household_id) ? snap.me.default_household_id : (snap.households[0]?.id ?? null);
     return { ...snap, status, stage, activeId: active };
   }, [snap, status, activeId]);
 

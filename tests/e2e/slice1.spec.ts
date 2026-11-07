@@ -194,9 +194,9 @@ test.describe("slice 1: first end-to-end path", () => {
       // the action row keeps the mockup height: no extra caption line under the «скоро» actions
       const rowBox = (await page.getByRole("navigation", { name: "Покупка" }).boundingBox())!;
       expect(rowBox.height).toBeLessThan(96);
-      // the Fab menu offers the monthly payment only as «скоро»
+      // the Fab menu offers the monthly payment (live since slice 6)
       await page.getByRole("button", { name: "Добавить" }).tap();
-      await expect(page.getByRole("menuitem", { name: /Ежемесячный платёж/ })).toBeDisabled();
+      await expect(page.getByRole("menuitem", { name: /Ежемесячный платёж/ })).toBeEnabled();
       await page.getByRole("button", { name: "Закрыть" }).tap();
 
       // the invite code lives on the Квартира tab, grouped and on one line

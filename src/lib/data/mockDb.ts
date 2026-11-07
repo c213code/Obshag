@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { MockDb } from "./seed";
 
 /** Bump when the shape of MockDb changes: older saved data is then discarded and reseeded. */
-export const MOCK_SCHEMA_VERSION = 6;
+export const MOCK_SCHEMA_VERSION = 7;
 
 const uuid = z.string().min(1).max(64);
 const iso = z.string().min(1).max(40);
@@ -41,6 +41,20 @@ const purchase = z.object({
   source: z.enum(["apple_pay", "manual", "monthly"]),
   status: z.enum(["pending", "shared", "personal"]),
   created_at: iso,
+  bill_id: uuid.nullish(),
+  bill_month: z.string().max(10).nullish(),
+});
+const bill = z.object({
+  id: uuid,
+  household_id: uuid,
+  title: z.string().max(80),
+  icon: z.string().max(20),
+  amount: z.number().int().nullable(),
+  variable: z.boolean(),
+  day_of_month: z.number().int(),
+  payer_id: uuid,
+  last_generated_month: z.string().max(10).nullable(),
+  participants: z.array(uuid).max(50),
 });
 const share = z.object({
   purchase_id: uuid,
@@ -70,6 +84,7 @@ export const mockDbSchema = z.object({
   purchases: z.array(purchase).max(5000),
   shares: z.array(share).max(20000),
   settlements: z.array(settlement).max(5000),
+  bills: z.array(bill).max(500),
   joinAttempts: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
   settlementOps: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
   captureTokens: z

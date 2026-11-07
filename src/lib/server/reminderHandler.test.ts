@@ -16,9 +16,10 @@ const target: ReminderTarget = {
     { endpoint: "https://fcm.googleapis.com/b", p256dh: "k", auth: "a" },
   ],
 };
-const repo = (over: Partial<Pick<Repo, "remind" | "runDailyReminders">> = {}) => ({
+const repo = (over: Partial<Pick<Repo, "remind" | "runDailyReminders" | "runMonthlyBills">> = {}) => ({
   remind: async () => target,
   runDailyReminders: async () => [target],
+  runMonthlyBills: async () => ({ created: 0, notices: [] }),
   ...over,
 });
 
@@ -61,6 +62,32 @@ describe("handleCron", () => {
     await out.afterResponse?.();
     expect(push.calls.map((c) => c.endpoint)).toEqual(["https://fcm.googleapis.com/a", "https://fcm.googleapis.com/b"]);
     expect(push.calls[0].payload).toEqual({ type: "reminder", fromUserId: "u1", fromName: "Айдосу", amount: 200 });
+  });
+  it("runs the monthly bills after the reminders and pushes «Коммуналка: введи сумму за ноябрь»", async () => {
+    const push = createRecordingSender();
+    const order: string[] = [];
+    const out = await handleCron(`Bearer ${SECRET}`, {
+      repo: repo({
+        runDailyReminders: async () => (order.push("reminders"), []),
+        runMonthlyBills: async () => (
+          order.push("bills"),
+          { created: 2, notices: [{ to_user: "u2", bill_id: "b1", title: "Коммуналка", month: "2026-11", subscriptions: [{ endpoint: "https://fcm.googleapis.com/c", p256dh: "k", auth: "a" }] }] }
+        ),
+      }),
+      push,
+      secret: SECRET,
+    });
+    expect(order).toEqual(["reminders", "bills"]);
+    expect(out).toMatchObject({ status: 200, body: { ok: true, reminders: 0, bills: 2 } });
+    await out.afterResponse?.();
+    expect(push.calls).toEqual([{ endpoint: "https://fcm.googleapis.com/c", payload: { type: "bill", billId: "b1", title: "Коммуналка", month: "ноябрь" } }]);
+  });
+  it("still sends the reminders when the bill run fails, and says so", async () => {
+    const push = createRecordingSender();
+    const out = await handleCron(`Bearer ${SECRET}`, { repo: repo({ runMonthlyBills: async () => Promise.reject(new Error("x")) }), push, secret: SECRET });
+    expect(out).toMatchObject({ status: 500, body: { ok: false, reminders: 1 } });
+    await out.afterResponse?.();
+    expect(push.calls).toHaveLength(2);
   });
   it("answers 500 when the database fails and survives a throwing sender", async () => {
     const failing = await handleCron(`Bearer ${SECRET}`, { repo: repo({ runDailyReminders: async () => Promise.reject(new Error("x")) }), push: null, secret: SECRET });

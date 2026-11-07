@@ -113,3 +113,26 @@ export const pushSubscriptionSchema = z.object({
   p256dh: z.string().min(1).max(256),
   auth: z.string().min(1).max(256),
 });
+
+export const BILL_ICONS = ["home", "drop", "wifi", "bolt", "other"] as const;
+export const BILL_DAYS = 28;
+
+/** The monthly bill form. A variable bill has no amount; a fixed one needs an amount of at least one tenge per participant. */
+export const billSchema = z
+  .object({
+    id: z.string().min(1).max(64).nullish(),
+    household_id: z.string().min(1).max(64),
+    title: z.string().trim().min(1, "Title is required").max(60),
+    icon: z.enum(BILL_ICONS),
+    amount: z.number().int().min(1).max(MAX_AMOUNT).nullable(),
+    variable: z.boolean(),
+    day_of_month: z.number().int().min(1).max(BILL_DAYS),
+    payer_id: z.string().min(1).max(64),
+    participants: z.array(z.string().min(1).max(64)).min(1, "Pick at least one participant").max(MAX_PARTICIPANTS),
+  })
+  .refine((b) => (b.variable ? b.amount === null : b.amount !== null), { message: "Amount does not match the bill kind" })
+  .refine((b) => new Set(b.participants).size === b.participants.length, { message: "Participants must be unique" })
+  .refine((b) => b.variable || (b.amount ?? 0) >= b.participants.length, { message: "Amount is smaller than the number of participants" });
+export type BillFormInput = z.input<typeof billSchema>;
+
+export const billMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Invalid month");

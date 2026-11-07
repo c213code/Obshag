@@ -61,6 +61,15 @@ describe("sw.js", () => {
     });
   });
 
+  it("push: a variable bill shows «Коммуналка: введи сумму за ноябрь» and opens /monthly", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "bill", billId: "b1", title: "Коммуналка", month: "ноябрь" }));
+    expect(sw.shown[0].title).toBe("Коммуналка: введи сумму за ноябрь");
+    expect(sw.shown[0].options).toMatchObject({ tag: "bill-b1", data: { url: "/monthly" } });
+    await sw.wait(sw.handlers.notificationclick, click("", sw.shown[0].options.data));
+    expect(sw.opened).toEqual(["/monthly"]);
+  });
+
   it("push: a reminder shows «Ты должен Айдосу 200 ₸» · «Рассчитаться» and opens /settle/<creditor>", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "reminder", fromUserId: "u1", fromName: "Айдосу", amount: 200 }));

@@ -1,8 +1,11 @@
 import type {
+  Bill,
+  BillInput,
   CaptureResult,
   CaptureTokenInfo,
   Household,
   Member,
+  MonthlyRun,
   Profile,
   Purchase,
   PushSubscriptionInput,
@@ -127,6 +130,34 @@ export interface Repo {
   deletePushSubscription(endpoint: string): Promise<void>;
   /** Member only. */
   setDefaultHousehold(householdId: Uuid): Promise<void>;
+
+  /** The household's monthly bills (members read). */
+  listBills(householdId: Uuid): Promise<Bill[]>;
+  /** Admin only. Creates (no id) or edits a bill; payer and participants must be active members. forbidden = not an admin. */
+  upsertBill(input: BillInput): Promise<Bill>;
+  /** Admin only. Generated purchases stay. */
+  deleteBill(billId: Uuid): Promise<void>;
+  /**
+   * The payer or an admin enters a VARIABLE bill's amount for a due month ('YYYY-MM') that was not generated yet:
+   * the month's purchase is created and returned. invalid = fixed bill, not due, already generated or bad amount.
+   */
+  setBillAmount(billId: Uuid, month: string, amount: number): Promise<PurchaseWithShares>;
+  /**
+   * SERVER ONLY (anon client + CRON_SECRET). Idempotent: creates the purchase of every FIXED bill that is due this month
+   * (Asia/Almaty) and not generated yet, and returns notices for the payers of due VARIABLE bills still lacking an amount.
+   */
+  runMonthlyBills(secret: string): Promise<MonthlyRun>;
+
+  /** Admin only. The last admin cannot be demoted (invalid). */
+  setMemberRole(householdId: Uuid, userId: Uuid, role: "admin" | "member"): Promise<void>;
+  /** Admin only, not yourself. not_settled = the member has a non-zero net with someone. */
+  removeMember(householdId: Uuid, userId: Uuid): Promise<void>;
+  /** Myself. not_settled = I have a non-zero net with someone; invalid = I am the only admin. */
+  leaveHousehold(householdId: Uuid): Promise<void>;
+  /** Admin only: a new invite code (the old one stops working). */
+  rotateInviteCode(householdId: Uuid): Promise<Household>;
+  /** Myself: away until a date ('YYYY-MM-DD', today or later) or null = at home. */
+  setAway(householdId: Uuid, until: string | null): Promise<void>;
 }
 
 export type RepoErrorCode =
@@ -141,6 +172,7 @@ export type RepoErrorCode =
   | "weak_password"
   | "rate_limited"
   | "has_payments"
+  | "not_settled" // removing or leaving while a net with someone is non-zero
   | "stale"
   | "signup_unavailable" // sign-up failed on the server (5xx / unexpected_failure, e.g. SMTP with «Confirm email» ON)
   | "unknown";

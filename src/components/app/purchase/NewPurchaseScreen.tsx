@@ -13,6 +13,8 @@ import { perPersonRange } from "@/lib/domain/split";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
+import { almatyDay } from "@/lib/domain/almaty";
+import { defaultParticipants } from "@/lib/domain/away";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { AmountInput } from "./AmountInput";
@@ -44,7 +46,8 @@ export function NewPurchaseScreen() {
   if (!me || !activeId) return null;
 
   const everyone = roster.map((m) => m.user_id);
-  const selected = picked ?? new Set(everyone);
+  // neighbours who are away are not picked by default (they can still be added by hand)
+  const selected = picked ?? new Set(defaultParticipants(roster, almatyDay(new Date()).date));
   const participantIds = everyone.filter((id) => selected.has(id));
   const n = participantIds.length;
   const range = perPersonRange(amount ?? 0, n);

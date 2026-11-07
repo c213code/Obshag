@@ -10,6 +10,9 @@ import {
   inviteCodeSchema,
   passwordSchema,
   profileSchema,
+  billSchema,
+  billMonthSchema,
+  tengeSchema,
 } from "@/lib/domain/schemas";
 import {
   RepoError,
@@ -22,7 +25,7 @@ import {
   type Repo,
   type RepoErrorCode,
 } from "./repo";
-import type { CaptureResult, CaptureTokenInfo, Household, Member, Profile, ReminderTarget, Settlement, SettlementShare, Share } from "./types";
+import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, Profile, ReminderTarget, Settlement, SettlementShare, Share } from "./types";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 
@@ -41,6 +44,7 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   weak_password: "Password is too weak",
   rate_limited: "Too many requests",
   has_payments: "Something was already paid for this purchase",
+  not_settled: "Settle up with everyone first",
   stale: "The amounts changed since the payment was marked",
   signup_unavailable: "Sign-up is unavailable",
   unknown: "Request failed",
@@ -60,6 +64,7 @@ export function mapDbError(error: NonNullable<DbError>): RepoError {
   else if (error.code === "42501") code = "forbidden";
   else if (error.code === "23514" && message.includes("stale_settlement")) code = "stale";
   else if (error.code === "23514" && message.includes("has_payments")) code = "has_payments";
+  else if (error.code === "23514" && message.includes("not_settled")) code = "not_settled";
   else if (["23514", "23503", "23505", "22023", "22P02"].includes(error.code ?? "")) code = "invalid";
   else if (error.code === "P0002") code = "not_found";
   else if (message.includes("rate_limited")) code = "rate_limited";
@@ -407,6 +412,76 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
 
     async setDefaultHousehold(householdId) {
       const { error } = await client.rpc("set_default_household", { p_household_id: householdId });
+      if (error) throw mapDbError(error);
+    },
+
+    async listBills(householdId) {
+      const res = await client
+        .from("bills")
+        .select("*")
+        .eq("household_id", householdId)
+        .order("day_of_month", { ascending: true })
+        .order("id", { ascending: true });
+      return ok<Bill[]>(res);
+    },
+
+    async upsertBill(raw) {
+      const parsed = billSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const b = parsed.data;
+      return ok<Bill>(
+        await client.rpc("upsert_bill", {
+          p_household: b.household_id,
+          p_id: b.id ?? null,
+          p_title: b.title,
+          p_icon: b.icon,
+          p_amount: b.variable ? null : b.amount,
+          p_variable: b.variable,
+          p_day: b.day_of_month,
+          p_payer: b.payer_id,
+          p_participants: b.participants,
+        }),
+      );
+    },
+
+    async deleteBill(billId) {
+      const { error } = await client.rpc("delete_bill", { p_id: billId });
+      if (error) throw mapDbError(error);
+    },
+
+    async setBillAmount(billId, month, amount) {
+      if (!billMonthSchema.safeParse(month).success || !tengeSchema.safeParse(amount).success) throw new RepoError("invalid", "Invalid input");
+      const row = ok<PurchaseRow>(await client.rpc("set_bill_amount", { p_bill: billId, p_month: month, p_amount: amount }));
+      if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
+      return toPurchase(row);
+    },
+
+    async runMonthlyBills(secret) {
+      return ok<MonthlyRun>(await client.rpc("run_monthly_bills", { p_secret: secret }));
+    },
+
+    async setMemberRole(householdId, userId, role) {
+      const { error } = await client.rpc("set_member_role", { p_household: householdId, p_user: userId, p_role: role });
+      if (error) throw mapDbError(error);
+    },
+
+    async removeMember(householdId, userId) {
+      const { error } = await client.rpc("remove_member", { p_household: householdId, p_user: userId });
+      if (error) throw mapDbError(error);
+    },
+
+    async leaveHousehold(householdId) {
+      const { error } = await client.rpc("leave_household", { p_household: householdId });
+      if (error) throw mapDbError(error);
+    },
+
+    async rotateInviteCode(householdId) {
+      return ok<Household>(await client.rpc("rotate_invite_code", { p_household: householdId }));
+    },
+
+    async setAway(householdId, until) {
+      if (until !== null && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new RepoError("invalid", "Invalid date");
+      const { error } = await client.rpc("set_away", { p_household: householdId, p_until: until });
       if (error) throw mapDbError(error);
     },
   };

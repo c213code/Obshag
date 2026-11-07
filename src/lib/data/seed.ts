@@ -1,4 +1,4 @@
-import type { Household, Member, Profile, Purchase, Settlement, Share } from "./types";
+import type { Bill, Household, Member, Profile, Purchase, Settlement, Share } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
@@ -18,6 +18,7 @@ export type MockDb = {
   purchases: Purchase[];
   shares: Share[];
   settlements: Settlement[];
+  bills: Bill[];
   /** join_household attempts (rate limit: 10 per user per hour). */
   joinAttempts: Array<{ user_id: string; at: string }>;
   /** mark/cancel calls (rate limit: 20 per user per hour). */
@@ -128,7 +129,9 @@ export function createSeed(): MockDb {
     members,
     purchases,
     shares,
-    settlements: [], joinAttempts: [],
+    settlements: [],
+    bills: [],
+    joinAttempts: [],
     settlementOps: [],
     captureTokens: [],
     pushSubscriptions: [],

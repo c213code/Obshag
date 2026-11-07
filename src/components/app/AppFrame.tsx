@@ -12,12 +12,12 @@ const tabs: ReadonlyArray<TabDef> = defaultTabs.map((t) => ({ ...t, href: HREFS[
 export function AppFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  // the monthly screen arrives in slice 6: its menu row is shown as «скоро» until then
-  const onAction = (action: FabAction) => router.push(action === "purchase" ? "/purchases/new" : "/monthly");
+  const onAction = (action: FabAction) => router.push(action === "purchase" ? "/purchases/new" : "/monthly/new");
+  const ownBar = pathname.startsWith("/purchases/") || pathname.startsWith("/settle") || pathname.startsWith("/settings") || pathname.startsWith("/monthly");
   return (
     <Guard page="app">
       {children}
-      {pathname.startsWith("/purchases/") || pathname.startsWith("/settle") || pathname.startsWith("/settings") ? null : <TabBar value="home" tabs={tabs} onAction={onAction} soonActions={["monthly"]} />}
+      {ownBar ? null : <TabBar value="home" tabs={tabs} onAction={onAction} />}
     </Guard>
   );
 }

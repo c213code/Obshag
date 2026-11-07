@@ -150,3 +150,30 @@ export const EyeOffIcon = (p: IconProps) => (
     <path d="M9.9 5.7A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.6 3.4M6.3 7.3A16 16 0 0 0 2.5 12S6 18.5 12 18.5c1.5 0 2.8-.4 4-1M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
   </Svg>
 );
+
+export const DropIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" />
+  </Svg>
+);
+export const WifiIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" />
+    <circle cx="12" cy="19.5" r="1" />
+  </Svg>
+);
+export const BoltIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+  </Svg>
+);
+export const ReceiptIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6" />
+  </Svg>
+);
+export const QrIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z" />
+  </Svg>
+);

@@ -3,7 +3,10 @@ import type { PushSubscriptionInput } from "@/lib/data/types";
 /** «Ты должен Айдосу 200 ₸ · Рассчитаться»: `fromName` is already in the dative case, the worker composes the text. */
 export type ReminderPushPayload = { type: "reminder"; fromUserId: string; fromName: string; amount: number };
 
-export type PushPayload = PendingPushPayload | ReminderPushPayload;
+/** «Коммуналка: введи сумму за ноябрь»: the worker composes the text; tapping opens /monthly. */
+export type BillPushPayload = { type: "bill"; billId: string; title: string; month: string };
+
+export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload;
 
 /** What the service worker receives. Title and body are composed there (it formats the amount itself). */
 export type PendingPushPayload = { type: "pending"; purchaseId: string; merchant: string | null; amount: number };

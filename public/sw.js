@@ -29,7 +29,22 @@ function showReminder(data) {
   });
 }
 
+function showBill(data) {
+  // «Коммуналка: введи сумму за ноябрь»; tapping opens the monthly screen
+  const title = typeof data.title === "string" && data.title ? data.title : "Платёж";
+  const month = typeof data.month === "string" && data.month ? " за " + data.month : "";
+  return self.registration.showNotification(title + ": введи сумму" + month, {
+    body: "Открыть ежемесячные платежи",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "bill-" + (typeof data.billId === "string" ? data.billId : "x"),
+    renotify: false,
+    data: { url: "/monthly" },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "bill") return showBill(data);
   if (data && data.type === "reminder" && typeof data.fromUserId === "string") return showReminder(data);
   const ok = data && data.type === "pending" && typeof data.purchaseId === "string";
   if (!ok) {

@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { SoonScreen } from "@/components/app/SoonScreen";
-import { ru } from "@/lib/i18n/ru";
+import { MonthlyScreen } from "@/components/app/bills/MonthlyScreen";
 
 export const metadata: Metadata = { title: "Ежемесячно · Общак" };
 
 export default function MonthlyPage() {
-  return <SoonScreen title={ru.soon.monthlyTitle} text={ru.soon.monthlyText} />;
+  return <MonthlyScreen />;
 }

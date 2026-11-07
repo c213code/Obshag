@@ -1,57 +1,148 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { useRepo } from "@/components/RepoProvider";
 import { Bar } from "@/components/ui/Bar";
-import Link from "next/link";
-import { ChevronRightIcon, KeyIcon, UsersIcon } from "@/components/ui/icons";
+import { CardStack } from "@/components/ui/CardStack";
+import { CalendarIcon, EditIcon, KeyIcon, UsersIcon } from "@/components/ui/icons";
 import { ListRow } from "@/components/ui/ListRow";
 import { Pill, PillLink } from "@/components/ui/Pill";
+import { Switch } from "@/components/ui/Switch";
+import { RepoError } from "@/lib/data/repo";
+import { almatyDay } from "@/lib/domain/almaty";
+import { isAway } from "@/lib/domain/away";
 import { ru } from "@/lib/i18n/ru";
-import { formatInviteCode } from "@/lib/domain/inviteCode";
 import { useAppActions, useAppData } from "../AppDataProvider";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
+import { useHouseholdCards } from "../home/useHouseholdCards";
+import { ActionRow } from "./ActionRow";
+import { AwaySheet } from "./AwaySheet";
+import { InviteCard } from "./InviteCard";
+import { MemberSheet, type MemberAction } from "./MemberSheet";
+import { ProfileSheet } from "./ProfileSheet";
+import { formatAway } from "./dates";
 
-const formatAway = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(new Date(iso));
+const writeError = (e: unknown, fallback: string): string => {
+  if (e instanceof RepoError) {
+    if (e.code === "not_settled") return ru.flat.errors.settleFirst;
+    if (e.code === "forbidden") return ru.flat.adminOnly;
+  }
+  return fallback;
+};
 
-/** Квартира tab (slice 1 placeholder, styled after Invite.dc.html): invite code, housemates, sign out. */
+/** Квартира tab, per Invite.dc.html: invite card, neighbours, away, profile, reminders, automation, leaving. */
 export function FlatScreen() {
-  const { me, households, members, activeId } = useAppData();
-  const { signOut, setRemindersEnabled } = useAppActions();
-  const [copied, setCopied] = useState(false);
+  const repo = useRepo();
+  const { me, households, members, purchases, activeId } = useAppData();
+  const { signOut, setRemindersEnabled, refresh, refreshMembers, switchHousehold, showNotice } = useAppActions();
+  const cards = useHouseholdCards(me, households, members, purchases);
+  const today = useMemo(() => almatyDay(new Date()).date, []);
+
   const [leaving, setLeaving] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+  const [leaveAsk, setLeaveAsk] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [sheet, setSheet] = useState<"away" | "profile" | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [memberOpen, setMemberOpen] = useState(false);
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [awayError, setAwayError] = useState<string | null>(null);
+  const [rotateAsk, setRotateAsk] = useState(false);
+
   const household = households.find((h) => h.id === activeId);
   if (!me || !household) return null;
 
-  const code = household.invite_code.toUpperCase();
   const roster = members[household.id] ?? [];
-  const remindersOn = roster.find((m) => m.user_id === me.id)?.reminders_enabled !== false;
+  const mine = roster.find((m) => m.user_id === me.id);
+  const iAmAdmin = mine?.role === "admin";
+  const remindersOn = mine?.reminders_enabled !== false;
+  const away = mine?.away_until && isAway(mine.away_until, today) ? mine.away_until : null;
+  const code = household.invite_code.toUpperCase();
+  const picked = roster.find((m) => m.user_id === memberId) ?? null;
 
-  const share = async () => {
-    const url = `${window.location.origin}/join/${encodeURIComponent(code)}`;
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: household.name, text: ru.flat.shareText(household.name), url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // the share sheet was dismissed, nothing to do
-    }
-  };
-
-  const leave = async () => {
-    if (leaving) return;
-    setLeaving(true);
+  const doSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
       await signOut(); // on success the guard sends the user to /login; on failure a notice explains
     } finally {
+      setSigningOut(false);
+    }
+  };
+
+  const doLeave = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    setLeaveError(null);
+    try {
+      await repo.leaveHousehold(household.id);
+      await refresh({ silent: true }); // the guard moves on when no household is left
+    } catch (e) {
+      setLeaveAsk(false);
+      setLeaveError(e instanceof RepoError && e.code === "invalid" ? ru.flat.errors.lastAdmin : writeError(e, ru.flat.errors.generic));
+    } finally {
       setLeaving(false);
+    }
+  };
+
+  const doMemberAction = async (action: MemberAction) => {
+    if (!picked || memberBusy) return;
+    setMemberBusy(true);
+    setMemberError(null);
+    try {
+      if (action === "remove") await repo.removeMember(household.id, picked.user_id);
+      else await repo.setMemberRole(household.id, picked.user_id, action === "make_admin" ? "admin" : "member");
+      await refreshMembers(household.id);
+      void refresh({ silent: true });
+      setMemberOpen(false);
+    } catch (e) {
+      setMemberError(e instanceof RepoError && e.code === "invalid" ? ru.flat.errors.lastAdmin : writeError(e, ru.flat.errors.generic));
+    } finally {
+      setMemberBusy(false);
+    }
+  };
+
+  const saveAway = async (until: string | null) => {
+    setBusy(true);
+    setAwayError(null);
+    try {
+      await repo.setAway(household.id, until);
+      await refreshMembers(household.id);
+      setSheet(null);
+    } catch (e) {
+      setAwayError(e instanceof RepoError && e.code === "invalid" ? ru.flat.away.invalid : ru.flat.errors.generic);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProfile = async (input: { display_name: string; kaspi_phone: string }): Promise<string | null> => {
+    try {
+      await repo.upsertProfile(input);
+    } catch {
+      return ru.flat.errors.profileFailed;
+    }
+    await refresh({ silent: true });
+    setSheet(null);
+    showNotice(ru.flat.profile.saved);
+    return null;
+  };
+
+  const rotate = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await repo.rotateInviteCode(household.id);
+      await refresh({ silent: true });
+      setRotateAsk(false);
+    } catch {
+      setRotateAsk(false);
+      showNotice(ru.flat.errors.rotateFailed);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -64,57 +155,56 @@ export function FlatScreen() {
         <h1 className="text-headline">{household.name}</h1>
       </Bar>
 
-      <section aria-label={ru.flat.inviteCode} className="relative flex flex-col gap-3 overflow-hidden rounded-lg bg-lime p-5 text-on-lime">
-        <svg
-          aria-hidden="true"
-          focusable="false"
-          viewBox="0 0 170 170"
-          className="pointer-events-none absolute -top-10 -right-10 size-[170px]"
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity="0.08"
-        >
-          <circle cx="85" cy="85" r="76" strokeWidth="20" />
-        </svg>
-        <span className="relative text-label">{ru.flat.inviteCode}</span>
-        <p
-          data-testid="invite-code"
-          aria-label={code}
-          className="relative font-rounded text-[30px] leading-[1.1] font-bold tracking-[0.02em] whitespace-nowrap tabular-nums"
-        >
-          {formatInviteCode(code)}
-        </p>
-        <div className="relative flex gap-2 rounded-pill bg-on-lime/[0.08] p-[5px]">
-          <button
-            type="button"
-            onClick={share}
-            className="flex-1 rounded-pill bg-on-lime p-3 text-[15px] font-semibold text-lime transition-transform duration-200 ease-smooth active:scale-[0.97]"
-          >
-            {copied ? ru.flat.copied : ru.flat.share}
-          </button>
+      {cards.length >= 2 ? (
+        <div aria-label={ru.flat.households} className="-mt-1">
+          <CardStack cards={cards} frontId={household.id} onFrontChange={(id) => id !== activeId && void switchHousehold(id)} />
         </div>
-      </section>
+      ) : null}
+
+      <InviteCard code={code} householdName={household.name} />
 
       <h2 className="px-[6px] pt-1 text-headline">{ru.flat.neighbors}</h2>
       <ul className="flex flex-col gap-2">
         {roster.map((m) => {
           const isMe = m.user_id === me.id;
-          const caption = m.away_until
-            ? ru.flat.awayUntil(formatAway(m.away_until))
-            : !m.profile.kaspi_phone
-              ? ru.flat.noKaspi
-              : m.role === "admin"
+          const memberAway = m.away_until && isAway(m.away_until, today) ? m.away_until : null;
+          const admin = m.role === "admin";
+          const noKaspi = !m.profile.kaspi_phone;
+          const caption = noKaspi
+            ? ru.flat.noKaspi
+            : memberAway
+              ? `${admin ? `${ru.flat.admin} · ` : ""}${ru.flat.awayUntil(formatAway(memberAway))}`
+              : admin
                 ? ru.flat.admin
                 : ru.flat.hasKaspi;
+          const row = (
+            <ListRow
+              name={m.profile.display_name}
+              avatarColor={avatarColorFor(m.profile, me.id)}
+              title={isMe ? `${m.profile.display_name} (${ru.flat.you})` : m.profile.display_name}
+              caption={caption}
+              captionTone={noKaspi ? "orange" : "muted"}
+              className={noKaspi ? "!border-wait-line" : undefined}
+            />
+          );
           return (
-            <li key={m.user_id}>
-              <ListRow
-                name={m.profile.display_name}
-                avatarColor={avatarColorFor(m.profile, me.id)}
-                title={isMe ? `${m.profile.display_name} (${ru.flat.you})` : m.profile.display_name}
-                caption={caption}
-                captionTone={!m.profile.kaspi_phone && !m.away_until ? "orange" : "muted"}
-              />
+            <li key={m.user_id} data-testid={`member-${m.profile.display_name}`}>
+              {iAmAdmin && !isMe ? (
+                <button
+                  type="button"
+                  aria-label={`${m.profile.display_name}: ${ru.flat.member.rowHint}`}
+                  onClick={() => {
+                    setMemberId(m.user_id);
+                    setMemberError(null);
+                    setMemberOpen(true);
+                  }}
+                  className="block w-full text-left transition-transform duration-200 ease-smooth active:scale-[0.98]"
+                >
+                  {row}
+                </button>
+              ) : (
+                row
+              )}
             </li>
           );
         })}
@@ -127,45 +217,82 @@ export function FlatScreen() {
           </p>
           <p className="text-caption">{ru.flat.remindersCaption}</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={remindersOn}
-          aria-labelledby="reminders-label"
-          onClick={() => void setRemindersEnabled(household.id, !remindersOn)}
-          className={`relative mr-[14px] h-[30px] w-[50px] shrink-0 rounded-[15px] transition-colors duration-200 ease-smooth ${remindersOn ? "bg-lime" : "bg-card-2"}`}
-        >
-          <span
-            aria-hidden="true"
-            className={`absolute top-[3px] left-[3px] size-[24px] rounded-full transition-transform duration-200 ease-smooth ${remindersOn ? "translate-x-[20px] bg-on-lime" : "translate-x-0 bg-muted"}`}
-          />
-        </button>
+        <Switch checked={remindersOn} onChange={(next) => void setRemindersEnabled(household.id, next)} labelledBy="reminders-label" className="mr-[14px]" />
       </div>
 
+      <ActionRow
+        testId="away-row"
+        icon={<CalendarIcon size={20} />}
+        title={ru.flat.away.button}
+        caption={away ? ru.flat.awayUntil(formatAway(away)) : ru.flat.away.hint}
+        onClick={() => {
+          setAwayError(null);
+          setSheet("away");
+        }}
+      />
+      <ActionRow testId="profile-row" icon={<EditIcon size={20} />} title={ru.flat.profile.row} caption={me.display_name} onClick={() => setSheet("profile")} />
+
       <h2 className="px-[6px] pt-1 text-headline">{ru.flat.sectionApps}</h2>
-      <Link
-        href="/settings/shortcut"
-        data-testid="shortcut-row"
-        className="flex items-center gap-3 rounded-pill border border-hairline bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
-      >
-        <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-full bg-lime-soft text-lime">
-          <KeyIcon size={20} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-headline">{ru.shortcut.row}</p>
-          <p className="truncate text-caption">{ru.shortcut.rowCaption}</p>
-        </div>
-        <ChevronRightIcon size={20} className="mr-2 shrink-0 text-muted" />
-      </Link>
+      <ActionRow testId="shortcut-row" href="/settings/shortcut" icon={<KeyIcon size={20} />} title={ru.shortcut.row} caption={ru.shortcut.rowCaption} />
 
       <div className="flex flex-col gap-2 pt-2">
+        {iAmAdmin ? (
+          rotateAsk ? (
+            <div className="flex items-center gap-3 rounded-pill border border-hairline bg-card p-[6px] pl-5">
+              <span className="flex-1 text-body">{ru.flat.rotateConfirm}</span>
+              <Pill variant="lime" size="row" onClick={rotate} disabled={busy} data-testid="rotate-confirm">
+                {busy ? ru.flat.rotating : ru.flat.rotate}
+              </Pill>
+              <Pill variant="on" size="row" onClick={() => setRotateAsk(false)}>
+                {ru.detail.deleteCancel}
+              </Pill>
+            </div>
+          ) : (
+            <Pill variant="on" size="lg" className="w-full" onClick={() => setRotateAsk(true)} data-testid="rotate-code">
+              {ru.flat.rotate}
+            </Pill>
+          )
+        ) : null}
         <PillLink href="/household" variant="on" size="lg" className="w-full">
           {ru.flat.addAnother}
         </PillLink>
-        <Pill variant="ghost" size="lg" className="w-full border border-orange/50 !text-orange" onClick={leave} disabled={leaving}>
-          {leaving ? ru.flat.signingOut : ru.flat.signOut}
+        {leaveAsk ? (
+          <div className="flex items-center gap-3 rounded-pill border border-danger-line bg-card p-[6px] pl-5">
+            <span className="flex-1 text-body !text-danger">{ru.flat.leaveConfirm}</span>
+            <Pill variant="ghost" size="row" onClick={doLeave} disabled={leaving} className="!bg-danger !text-bg" data-testid="leave-confirm">
+              {leaving ? ru.flat.leaving : ru.flat.leave}
+            </Pill>
+            <Pill variant="on" size="row" onClick={() => setLeaveAsk(false)}>
+              {ru.detail.deleteCancel}
+            </Pill>
+          </div>
+        ) : (
+          <Pill variant="ghost" size="lg" className="w-full border border-danger-line !text-danger" onClick={() => setLeaveAsk(true)} data-testid="leave-household">
+            {ru.flat.leave}
+          </Pill>
+        )}
+        {leaveError ? (
+          <p role="alert" data-testid="leave-error" className="px-[6px] text-label text-orange">
+            {leaveError}
+          </p>
+        ) : null}
+        <Pill variant="ghost" size="lg" className="w-full border border-orange/50 !text-orange" onClick={doSignOut} disabled={signingOut}>
+          {signingOut ? ru.flat.signingOut : ru.flat.signOut}
         </Pill>
       </div>
+
+      <MemberSheet
+        open={memberOpen}
+        onClose={() => setMemberOpen(false)}
+        name={picked?.profile.display_name ?? ""}
+        color={picked ? avatarColorFor(picked.profile, me.id) : "blue"}
+        isAdmin={picked?.role === "admin"}
+        error={memberError}
+        busy={memberBusy}
+        onAction={(a) => void doMemberAction(a)}
+      />
+      <AwaySheet open={sheet === "away"} onClose={() => setSheet(null)} today={today} current={away} busy={busy} error={awayError} onSave={(u) => void saveAway(u)} />
+      <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} onSave={saveProfile} />
     </Screen>
   );
 }

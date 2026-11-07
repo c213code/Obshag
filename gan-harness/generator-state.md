@@ -258,3 +258,17 @@ Nothing committed. No servers running. 0001-0004 and `.env.local` untouched; no 
 - Visual deltas vs Purchase.dc.html: «на 4 человека» (correct plural instead of «человек»), 1-2px row/avatar offsets, thinner check stroke.
 - `from_name_dative` in the RPC result is the raw display name; the route declines it (declension.ts).
 - Cron in Supabase mode is untested live (fake client + PGlite only).
+
+---
+
+# Slices 6+7 "Monthly bills + Квартира" (one pass)
+
+Nothing committed. Servers stopped. 0001-0005 and `.env.local` untouched; no service-role key.
+
+- SQL `supabase/migrations/0006_slice6_7.sql` (+ `tests/db/slice67.test.ts`): bills.participants, purchases.bill_id/bill_month (unique per bill+month), bills write only through RPCs (upsert_bill, delete_bill, set_bill_amount), `run_monthly_bills(secret)` (anon, body in private.generate_bills(now), Asia/Almaty), set_member_role, remove_member, leave_household (zero net via pair_net, 23514 not_settled), rotate_invite_code (12 chars), set_away. Anon surface = 4 functions (tested).
+- Cron `/api/cron/daily` runs bills after reminders; push type `bill` («Коммуналка: введи сумму за ноябрь», opens /monthly) in sw.js.
+- UI: /monthly (Bills.dc.html), /monthly/new and /monthly/[id] form, amount sheet; Fab «Ежемесячный платёж» and the Home quick action are live; Квартира per Invite.dc.html (QR via `qrcode`, share/copy, member admin sheet, away sheet, profile sheet, leave, rotate code, household switcher persisted with set_default_household); default participants skip away members.
+- Results: `npm run verify` green (53 files, 526 tests); `npm run test:e2e` 59/59 (5 new in slice67.spec.ts, own household injected into the mock store).
+- Screenshots: gan-harness/screenshots/s67-cmp-bills.png, s67-cmp-flat.png (script gan-harness/shoot-s67.mjs).
+
+Known gaps: variable-bill notice repeats on every daily cron until the amount is entered; Bills «Всего» counts only known amounts; 1-2px vertical deltas vs the mockups; the month bar has arrows (spec) so it is wider than the mockup's; the black pill at the top of app screenshots is the iPhone emulation, not app UI; Supabase path only tested with fake client and PGlite.
