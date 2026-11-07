@@ -34,7 +34,9 @@ export const PurchaseCard = memo(function PurchaseCard({ purchase, payerName }: 
           />
         </div>
         <span className="text-caption">
-          {total === 0 ? (
+          {purchase.status === "personal" ? (
+            ru.main.personal
+          ) : total === 0 ? (
             ru.main.everyonePaid
           ) : (
             <>

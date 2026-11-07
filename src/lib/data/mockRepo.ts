@@ -10,6 +10,8 @@ import {
 } from "@/lib/domain/schemas";
 import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
+import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
+import { MAX_AMOUNT, pushSubscriptionSchema, resolvePendingSchema } from "@/lib/domain/schemas";
 import {
   RepoError,
   type AuthSession,
@@ -21,7 +23,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, type MockDb } from "./seed";
-import type { Household, Profile, Purchase, Settlement, Share, Uuid } from "./types";
+import type { CaptureResult, CaptureTokenInfo, Household, Profile, Purchase, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -54,6 +56,7 @@ export function memorySession(initial: Uuid | null = null): SessionStore {
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const JOIN_LIMIT = 10;
 const SETTLEMENT_OPS_LIMIT = 20;
+const CAPTURE_LIMIT = 30;
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_RETRIES = 8;
 
@@ -266,7 +269,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         requireMember(db, householdId, id);
         return db.purchases
           .filter((p) => p.household_id === householdId)
-          .filter((p) => p.status !== "personal" || p.payer_id === id)
+          .filter((p) => p.status === "shared" || p.payer_id === id)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
           .map((p) => withShares(db, p));
       });
@@ -437,6 +440,161 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         s.status = "cancelled";
         countSettlementOp(db, id);
         return structuredClone(s);
+      });
+    },
+    async getCaptureTokenInfo(): Promise<CaptureTokenInfo | null> {
+      const id = uid();
+      return read((db) => {
+        const t = db.captureTokens.find((x) => x.user_id === id);
+        return t ? { created_at: t.created_at, last_used_at: t.last_used_at } : null;
+      });
+    },
+
+    async rotateCaptureToken() {
+      const id = uid();
+      const token = newCaptureToken();
+      const hash = await sha256Hex(token);
+      await tx((db) => {
+        requireProfile(db, id);
+        db.captureTokens = db.captureTokens.filter((x) => x.user_id !== id);
+        db.captureTokens.push({ user_id: id, token_hash: hash, created_at: now().toISOString(), last_used_at: null });
+      });
+      return token;
+    },
+
+    async capture(token, amount, merchant): Promise<CaptureResult> {
+      const unknown = () => new RepoError("unauthenticated", "Invalid token");
+      if (typeof token !== "string" || token.length < 20 || token.length > 200) throw unknown();
+      const hash = await sha256Hex(token);
+      return tx((db): CaptureResult => {
+        const owner = db.captureTokens.find((x) => x.token_hash === hash);
+        if (!owner) throw unknown();
+        const userId = owner.user_id;
+        const t = now().getTime();
+        db.captureOps = db.captureOps.filter((o) => t - Date.parse(o.at) < HOUR_MS);
+        if (db.captureOps.filter((o) => o.user_id === userId).length >= CAPTURE_LIMIT) throw new RepoError("rate_limited", "Too many captures");
+        if (!Number.isInteger(amount) || amount < 1 || amount > MAX_AMOUNT) throw new RepoError("invalid", "Invalid amount");
+        // control characters and bidi overrides never reach a stored description or a notification title
+        const cleaned = typeof merchant === "string" ? merchant.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim() : "";
+        const name = cleaned !== "" ? cleaned : null;
+        if ((name?.length ?? 0) > 120) throw new RepoError("invalid", "Invalid merchant");
+
+        // the default household while the owner is still an active member there, else the most recently joined active one
+        const preferred = profileOf(db, userId)?.default_household_id;
+        const active = db.members.filter((m) => m.user_id === userId && m.active);
+        const target =
+          (preferred ? active.find((m) => m.household_id === preferred) : undefined) ??
+          [...active].sort((a, b) => b.joined_at.localeCompare(a.joined_at) || a.household_id.localeCompare(b.household_id))[0];
+        if (!target) throw new RepoError("invalid", "No household");
+
+        // a Shortcut retry (same amount and merchant within 60 s) returns the existing pending purchase, with no second push
+        const twin = db.purchases.find(
+          (p) => p.payer_id === userId && p.source === "apple_pay" && p.status === "pending" && p.amount === amount && p.merchant === name && t - Date.parse(p.created_at) < 60_000,
+        );
+        if (twin) return { purchase_id: twin.id, household_id: twin.household_id, amount, merchant: name, subscriptions: [] };
+
+        db.captureOps.push({ user_id: userId, at: now().toISOString() });
+        owner.last_used_at = now().toISOString();
+        const purchase: Purchase = {
+          id: newId(),
+          household_id: target.household_id,
+          payer_id: userId,
+          amount,
+          description: name ?? "Покупка",
+          merchant: name,
+          source: "apple_pay",
+          status: "pending",
+          created_at: now().toISOString(),
+        };
+        db.purchases.push(purchase);
+        return {
+          purchase_id: purchase.id,
+          household_id: purchase.household_id,
+          amount,
+          merchant: name,
+          subscriptions: db.pushSubscriptions.filter((x) => x.user_id === userId).map(({ endpoint, p256dh, auth }) => ({ endpoint, p256dh, auth })),
+        };
+      });
+    },
+
+    async prunePushSubscription(token, endpoint) {
+      if (typeof token !== "string" || token.length < 20 || token.length > 200) throw new RepoError("unauthenticated", "Invalid token");
+      const hash = await sha256Hex(token);
+      await tx((db) => {
+        const owner = db.captureTokens.find((x) => x.token_hash === hash);
+        if (!owner) throw new RepoError("unauthenticated", "Invalid token");
+        db.pushSubscriptions = db.pushSubscriptions.filter((x) => !(x.user_id === owner.user_id && x.endpoint === endpoint));
+      });
+    },
+
+    async listPending(householdId) {
+      const id = uid();
+      return read((db) => {
+        requireMember(db, householdId, id);
+        return db.purchases
+          .filter((p) => p.household_id === householdId && p.payer_id === id && p.status === "pending")
+          .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+          .map((p) => withShares(db, p));
+      });
+    },
+
+    async resolvePending(purchaseId, raw) {
+      const id = uid();
+      const parsed = resolvePendingSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      return tx((db): PurchaseWithShares => {
+        const p = db.purchases.find((x) => x.id === purchaseId);
+        // not found and not yours look the same
+        if (!p || p.payer_id !== id || !isMember(db, p.household_id, id)) throw new RepoError("not_found", "Purchase not found");
+        if (p.status !== "pending") {
+          if ((p.status === "shared") === input.shared) return withShares(db, p);
+          throw new RepoError("invalid", "Already resolved");
+        }
+        const description = input.description && input.description !== "" ? input.description : p.description;
+        if (input.shared) {
+          const who = input.participant_ids ?? [];
+          if (p.amount < who.length) throw new RepoError("invalid", "Amount is smaller than the number of participants");
+          if (!who.every((m) => isMember(db, p.household_id, m))) throw new RepoError("invalid", "Every participant must be an active member");
+          const createdAt = now().toISOString();
+          db.shares.push(
+            ...splitEqual(p.amount, who, id).map((s) => ({
+              purchase_id: p.id,
+              debtor_id: s.debtor_id,
+              amount: s.amount,
+              settled_at: s.settled ? createdAt : null,
+              settlement_id: null,
+            })),
+          );
+        }
+        p.description = description;
+        p.status = input.shared ? "shared" : "personal";
+        return withShares(db, p);
+      });
+    },
+
+    async savePushSubscription(sub) {
+      const id = uid();
+      const parsed = pushSubscriptionSchema.safeParse(sub);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      await tx((db) => {
+        db.pushSubscriptions = db.pushSubscriptions.filter((x) => x.endpoint !== parsed.data.endpoint);
+        db.pushSubscriptions.push({ user_id: id, ...parsed.data, created_at: now().toISOString() });
+      });
+    },
+
+    async deletePushSubscription(endpoint) {
+      const id = uid();
+      await tx((db) => {
+        db.pushSubscriptions = db.pushSubscriptions.filter((x) => !(x.user_id === id && x.endpoint === endpoint));
+      });
+    },
+
+    async setDefaultHousehold(householdId) {
+      const id = uid();
+      await tx((db) => {
+        requireMember(db, householdId, id);
+        requireProfile(db, id).default_household_id = householdId;
       });
     },
   };

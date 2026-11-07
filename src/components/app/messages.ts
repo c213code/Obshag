@@ -10,6 +10,7 @@ export function errorMessage(e: unknown, fallbacks: Partial<Record<RepoError["co
     if (e.code === "invalid_credentials") return ru.auth.errors.invalidCredentials;
     if (e.code === "email_taken") return ru.auth.errors.emailTaken;
     if (e.code === "weak_password") return ru.auth.errors.weakPassword;
+    if (e.code === "signup_unavailable") return ru.auth.errors.signupUnavailable;
     if (e.code === "rate_limited") return ru.auth.errors.rateLimited;
   }
   return ru.errors.generic;

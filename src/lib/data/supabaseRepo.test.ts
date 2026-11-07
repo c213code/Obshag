@@ -72,6 +72,17 @@ describe("supabaseRepo", () => {
     expect(auth.signOut).toHaveBeenCalled();
   });
 
+  it("signUp: a 5xx or unexpected_failure (SMTP broken with «Confirm email» ON) is signup_unavailable; signIn stays unknown", async () => {
+    for (const error of [{ code: "unexpected_failure", status: 500 }, { status: 502 }, { code: "unexpected_failure" }]) {
+      const f = fakeClient();
+      f.auth.signUp.mockResolvedValueOnce({ data: { user: null, session: null }, error });
+      f.auth.signInWithPassword.mockResolvedValueOnce({ data: { user: null }, error });
+      const repo = createSupabaseRepo(f.client);
+      await expect(repo.signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "signup_unavailable" });
+      await expect(repo.signIn("a@x.kz", "password123")).rejects.toMatchObject({ code: "unknown" });
+    }
+  });
+
   it("auth errors map to repo codes; an existing account behind 'Confirm email' is email_taken, no session is unknown", async () => {
     const failWith = (error: { code?: string; status?: number }) => {
       const f = fakeClient();
@@ -86,7 +97,6 @@ describe("supabaseRepo", () => {
       [{ code: "weak_password", status: 422 }, "weak_password"],
       [{ code: "over_request_rate_limit", status: 429 }, "rate_limited"],
       [{ status: 429 }, "rate_limited"],
-      [{ code: "unexpected_failure", status: 500 }, "unknown"],
     ];
     for (const [error, code] of cases) {
       await expect(failWith(error).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code });
@@ -97,7 +107,7 @@ describe("supabaseRepo", () => {
     await expect(createSupabaseRepo(hidden.client).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "email_taken" });
     const noSession = fakeClient();
     noSession.auth.signUp.mockResolvedValueOnce({ data: { user: { id: "u1", identities: [{}] }, session: null }, error: null });
-    await expect(createSupabaseRepo(noSession.client).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "unknown" });
+    await expect(createSupabaseRepo(noSession.client).signUp("a@x.kz", "password123")).rejects.toMatchObject({ code: "signup_unavailable" });
   });
 
   it("getSession / getMe", async () => {
@@ -265,5 +275,64 @@ describe("supabaseRepo", () => {
     );
     expect(await flaky.markSettlement("h1", "u2")).toEqual({ ...row, covered: [] });
     expect(mapDbError({ code: "P0002" }).code).toBe("not_found");
+  });
+
+  describe("slice 4: capture and pending", () => {
+    it("rotateCaptureToken returns the plaintext from the RPC and refuses a malformed answer", async () => {
+      const ok = fakeClient({ rpc: { rotate_capture_token: { data: "t".repeat(43), error: null } } });
+      expect(await createSupabaseRepo(ok.client).rotateCaptureToken()).toBe("t".repeat(43));
+      const bad = fakeClient({ rpc: { rotate_capture_token: { data: "x", error: null } } });
+      await expect(createSupabaseRepo(bad.client).rotateCaptureToken()).rejects.toMatchObject({ code: "unknown" });
+    });
+
+    it("capture calls capture_purchase with the token, amount and merchant, and maps the errors", async () => {
+      const result = { purchase_id: "p1", household_id: "h1", amount: 6000, merchant: "Magnum", subscriptions: [] };
+      const f = fakeClient({ rpc: { capture_purchase: { data: result, error: null } } });
+      expect(await createSupabaseRepo(f.client).capture("t".repeat(43), 6000, "Magnum")).toEqual(result);
+      expect(f.calls[0]).toEqual({ fn: "capture_purchase", args: { p_token: "t".repeat(43), p_amount: 6000, p_merchant: "Magnum" } });
+      for (const [error, code] of [
+        [{ code: "28000", message: "invalid token" }, "unauthenticated"],
+        [{ code: "P0001", message: "rate_limited" }, "rate_limited"],
+        [{ code: "23514", message: "no_household" }, "invalid"],
+      ] as const) {
+        const e = fakeClient({ rpc: { capture_purchase: { data: null, error } } });
+        await expect(createSupabaseRepo(e.client).capture("t".repeat(43), 1)).rejects.toMatchObject({ code });
+      }
+    });
+
+    it("resolvePending validates, sends the participants only for shared, and returns the purchase with shares", async () => {
+      const row = { id: "p1", household_id: "h1", payer_id: "u1", amount: 1000, description: "Хлеб", merchant: null, source: "apple_pay", status: "shared", created_at: "x", shares: [] };
+      const f = fakeClient({ rpc: { resolve_pending: { data: row, error: null } } });
+      const repo = createSupabaseRepo(f.client);
+      expect((await repo.resolvePending("p1", { shared: true, description: "Хлеб", participant_ids: ["u1", "u2"] })).status).toBe("shared");
+      expect(f.calls[0].args).toEqual({ p_purchase_id: "p1", p_shared: true, p_description: "Хлеб", p_participant_ids: ["u1", "u2"] });
+      await repo.resolvePending("p1", { shared: false, participant_ids: ["u1"] });
+      expect(f.calls[1].args).toEqual({ p_purchase_id: "p1", p_shared: false, p_description: null, p_participant_ids: [] });
+      await expect(repo.resolvePending("p1", { shared: true })).rejects.toMatchObject({ code: "invalid" });
+      expect(f.calls).toHaveLength(2);
+      const nf = fakeClient({ rpc: { resolve_pending: { data: null, error: { code: "P0002" } } } });
+      await expect(createSupabaseRepo(nf.client).resolvePending("p1", { shared: false })).rejects.toMatchObject({ code: "not_found" });
+    });
+
+    it("savePushSubscription, prune and setDefaultHousehold go through their RPCs", async () => {
+      const f = fakeClient({});
+      const repo = createSupabaseRepo(f.client);
+      await repo.savePushSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/e", p256dh: "k", auth: "a" });
+      await repo.prunePushSubscription("t".repeat(43), "https://fcm.googleapis.com/fcm/send/e");
+      await repo.setDefaultHousehold("h1");
+      expect(f.calls.map((c) => c.fn)).toEqual(["save_push_subscription", "prune_push_subscription", "set_default_household"]);
+      await expect(repo.savePushSubscription({ endpoint: "http://x", p256dh: "k", auth: "a" })).rejects.toMatchObject({ code: "invalid" });
+      const denied = fakeClient({ rpc: { set_default_household: { data: null, error: { code: "42501" } } } });
+      await expect(createSupabaseRepo(denied.client).setDefaultHousehold("h1")).rejects.toMatchObject({ code: "forbidden" });
+    });
+
+    it("getCaptureTokenInfo reads only the metadata columns", async () => {
+      const info = { created_at: "2026-11-07T10:00:00Z", last_used_at: null };
+      const f = fakeClient({ tables: { capture_tokens: { data: info, error: null } } });
+      expect(await createSupabaseRepo(f.client).getCaptureTokenInfo()).toEqual(info);
+      expect(f.queries).toEqual(['capture_tokens.select("created_at, last_used_at")']);
+      const none = fakeClient({ tables: { capture_tokens: { data: null, error: null } } });
+      expect(await createSupabaseRepo(none.client).getCaptureTokenInfo()).toBeNull();
+    });
   });
 });

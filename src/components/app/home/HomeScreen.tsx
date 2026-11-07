@@ -11,6 +11,7 @@ import { avatarColorFor } from "../avatars";
 import { DebtsCard } from "./DebtsCard";
 import { GreetingHeader } from "./GreetingHeader";
 import { IncomingSection } from "./IncomingSection";
+import { PendingSection } from "./PendingSection";
 import { QuickActions } from "./QuickActions";
 import { RecentPurchases } from "./RecentPurchases";
 import { WaitingSection } from "./WaitingSection";
@@ -49,12 +50,15 @@ export function HomeScreen() {
     return { cards, active, ps, names };
   }, [me, households, members, purchases, activeId]);
 
+  const recent = useMemo(() => (data ? data.ps.filter((p) => p.status !== "pending") : []), [data]);
+
   if (!me || !data) return null;
 
   return (
     <Screen>
       {/* the bell dot means unread notifications: there is no inbox before slice 5, so it stays hidden (the slot is kept) */}
       <GreetingHeader name={me.display_name} initial={me.display_name} unread={0} />
+      <PendingSection purchases={data.ps} />
       <div className="-mt-2">
         <CardStack cards={data.cards} frontId={activeId ?? undefined} onFrontChange={setActiveId} />
       </div>
@@ -62,7 +66,7 @@ export function HomeScreen() {
       <DebtsCard owe={data.active.balance.owe} owed={data.active.balance.owed} />
       <IncomingSection />
       <WaitingSection />
-      <RecentPurchases purchases={data.ps} payerNames={data.names} />
+      <RecentPurchases purchases={recent} payerNames={data.names} />
     </Screen>
   );
 }

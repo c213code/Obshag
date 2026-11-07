@@ -249,5 +249,138 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
         await expect(a.cancelSettlement("00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({ code: "not_found" });
       });
     });
+
+    describe("capture and pending", () => {
+      async function setup() {
+        const [a, b] = await makeRepos();
+        await signIn(a, "a@x.kz", "Ерасыл", "+77001234567");
+        await signIn(b, "b@x.kz", "Айдос", "+77007654321");
+        const meA = (await a.getMe())!;
+        const meB = (await b.getMe())!;
+        const h = await a.createHousehold("Квартира 42");
+        await b.joinHousehold(h.invite_code);
+        return { a, b, meA, meB, h };
+      }
+
+      it("rotates a token: the old one dies, and the owner only sees that a token exists", async () => {
+        const { a, b } = await setup();
+        expect(await a.getCaptureTokenInfo()).toBeNull();
+        const first = await a.rotateCaptureToken();
+        expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(await a.getCaptureTokenInfo()).toMatchObject({ last_used_at: null });
+        expect(await b.getCaptureTokenInfo()).toBeNull();
+        const second = await a.rotateCaptureToken();
+        expect(second).not.toBe(first);
+        await expect(b.capture(first, 1000, "Magnum")).rejects.toMatchObject({ code: "unauthenticated" });
+        await expect(b.capture(second, 1000, "Magnum")).resolves.toMatchObject({ amount: 1000 });
+      });
+
+      it("capture creates a pending purchase visible to the payer only", async () => {
+        const { a, b, meA, h } = await setup();
+        const token = await a.rotateCaptureToken();
+        const r = await b.capture(token, 6000, " Magnum ");
+        expect(r).toMatchObject({ household_id: h.id, amount: 6000, merchant: "Magnum", subscriptions: [] });
+        expect((await a.getCaptureTokenInfo())?.last_used_at).not.toBeNull();
+        const mine = await a.listPending(h.id);
+        expect(mine).toHaveLength(1);
+        expect(mine[0]).toMatchObject({ id: r.purchase_id, payer_id: meA.id, status: "pending", source: "apple_pay", description: "Magnum", shares: [] });
+        expect((await a.listPurchases(h.id)).map((p) => p.id)).toContain(r.purchase_id);
+        expect((await b.listPurchases(h.id)).map((p) => p.id)).not.toContain(r.purchase_id);
+        expect(await b.listPending(h.id)).toEqual([]);
+      });
+
+      it("capture rejects a bad token, a bad amount, a missing household and the 31st call in an hour", async () => {
+        const { a, b } = await setup();
+        const token = await a.rotateCaptureToken();
+        await expect(b.capture("x".repeat(43), 1000)).rejects.toMatchObject({ code: "unauthenticated" });
+        await expect(b.capture("short", 1000)).rejects.toMatchObject({ code: "unauthenticated" });
+        await expect(b.capture(token, 0)).rejects.toMatchObject({ code: "invalid" });
+        await expect(b.capture(token, 10_000_001)).rejects.toMatchObject({ code: "invalid" });
+        for (let i = 0; i < 30; i++) await b.capture(token, 100 + i);
+        await expect(b.capture(token, 1)).rejects.toMatchObject({ code: "rate_limited" });
+      });
+
+      it("capture with no household is invalid", async () => {
+        const [a] = await makeRepos();
+        await signIn(a, "lonely@x.kz", "Один", "+77001234567");
+        const token = await a.rotateCaptureToken();
+        await expect(a.capture(token, 1000, "X")).rejects.toMatchObject({ code: "invalid" });
+      });
+
+      it("uses the default household when set, and only for a member", async () => {
+        const { a, b, h } = await setup();
+        const second = await a.createHousehold("Дача");
+        const token = await a.rotateCaptureToken();
+        await a.setDefaultHousehold(h.id);
+        expect((await b.capture(token, 500)).household_id).toBe(h.id);
+        await a.setDefaultHousehold(second.id);
+        expect((await b.capture(token, 501)).household_id).toBe(second.id);
+        await expect(b.setDefaultHousehold(second.id)).rejects.toMatchObject({ code: "forbidden" });
+      });
+
+      it("resolves shared with the equal split and the right visibility; asking again is a no-op", async () => {
+        const { a, b, meA, meB, h } = await setup();
+        const token = await a.rotateCaptureToken();
+        const { purchase_id } = await b.capture(token, 1000, "Magnum");
+        const done = await a.resolvePending(purchase_id, { shared: true, description: "Продукты", participant_ids: [meA.id, meB.id] });
+        expect(done).toMatchObject({ status: "shared", description: "Продукты" });
+        expect(done.shares.reduce((sum, x) => sum + x.amount, 0)).toBe(1000);
+        expect(done.shares.find((x) => x.debtor_id === meB.id)?.amount).toBe(500);
+        expect((await b.listPurchases(h.id)).map((p) => p.id)).toContain(purchase_id);
+        expect(await a.listPending(h.id)).toEqual([]);
+        const again = await a.resolvePending(purchase_id, { shared: true, description: "Другое", participant_ids: [meA.id] });
+        expect(again.description).toBe("Продукты");
+        expect(again.shares).toHaveLength(2);
+        await expect(a.resolvePending(purchase_id, { shared: false })).rejects.toMatchObject({ code: "invalid" });
+      });
+
+      it("resolves personal: hidden from others, the description is kept when none is given", async () => {
+        const { a, b, h } = await setup();
+        const token = await a.rotateCaptureToken();
+        const { purchase_id } = await b.capture(token, 777, "Kofe");
+        const done = await a.resolvePending(purchase_id, { shared: false, description: "  " });
+        expect(done).toMatchObject({ status: "personal", description: "Kofe", shares: [] });
+        expect((await b.listPurchases(h.id)).map((p) => p.id)).not.toContain(purchase_id);
+        expect((await a.resolvePending(purchase_id, { shared: false })).status).toBe("personal");
+        await expect(a.resolvePending(purchase_id, { shared: true, participant_ids: [] })).rejects.toMatchObject({ code: "invalid" });
+      });
+
+      it("only the payer can resolve; strangers get not_found; participants are validated", async () => {
+        const { a, b, meA, meB, h } = await setup();
+        const token = await a.rotateCaptureToken();
+        const { purchase_id } = await b.capture(token, 1000);
+        await expect(b.resolvePending(purchase_id, { shared: true, participant_ids: [meA.id, meB.id] })).rejects.toMatchObject({ code: "not_found" });
+        await expect(a.resolvePending("00000000-0000-4000-8000-0000000000ff", { shared: false })).rejects.toMatchObject({ code: "not_found" });
+        await expect(a.resolvePending(purchase_id, { shared: true, participant_ids: [] })).rejects.toMatchObject({ code: "invalid" });
+        await expect(a.resolvePending(purchase_id, { shared: true, participant_ids: [meA.id, meA.id] })).rejects.toMatchObject({ code: "invalid" });
+        await expect(a.resolvePending(purchase_id, { shared: true, participant_ids: [meA.id, "00000000-0000-4000-8000-0000000000ee"] })).rejects.toMatchObject({ code: "invalid" });
+        expect(await a.listPending(h.id)).toHaveLength(1);
+      });
+
+      it("dedupes a retry and strips control characters from the merchant", async () => {
+        const { a, b } = await setup();
+        const token = await a.rotateCaptureToken();
+        const first = await b.capture(token, 4200, "Mag\u202enum\u0007");
+        expect(first.merchant).toBe("Magnum");
+        expect((await b.capture(token, 4200, "Magnum")).purchase_id).toBe(first.purchase_id);
+        expect((await b.capture(token, 4201, "Magnum")).purchase_id).not.toBe(first.purchase_id);
+      });
+
+      it("stores push subscriptions by endpoint, returns them to the capture, and prunes with the token", async () => {
+        const { a, b } = await setup();
+        const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/e1", p256dh: "k", auth: "a" };
+        await a.savePushSubscription(sub);
+        await a.savePushSubscription({ ...sub, p256dh: "k2" }); // upsert
+        await expect(a.savePushSubscription({ ...sub, endpoint: "http://insecure/x" })).rejects.toMatchObject({ code: "invalid" });
+        const token = await a.rotateCaptureToken();
+        expect((await b.capture(token, 100)).subscriptions).toEqual([{ ...sub, p256dh: "k2" }]);
+        await expect(b.prunePushSubscription("y".repeat(43), sub.endpoint)).rejects.toMatchObject({ code: "unauthenticated" });
+        await b.prunePushSubscription(token, sub.endpoint);
+        expect((await b.capture(token, 102)).subscriptions).toEqual([]);
+        await a.savePushSubscription(sub);
+        await a.deletePushSubscription(sub.endpoint);
+        expect((await b.capture(token, 103)).subscriptions).toEqual([]);
+      });
+    });
   });
 }

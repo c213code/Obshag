@@ -1,4 +1,16 @@
-import type { Household, Member, Profile, Purchase, Settlement, Share, Uuid } from "./types";
+import type {
+  CaptureResult,
+  CaptureTokenInfo,
+  Household,
+  Member,
+  Profile,
+  Purchase,
+  PushSubscriptionInput,
+  Settlement,
+  Share,
+  Uuid,
+} from "./types";
+import type { ResolvePendingInput } from "@/lib/domain/schemas";
 
 export type MemberWithProfile = Member & { profile: Profile };
 export type PurchaseWithShares = Purchase & { shares: Share[] };
@@ -61,6 +73,32 @@ export interface Repo {
   confirmSettlement(settlementId: Uuid, expectedAmount?: number): Promise<Settlement>;
   /** The debtor or the creditor withdraws a `marked` settlement (cancelling twice is a no-op). */
   cancelSettlement(settlementId: Uuid): Promise<Settlement>;
+
+  /** Whether I have a capture token (hash never leaves the database). */
+  getCaptureTokenInfo(): Promise<CaptureTokenInfo | null>;
+  /** Creates (or replaces) my capture token and returns the plaintext ONCE; only its sha256 is stored. */
+  rotateCaptureToken(): Promise<string>;
+  /**
+   * The token-authenticated capture the iOS Shortcut triggers (anon RPC). unauthenticated = unknown token (generic),
+   * rate_limited = more than 30 per hour, invalid = bad amount or no household.
+   */
+  capture(token: string, amount: number, merchant?: string | null): Promise<CaptureResult>;
+  /** Token-authenticated removal of a dead push endpoint of the token's owner. */
+  prunePushSubscription(token: string, endpoint: string): Promise<void>;
+  /** My pending (not yet resolved) Apple Pay purchases of a household, newest first. */
+  listPending(householdId: Uuid): Promise<PurchaseWithShares[]>;
+  /**
+   * Payer only, only while pending. Shared: equal split among participant_ids (same rule as a new purchase).
+   * Personal: only the description changes. Asking for the state it already has returns it unchanged;
+   * not_found = not yours or no such purchase, invalid = the other state was chosen already.
+   */
+  resolvePending(purchaseId: Uuid, input: ResolvePendingInput): Promise<PurchaseWithShares>;
+  /** Upsert by endpoint (a device that changes owner moves the subscription). */
+  savePushSubscription(sub: PushSubscriptionInput): Promise<void>;
+  /** Removes my subscription for this endpoint. */
+  deletePushSubscription(endpoint: string): Promise<void>;
+  /** Member only. */
+  setDefaultHousehold(householdId: Uuid): Promise<void>;
 }
 
 export type RepoErrorCode =
@@ -75,6 +113,7 @@ export type RepoErrorCode =
   | "weak_password"
   | "rate_limited"
   | "stale"
+  | "signup_unavailable" // sign-up failed on the server (5xx / unexpected_failure, e.g. SMTP with «Confirm email» ON)
   | "unknown";
 
 export class RepoError extends Error {

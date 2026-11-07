@@ -15,7 +15,24 @@ export type Profile = {
   kaspi_phone: string | null;
   avatar_color: string | null;
   created_at: IsoDateTime;
+  /** Where Apple Pay captures land; null = the most recently joined active household. */
+  default_household_id?: Uuid | null;
 };
+
+/** A device's Web Push subscription (table push_subscriptions). */
+export type PushSubscriptionInput = { endpoint: string; p256dh: string; auth: string };
+
+/** What the capture RPC returns: the new pending purchase plus the owner's push subscriptions. */
+export type CaptureResult = {
+  purchase_id: Uuid;
+  household_id: Uuid;
+  amount: number;
+  merchant: string | null;
+  subscriptions: PushSubscriptionInput[];
+};
+
+/** Whether the user has a capture token (the plaintext is never readable again). */
+export type CaptureTokenInfo = { created_at: IsoDateTime; last_used_at: IsoDateTime | null };
 
 export type Household = {
   id: Uuid;

@@ -20,7 +20,7 @@ type Phone = { context: BrowserContext; page: Page; errors: string[] };
 type Options = { reducedMotion?: "reduce" | "no-preference" };
 
 async function newPhone(browser: Browser, baseURL: string | undefined, options: Options = {}): Promise<Phone> {
-  const context = await browser.newContext({ ...devices["iPhone 15"], baseURL, reducedMotion: options.reducedMotion ?? "no-preference" });
+  const context = await browser.newContext({ ...devices["iPhone 15"], baseURL, serviceWorkers: "block", reducedMotion: options.reducedMotion ?? "no-preference" });
   // Kaspi is only ever opened, never loaded in tests
   await context.route("https://kaspi.kz/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<title>kaspi</title>" }));
   const page = await context.newPage();

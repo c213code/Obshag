@@ -8,12 +8,12 @@ const matched = (path: string) => re.test(path);
 
 describe("proxy matcher", () => {
   it("runs on app pages", () => {
-    for (const p of ["/", "/login", "/purchases/new", "/flat", "/join/ABC123", "/kitchen", "/icons-gallery", "/api/other"]) {
+    for (const p of ["/", "/login", "/purchases/new", "/flat", "/join/ABC123", "/kitchen", "/icons-gallery", "/api/other", "/api/capture-evil"]) {
       expect(matched(p), p).toBe(true);
     }
   });
   it("skips internals, the gallery and the mock store (anchored)", () => {
-    for (const p of ["/_next/static/chunks/a.js", "/_next/image", "/kit", "/kit/x", "/api/mock-store", "/icons/a.png", "/sw.js", "/favicon.ico"]) {
+    for (const p of ["/_next/static/chunks/a.js", "/_next/image", "/kit", "/kit/x", "/api/mock-store", "/api/capture", "/icons/a.png", "/sw.js", "/favicon.ico"]) {
       expect(matched(p), p).toBe(false);
     }
   });

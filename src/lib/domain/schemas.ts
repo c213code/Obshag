@@ -1,3 +1,4 @@
+import { isAllowedPushEndpoint } from "./pushEndpoint";
 import { z } from "zod";
 
 /**
@@ -62,3 +63,32 @@ export const createPurchaseSchema = z
     message: "Amount is smaller than the number of participants",
   });
 export type CreatePurchaseInput = z.input<typeof createPurchaseSchema>;
+
+export const RESOLVE_DESCRIPTION_MAX = 200;
+
+/** resolve_pending input. Shared needs participants (the payer included, like a new purchase); personal ignores them. */
+export const resolvePendingSchema = z
+  .object({
+    shared: z.boolean(),
+    description: z.string().trim().max(RESOLVE_DESCRIPTION_MAX).optional(),
+    participant_ids: z
+      .array(z.string().min(1))
+      .max(MAX_PARTICIPANTS, "Too many participants")
+      .refine((ids) => new Set(ids).size === ids.length, "Duplicate participant")
+      .optional(),
+  })
+  .refine((r) => !r.shared || (r.participant_ids?.length ?? 0) >= 1, { message: "At least one participant is required", path: ["participant_ids"] });
+export type ResolvePendingInput = z.input<typeof resolvePendingSchema>;
+
+/** The body an iOS Shortcut posts to /api/capture. `amount` is parsed leniently by parseAmount. */
+export const captureBodySchema = z.object({
+  token: z.string().min(20).max(200),
+  amount: z.union([z.string().max(64), z.number()]),
+  merchant: z.string().max(120).nullish(),
+});
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().max(2048).refine(isAllowedPushEndpoint, "push endpoint host is not allowed"),
+  p256dh: z.string().min(1).max(256),
+  auth: z.string().min(1).max(256),
+});

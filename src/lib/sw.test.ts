@@ -1,0 +1,137 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import vm from "node:vm";
+import { describe, expect, it } from "vitest";
+
+type Handler = (event: unknown) => void;
+
+/** Runs public/sw.js against a fake service-worker scope and returns what it did. */
+function load() {
+  const handlers: Record<string, Handler> = {};
+  const shown: Array<{ title: string; options: Record<string, unknown> }> = [];
+  const opened: string[] = [];
+  const navigated: string[] = [];
+  let focused = 0;
+  const clientsList: Array<{ url: string; focus: () => Promise<unknown>; navigate?: (u: string) => Promise<unknown> }> = [];
+  const self = {
+    location: { origin: "https://obshak.test" },
+    addEventListener: (type: string, fn: Handler) => (handlers[type] = fn),
+    skipWaiting: () => undefined,
+    registration: {
+      showNotification: (title: string, options: Record<string, unknown>) => {
+        shown.push({ title, options });
+        return Promise.resolve();
+      },
+    },
+    clients: {
+      claim: () => Promise.resolve(),
+      matchAll: () => Promise.resolve(clientsList),
+      openWindow: (u: string) => {
+        opened.push(u);
+        return Promise.resolve(null);
+      },
+    },
+  };
+  vm.runInNewContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), { self, URL, Number, String, Math, encodeURIComponent });
+  const wait = async (fn: Handler, event: Record<string, unknown>) => {
+    let p: Promise<unknown> = Promise.resolve();
+    fn({ ...event, waitUntil: (x: Promise<unknown>) => (p = x) });
+    await p;
+  };
+  return { self: self as typeof self & { registration: { pushManager?: unknown } }, handlers, shown, opened, navigated, clientsList, focus: () => focused, wait, bumpFocus: () => focused++ };
+}
+
+const pushEvent = (data: unknown) => ({ data: { json: () => data } });
+const click = (action: string, data: unknown) => ({ action, notification: { data, close: () => undefined } });
+
+describe("sw.js", () => {
+  it("push: shows «Magnum · 6 000 ₸» with the two actions and a /pending url", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "pending", purchaseId: "abc", merchant: "Magnum", amount: 6000 }));
+    expect(sw.shown).toHaveLength(1);
+    expect(sw.shown[0].title).toBe("Magnum · 6 000 ₸");
+    expect(sw.shown[0].options).toMatchObject({
+      body: "Что купил? Общее или моё",
+      actions: [
+        { action: "shared", title: "Общее" },
+        { action: "personal", title: "Моё" },
+      ],
+      data: { purchaseId: "abc", url: "/pending/abc" },
+      tag: "pending-abc",
+    });
+  });
+
+  it("push: no merchant falls back to «Покупка Apple Pay»", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "pending", purchaseId: "x", merchant: null, amount: 250 }));
+    expect(sw.shown[0].title).toBe("Покупка Apple Pay · 250 ₸");
+  });
+
+  it("push: ALWAYS shows a notification, a generic one for unknown or malformed payloads", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "other" }));
+    await sw.wait(sw.handlers.push, pushEvent(null));
+    await sw.wait(sw.handlers.push, { data: { json: () => { throw new Error("bad json"); } } });
+    await sw.wait(sw.handlers.push, {});
+    expect(sw.shown).toHaveLength(4);
+    for (const n of sw.shown) {
+      expect(n.title).toBe("Общак");
+      expect(n.options).toMatchObject({ body: "Новая покупка", data: { url: "/" } });
+    }
+  });
+
+  it("click: when focus fails the app is opened in a new window", async () => {
+    const sw = load();
+    sw.clientsList.push({ url: "https://obshak.test/", focus: () => Promise.reject(new Error("no")) });
+    await sw.wait(sw.handlers.notificationclick, click("shared", { purchaseId: "p1" }));
+    expect(sw.opened).toEqual(["/pending/p1?choice=shared"]);
+  });
+
+  it("pushsubscriptionchange: resubscribes with the old key and tells the open windows", async () => {
+    const sw = load();
+    const messages: unknown[] = [];
+    sw.clientsList.push({ url: "https://obshak.test/", focus: () => Promise.resolve(), postMessage: (m: unknown) => messages.push(m) } as never);
+    const subscribed: unknown[] = [];
+    (sw.self.registration as { pushManager?: unknown }).pushManager = { subscribe: (o: unknown) => (subscribed.push(o), Promise.resolve({})) };
+    await sw.wait(sw.handlers.pushsubscriptionchange, { oldSubscription: { options: { applicationServerKey: new Uint8Array([1]) } } });
+    expect(subscribed).toHaveLength(1);
+    expect(messages).toEqual([{ type: "push-resubscribed" }]);
+  });
+
+  it("click: an action opens /pending/<id>?choice=…, no action opens /pending/<id>", async () => {
+    const sw = load();
+    const data = { purchaseId: "p 1" };
+    await sw.wait(sw.handlers.notificationclick, click("shared", data));
+    await sw.wait(sw.handlers.notificationclick, click("personal", data));
+    await sw.wait(sw.handlers.notificationclick, click("", data));
+    await sw.wait(sw.handlers.notificationclick, click("evil", data));
+    expect(sw.opened).toEqual(["/pending/p%201?choice=shared", "/pending/p%201?choice=personal", "/pending/p%201", "/pending/p%201"]);
+  });
+
+  it("click: focuses and navigates an open window of the app instead of opening another", async () => {
+    const sw = load();
+    const navigated: string[] = [];
+    sw.clientsList.push({
+      url: "https://obshak.test/flat",
+      focus: () => {
+        sw.bumpFocus();
+        return Promise.resolve();
+      },
+      navigate: (u) => {
+        navigated.push(u);
+        return Promise.resolve();
+      },
+    });
+    await sw.wait(sw.handlers.notificationclick, click("shared", { purchaseId: "p1" }));
+    expect(sw.focus()).toBe(1);
+    expect(navigated).toEqual(["/pending/p1?choice=shared"]);
+    expect(sw.opened).toEqual([]);
+  });
+
+  it("click without a purchase opens the app root; there is no fetch handler (nothing is cached)", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.notificationclick, click("shared", {}));
+    expect(sw.opened).toEqual(["/"]);
+    expect(sw.handlers.fetch).toBeUndefined();
+  });
+});

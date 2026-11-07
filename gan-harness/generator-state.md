@@ -193,3 +193,45 @@ Nothing committed. No servers running. `.env.local`, 0001 and 0002 untouched. 00
 ## Known issues
 - Departed-member flow and the stale confirm are covered by unit and PGlite tests, not by a browser test.
 - Supabase path is still only tested with a fake client and PGlite; never run against the live project.
+
+---
+
+# Slice 4 "Apple Pay capture + push" (iteration 001)
+
+Nothing committed. No servers running. 0001-0003 and `.env.local` untouched; no service-role key anywhere.
+
+## Results
+- `npm run verify`: green (38 test files, 397 tests, ~93% lines on src/lib, build OK).
+- `npm run test:e2e`: 45/45, green 3 runs in a row (18 kit + 10 slice 1 + 9 slice 3 + 8 slice 4).
+- Playwright config and the slice 1/3 contexts now use `serviceWorkers: "block"`: a registered worker hides requests from `page.route` (it broke two older "failed save" tests). Slice 4 opts in (`allow`) only for the worker-registration check.
+
+## What was built
+- SQL `supabase/migrations/0004_slice4_capture.sql` (+ `tests/db/slice4.test.ts`, 31 PGlite tests): pgcrypto in `extensions`, `profiles.default_household_id`, `can_see_purchase` replaced and `purchases_select` recreated (pending and personal are payer-only), `private.capture_ops`, helpers `check_participants` / `insert_equal_shares` / `purchase_json` (create_purchase_with_shares replaced to use them, same behaviour), `rotate_capture_token`, `capture_purchase` (anon+authenticated, 30/h per user, default household else latest joined, 23514 no_household), `prune_push_subscription` (token-gated), `resolve_pending`, `set_default_household`, `save_push_subscription` (RPC upsert by endpoint so a device can change owner; deliberate deviation from "client insert"). `grant usage on schema public to anon`; anon executes only capture_purchase and prune_push_subscription (tested), no table access (tested).
+- `POST /api/capture` (`src/app/api/capture/route.ts`, node runtime) -> `src/lib/server/captureHandler.ts` (pure, tested) with `parseAmount` (`src/lib/domain/parseAmount.ts`, 46 table tests). 201/400/401/429/500 with a bare `{ok}` body, nothing logged. Push is sent after the response (`after()`), dead 404/410 endpoints pruned via the token RPC. `PushSender` interface (`src/lib/server/push.ts`), real `web-push` sender (`webPush.ts`, VAPID optional: missing = skipped), recording fake for tests and E2E. `/api/mock-push-log` (same gate as mock-store) exposes what the recorder got. `src/lib/data/mockServerStore.ts` shares the mock DB between `/api/mock-store` and `/api/capture`.
+- Repo: `getCaptureTokenInfo`, `rotateCaptureToken`, `capture`, `prunePushSubscription`, `listPending`, `resolvePending`, `savePushSubscription`, `deletePushSubscription`, `setDefaultHousehold` in Repo, mockRepo (mock schema v5) and supabaseRepo; contract tests for all.
+- SW + PWA: `public/sw.js` (push -> showNotification with Общее/Моё actions, notificationclick opens/focuses `/pending/<id>[?choice=]`, no fetch handler, no caches; unit-tested in `src/lib/sw.test.ts`), `public/manifest.webmanifest`, icons in `public/icons` (lime ₸ on bg), apple meta via Next metadata, registration in production builds only (`src/lib/pwa.ts`), `/sw.js` served with no-cache.
+- UI: `/settings/shortcut` (key shown once with copy + warning, "Создать новый" rotates, numbered recipe, URL copy, iOS note, notification pill with states включены / запрещены в настройках iOS / добавь на экран Домой / unsupported / not configured), row «Apple Pay → Общак» on Квартира, «Ждут решения» section on Главная (above «Подтверди оплату»), `/pending/[id]` island sheet over Главная (Sheet got `radius`, `expandedClassName`, `onClosed`, `focusFirst`), optimistic `resolvePending` in AppDataProvider with `PurchaseTracker.override`.
+- Tokens: added `--color-outline` (ghost chip ring of ApplePay.dc.html). No other raw hex.
+
+## Decisions
+- `?choice=shared|personal` only emphasises the matching button (lime) and never submits: the user still taps. Without it «Общее» is emphasised.
+- «Продукты» is pre-selected like in the mock; tapping it again deselects (description then stays the merchant). The arrow in «Написать…» only commits the text and closes the keyboard.
+- «Общее · по N ₸» uses all active roster members (as the new purchase screen); N = floor.
+- E2E "recorded one notification with the actions": the recorder holds the payload `{type, purchaseId, merchant, amount}`; title, body and the two actions are composed in sw.js and covered by the sw unit test.
+
+## Screenshots
+- References: `gan-harness/screenshots/s4-ref-*.png` (script `gan-harness/shoot-s4-ref.mjs`). App: `s4-app-*.png`. Side by side (left reference, right app): `s4-cmp-open|main|island-pill|island-growing|island-collapsing|island-done.png` (script `gan-harness/shoot-s4-app.mjs`, needs the E2E build on :3100). E2E shots: `s4-app-shortcut-*.png`, `s4-app-island-*.png`.
+
+## Known gaps
+- The app shows a dim backdrop behind the island (the reference has none, it is an isolated demo box); the open card is 368px like ApplePay.dc.html.
+- Real push is untested on a device (needs HTTPS + VAPID). Notification inline text reply, offline caching: out of scope.
+- A deep link opened while signed out lands on `/` after login (no return-to).
+- Concurrency of the capture rate limit is asserted in single-connection PGlite only.
+
+## Slice 4 — final pass
+- S1: 0004 has the push endpoint allowlist CHECK (not valid, then validate), insert/update revoked from authenticated, save_push_subscription checks host and keeps at most 10 per user (oldest dropped). webPush.ts and pushSubscriptionSchema share isAllowedPushEndpoint (URL parse, host allowlist, no credentials or port), plus timeout 5000. PGlite tests: allowlist via RPC and direct insert, cap, anon.
+- S3: dedupe within 60 s (SQL and mockRepo, returns the existing pending, no second push), control and bidi characters stripped from merchant, unique index on capture_tokens(user_id), capture_purchase revoked from authenticated. Skipped: counting failed captures (a raise rolls the count back).
+- C1 sign-out deletes the device subscription; C2 syncPush on status "on", key mismatch resubscribes, pushsubscriptionchange in sw.js; C3 sw.js always shows a notification; C5 notificationclick falls back to openWindow; C7 pending sheet: Общее disabled on empty roster, «Поделено» only after server success, inline error.
+- D1-D5: «Ждут решения» at the top of Главная, scrim 15%, island geometry (11px inset, 368 wide), «моё» for personal purchases, full wrapped token on /settings/shortcut.
+- U: signup 5xx/unexpected_failure and no-session map to signup_unavailable with the user message from ru.ts, dev-only console.debug; fake-client test.
+- verify green (413 unit tests), e2e 45/45 green once. Screenshots: gan-harness/screenshots/s4f-cmp-island.png, s4f-app-main.png (shoot script: gan-harness/shoot-s4f.mjs).

@@ -7,10 +7,13 @@ import { SettlementTracker } from "@/lib/data/settlementTracker";
 import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
+import type { ResolvePendingInput } from "@/lib/domain/schemas";
 import { RepoError, type AuthSession, type MemberWithProfile, type NewPurchase, type Repo } from "@/lib/data/repo";
 import type { Household, Profile, Settlement } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
+import { removeDevicePush, syncPush } from "@/lib/pushClient";
+import { getPublicEnv } from "@/lib/env/public";
 
 type Status = "loading" | "ready" | "error";
 
@@ -49,6 +52,13 @@ export type AppActions = {
   confirmReceived(settlementId: string): Promise<boolean>;
   /** «Отменить» (by the debtor) or declining an incoming mark (by the creditor). */
   cancelSettlement(settlementId: string): Promise<boolean>;
+  /**
+   * Resolves a pending Apple Pay purchase (payer only). Optimistic: it shows as shared/personal at once; on failure it is
+   * rolled back with a notice. Resolves true when the server accepted it (or it already had that state).
+   */
+  resolvePending(purchaseId: string, input: ResolvePendingInput): Promise<boolean>;
+  /** Shows a toast. */
+  showNotice(text: string): void;
   dismissNotice(): void;
 };
 
@@ -245,7 +255,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
+  // the worker re-subscribed after the push service rotated the subscription: save the new one
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === "push-resubscribed") void syncPush(repo, getPublicEnv().NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [repo]);
+
   const signOut = useCallback(async (): Promise<boolean> => {
+    await removeDevicePush(repo); // while still signed in: RLS lets only the owner delete the row
     try {
       await repo.signOut();
     } catch {
@@ -395,11 +416,57 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const confirmReceived = useCallback((id: string) => changeSettlement(id, "confirmed"), [changeSettlement]);
   const cancelSettlement = useCallback((id: string) => changeSettlement(id, "cancelled"), [changeSettlement]);
 
+  const resolvePending = useCallback(
+    async (purchaseId: string, input: ResolvePendingInput): Promise<boolean> => {
+      const me = meRef.current;
+      if (!me) return false;
+      const current = Object.values(snapRef.current.purchases)
+        .flat()
+        .find((p) => p.id === purchaseId);
+      if (!current || current.status !== "pending") return false; // double taps and stale rows do nothing
+      const description = input.description && input.description.trim() !== "" ? input.description.trim() : current.description;
+      let shares: UiPurchase["shares"] = [];
+      if (input.shared) {
+        try {
+          const at = new Date().toISOString();
+          shares = splitEqual(current.amount, input.participant_ids ?? [], me.id).map((s) => ({
+            purchase_id: current.id,
+            debtor_id: s.debtor_id,
+            amount: s.amount,
+            settled_at: s.settled ? at : null,
+            settlement_id: null,
+          }));
+        } catch {
+          setNotice(ru.pending.errors.resolveFailed);
+          return false;
+        }
+      }
+      tracker.override({ ...current, description, status: input.shared ? "shared" : "personal", shares });
+      patchPurchases(current.household_id);
+      try {
+        const real = await repo.resolvePending(purchaseId, input);
+        tracker.override(real);
+        if (alive.current) patchPurchases(current.household_id);
+        return true;
+      } catch (e) {
+        tracker.dropOverride(purchaseId);
+        if (alive.current) {
+          patchPurchases(current.household_id);
+          setNotice(e instanceof RepoError && (e.code === "invalid" || e.code === "not_found") ? ru.pending.errors.alreadyResolved : ru.pending.errors.resolveFailed);
+          void refresh({ silent: true });
+        }
+        return false;
+      }
+    },
+    [repo, tracker, patchPurchases, refresh],
+  );
+
+  const showNotice = useCallback((text: string) => setNotice(text), []);
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, dismissNotice }),
-    [refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, dismissNotice],
+    () => ({ setActiveId, refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [refresh, refreshMembers, signOut, addPurchase, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const data = useMemo<AppData>(() => {

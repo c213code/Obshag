@@ -3,6 +3,9 @@ import type { PurchaseWithShares } from "./repo";
 /** A purchase as the screens render it. `clientKey` is the React key: it never changes for the life of a row. */
 export type UiPurchase = PurchaseWithShares & { clientKey: string };
 
+/** An optimistic resolve is dropped after this long even if no list ever confirmed it. */
+const OVERRIDE_TTL_MS = 30_000;
+
 const newestFirst = (a: PurchaseWithShares, b: PurchaseWithShares) =>
   b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id);
 
@@ -22,6 +25,8 @@ export class PurchaseTracker {
   private readonly created = new Map<string, UiPurchase>();
   /** Optimistic ids that are over (confirmed or failed): never rendered again. */
   private readonly retired = new Set<string>();
+  /** A pending purchase this device resolved: shown in its new state until a server list agrees (or the TTL ends). */
+  private readonly overrides = new Map<string, { row: PurchaseWithShares; at: number }>();
 
   /** Sign-out: forget everything this device knew. */
   clear(): void {
@@ -29,6 +34,17 @@ export class PurchaseTracker {
     this.inflight.clear();
     this.created.clear();
     this.retired.clear();
+    this.overrides.clear();
+  }
+
+  /** Shows `row` (the resolved version of a pending purchase) in every list until the server's own list has caught up. */
+  override(row: PurchaseWithShares, now = Date.now()): void {
+    this.overrides.set(row.id, { row, at: now });
+  }
+
+  /** The resolve failed: the server's version shows again. */
+  dropOverride(id: string): void {
+    this.overrides.delete(id);
   }
 
   begin(row: UiPurchase): void {
@@ -61,6 +77,15 @@ export class PurchaseTracker {
     for (const p of list) {
       if (this.inflight.has(p.id) || this.retired.has(p.id)) continue; // re-added below, from the single source of truth
       rows.set(p.id, { ...p, clientKey: this.keys.get(p.id) ?? p.id });
+    }
+    for (const [id, o] of [...this.overrides]) {
+      const server = rows.get(id);
+      // the server list shows it resolved already, or the override is stale: the server's version wins from here on
+      if ((server && server.status !== "pending") || Date.now() - o.at > OVERRIDE_TTL_MS) {
+        this.overrides.delete(id);
+      } else if (server) {
+        rows.set(id, { ...o.row, clientKey: server.clientKey });
+      }
     }
     for (const r of this.created.values()) if (r.household_id === householdId && !rows.has(r.id)) rows.set(r.id, r);
     for (const r of this.inflight.values()) if (r.household_id === householdId) rows.set(r.id, r);

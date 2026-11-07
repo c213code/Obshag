@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bar } from "@/components/ui/Bar";
-import { UsersIcon } from "@/components/ui/icons";
+import Link from "next/link";
+import { ChevronRightIcon, KeyIcon, UsersIcon } from "@/components/ui/icons";
 import { ListRow } from "@/components/ui/ListRow";
 import { Pill, PillLink } from "@/components/ui/Pill";
 import { ru } from "@/lib/i18n/ru";
@@ -117,6 +118,22 @@ export function FlatScreen() {
           );
         })}
       </ul>
+
+      <h2 className="px-[6px] pt-1 text-headline">{ru.flat.sectionApps}</h2>
+      <Link
+        href="/settings/shortcut"
+        data-testid="shortcut-row"
+        className="flex items-center gap-3 rounded-pill border border-hairline bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
+      >
+        <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-full bg-lime-soft text-lime">
+          <KeyIcon size={20} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-headline">{ru.shortcut.row}</p>
+          <p className="truncate text-caption">{ru.shortcut.rowCaption}</p>
+        </div>
+        <ChevronRightIcon size={20} className="mr-2 shrink-0 text-muted" />
+      </Link>
 
       <div className="flex flex-col gap-2 pt-2">
         <PillLink href="/household" variant="on" size="lg" className="w-full">

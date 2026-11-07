@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mockStoreEnabled as enabled } from "@/lib/data/mockStoreGate";
-import { MOCK_SCHEMA_VERSION, parseStored, type StoredMock } from "@/lib/data/mockDb";
+import { MOCK_SCHEMA_VERSION, parseStored } from "@/lib/data/mockDb";
+import { readServerStore, writeServerStore } from "@/lib/data/mockServerStore";
 
 /**
  * TEST ONLY. In an E2E build (mock mode + NEXT_PUBLIC_E2E=1) this route holds the mock database in server
@@ -12,11 +13,10 @@ import { MOCK_SCHEMA_VERSION, parseStored, type StoredMock } from "@/lib/data/mo
  */
 const MAX_BYTES = 2_000_000;
 
-const store = globalThis as typeof globalThis & { __obshakMockDb?: StoredMock | null };
 
 export async function GET() {
   if (!enabled()) return new NextResponse(null, { status: 404 });
-  const current = store.__obshakMockDb;
+  const current = readServerStore();
   return NextResponse.json(
     { stored: current ? { version: MOCK_SCHEMA_VERSION, rev: current.rev, db: current.db } : null },
     { headers: { "cache-control": "no-store" } },
@@ -36,7 +36,6 @@ export async function PUT(request: Request) {
   const body = parseStored(json);
   if (!body) return new NextResponse(null, { status: 400 });
   // body.rev is the revision the client based this write on
-  if ((store.__obshakMockDb?.rev ?? 0) !== body.rev) return new NextResponse(null, { status: 409 });
-  store.__obshakMockDb = { rev: body.rev + 1, db: body.db };
+  if (!writeServerStore(body.db, body.rev)) return new NextResponse(null, { status: 409 });
   return new NextResponse(null, { status: 204 });
 }

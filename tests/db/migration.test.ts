@@ -80,7 +80,7 @@ beforeAll(async () => {
     insert into shares(purchase_id, household_id, debtor_id, amount) values
       ('${P1}','${HA}','${C}',3000),
       ('${P2}','${HA}','${C}',900);
-    insert into push_subscriptions(user_id, endpoint, p256dh, auth) values ('${A}','https://push.example/e1','k','a');
+    insert into push_subscriptions(user_id, endpoint, p256dh, auth) values ('${A}','https://fcm.googleapis.com/fcm/send/e1','k','a');
     insert into capture_tokens(user_id, token_hash) values ('${A}','hash-a');
   `);
 });

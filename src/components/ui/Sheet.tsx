@@ -29,6 +29,10 @@ export function Sheet({
   children,
   outcome = "dismissed",
   doneLabel,
+  onClosed,
+  radius = 32,
+  expandedClassName = "max-w-[358px] px-[14px] py-4",
+  focusFirst = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -36,6 +40,14 @@ export function Sheet({
   children: ReactNode;
   outcome?: "done" | "dismissed";
   doneLabel?: string;
+  /** Called once the collapse has finished and the sheet is gone (e.g. to leave a route). */
+  onClosed?: () => void;
+  /** Corner radius of the open card (a fixed value, so motion keeps it undistorted during the layout animation). */
+  radius?: number;
+  /** Size and padding of the open card. */
+  expandedClassName?: string;
+  /** Focus the first control when the sheet opens. Off: the dialog itself gets focus (no focus ring on a chip before the user does anything). */
+  focusFirst?: boolean;
 }) {
   const { reduced } = useReducedMotionSafe();
   const [phase, setPhase] = useState<Phase>("closed");
@@ -44,10 +56,12 @@ export function Sheet({
   const onCloseRef = useRef(onClose);
   const returnFocus = useRef<HTMLElement | null>(null);
   const outcomeRef = useRef(outcome);
+  const onClosedRef = useRef(onClosed);
   const showDone = outcome === "done" && Boolean(doneLabel);
 
   useEffect(() => {
     onCloseRef.current = onClose;
+    onClosedRef.current = onClosed;
     outcomeRef.current = showDone ? "done" : "dismissed";
   });
 
@@ -66,10 +80,16 @@ export function Sheet({
       returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       if (!reduced) later(40, () => setPhase("open"));
     } else if (reduced) {
-      later(200, () => setPhase("closed"));
+      later(200, () => {
+        setPhase("closed");
+        onClosedRef.current?.();
+      });
     } else {
       later(200, () => setPhase("collapsed"));
-      later(200 + (outcomeRef.current === "done" ? 1200 : 450), () => setPhase("closed"));
+      later(200 + (outcomeRef.current === "done" ? 1200 : 450), () => {
+        setPhase("closed");
+        onClosedRef.current?.();
+      });
     }
     return () => timers.forEach(clearTimeout);
   }, [open, reduced]);
@@ -89,9 +109,9 @@ export function Sheet({
   // Move focus into the dialog once its content is visible.
   useEffect(() => {
     if (phase !== "open") return;
-    const first = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+    const first = focusFirst ? dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE) : null;
     (first ?? dialogRef.current)?.focus({ preventScroll: true });
-  }, [phase]);
+  }, [phase, focusFirst]);
 
   // Esc closes; Tab is trapped inside the dialog.
   useEffect(() => {
@@ -126,11 +146,11 @@ export function Sheet({
   const visible = open || phase === "fading" || phase === "collapsed";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[max(env(safe-area-inset-top),12px)]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-[11px] pt-[max(env(safe-area-inset-top),11px)]">
       <motion.div
         aria-hidden="true"
         data-testid="sheet-backdrop"
-        className="absolute inset-0 bg-bg/70"
+        className="absolute inset-0 bg-bg/15"
         initial={{ opacity: 0 }}
         animate={{ opacity: open ? 1 : 0 }}
         transition={{ duration: 0.3, ease: ease.smooth }}
@@ -146,10 +166,10 @@ export function Sheet({
         tabIndex={-1}
         layout={!reduced}
         transition={{ layout: { duration: 0.55, ease: ease.softSpring } }}
-        style={{ borderRadius: 32 }}
+        style={{ borderRadius: radius }}
         className={cx(
           "relative mx-auto overflow-hidden bg-island outline-none",
-          expanded ? "w-full max-w-[358px] px-[14px] py-4" : cx("h-[34px]", showDone ? "w-[150px]" : "w-[120px]"),
+          expanded ? cx("w-full", expandedClassName) : cx("h-[34px]", showDone ? "w-[150px]" : "w-[120px]"),
         )}
         initial={reduced ? { opacity: 0 } : false}
         animate={reduced ? { opacity: visible ? 1 : 0 } : undefined}

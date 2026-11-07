@@ -13,7 +13,7 @@ const SHOTS = "gan-harness/screenshots";
 type Phone = { context: BrowserContext; page: Page; errors: string[] };
 
 async function newPhone(browser: Browser, baseURL: string | undefined): Promise<Phone> {
-  const context = await browser.newContext({ ...devices["iPhone 15"], baseURL });
+  const context = await browser.newContext({ ...devices["iPhone 15"], baseURL, serviceWorkers: "block" }) // a registered worker would hide requests from page.route;
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => {

@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createPurchaseSchema,
   emailSchema,
+  pushSubscriptionSchema,
+  resolvePendingSchema,
   householdNameSchema,
   inviteCodeSchema,
   passwordSchema,
@@ -17,7 +19,7 @@ import {
   type Repo,
   type RepoErrorCode,
 } from "./repo";
-import type { Household, Member, Profile, Settlement, SettlementShare, Share } from "./types";
+import type { CaptureResult, CaptureTokenInfo, Household, Member, Profile, Settlement, SettlementShare, Share } from "./types";
 
 type DbError = { code?: string; message?: string } | null;
 
@@ -36,6 +38,7 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   weak_password: "Password is too weak",
   rate_limited: "Too many requests",
   stale: "The amounts changed since the payment was marked",
+  signup_unavailable: "Sign-up is unavailable",
   unknown: "Request failed",
 };
 
@@ -134,12 +137,20 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       if (!e.success) throw new RepoError("invalid", firstIssue(e.error));
       if (!passwordSchema.safeParse(password).success) throw new RepoError("weak_password", MESSAGES.weak_password);
       const { data, error } = await client.auth.signUp({ email: e.data, password });
-      if (error) throw mapAuthError(error);
+      if (error) {
+        const mapped = mapAuthError(error);
+        // a 5xx / unexpected_failure means the server (usually SMTP with «Confirm email» ON) is broken: tell the user plainly
+        if (mapped.code === "unknown" && (error.code === "unexpected_failure" || (error.status ?? 0) >= 500)) {
+          debugLog("signUp", "server error: if 'Confirm email' is ON in Supabase Auth, switch it off or fix SMTP");
+          throw new RepoError("signup_unavailable", MESSAGES.signup_unavailable);
+        }
+        throw mapped;
+      }
       // "Confirm email" ON would hide an existing account behind a user without identities and give no session
       if (data.user && data.user.identities?.length === 0) throw new RepoError("email_taken", MESSAGES.email_taken);
       if (!data.user || !data.session) {
         debugLog("signUp", "no session: is 'Confirm email' still ON in the Supabase Auth settings?");
-        throw new RepoError("unknown", MESSAGES.unknown);
+        throw new RepoError("signup_unavailable", MESSAGES.signup_unavailable);
       }
       return { user_id: data.user.id, email: data.user.email ?? e.data };
     },
@@ -274,6 +285,79 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
     async cancelSettlement(settlementId) {
       const row = ok<Omit<Settlement, "covered">>(await client.rpc("cancel_settlement", { p_settlement_id: settlementId }));
       return withCovered({ ...row, covered: null });
+    },
+
+    async getCaptureTokenInfo() {
+      // the hash column is not selectable by clients: only the metadata is read
+      const res = await client.from("capture_tokens").select("created_at, last_used_at").maybeSingle();
+      if (res.error) throw mapDbError(res.error);
+      return (res.data as CaptureTokenInfo | null) ?? null;
+    },
+
+    async rotateCaptureToken() {
+      const token = ok<string>(await client.rpc("rotate_capture_token"));
+      if (typeof token !== "string" || token.length < 20) throw new RepoError("unknown", MESSAGES.unknown);
+      return token;
+    },
+
+    async capture(token, amount, merchant) {
+      return ok<CaptureResult>(await client.rpc("capture_purchase", { p_token: token, p_amount: amount, p_merchant: merchant ?? null }));
+    },
+
+    async prunePushSubscription(token, endpoint) {
+      const { error } = await client.rpc("prune_push_subscription", { p_token: token, p_endpoint: endpoint });
+      if (error) throw mapDbError(error);
+    },
+
+    async listPending(householdId) {
+      const me = await currentUser();
+      if (!me) throw new RepoError("unauthenticated", MESSAGES.unauthenticated);
+      const res = await client
+        .from("purchases")
+        .select("*, shares(*)")
+        .eq("household_id", householdId)
+        .eq("status", "pending")
+        .eq("payer_id", me.user_id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+      return ok<PurchaseRow[]>(res).map(toPurchase);
+    },
+
+    async resolvePending(purchaseId, raw) {
+      const parsed = resolvePendingSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      const row = ok<PurchaseRow>(
+        await client.rpc("resolve_pending", {
+          p_purchase_id: purchaseId,
+          p_shared: input.shared,
+          p_description: input.description ?? null,
+          p_participant_ids: input.shared ? (input.participant_ids ?? []) : [],
+        }),
+      );
+      if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
+      return toPurchase(row);
+    },
+
+    async savePushSubscription(sub) {
+      const parsed = pushSubscriptionSchema.safeParse(sub);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const { error } = await client.rpc("save_push_subscription", {
+        p_endpoint: parsed.data.endpoint,
+        p_p256dh: parsed.data.p256dh,
+        p_auth: parsed.data.auth,
+      });
+      if (error) throw mapDbError(error);
+    },
+
+    async deletePushSubscription(endpoint) {
+      const { error } = await client.from("push_subscriptions").delete().eq("endpoint", endpoint);
+      if (error) throw mapDbError(error);
+    },
+
+    async setDefaultHousehold(householdId) {
+      const { error } = await client.rpc("set_default_household", { p_household_id: householdId });
+      if (error) throw mapDbError(error);
     },
   };
 }

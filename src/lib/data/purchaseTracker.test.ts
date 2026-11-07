@@ -75,3 +75,48 @@ describe("PurchaseTracker", () => {
     expect(t.view("h1", [opt("optimistic-1", "2026-11-06T10:00:00Z"), row("a", "2026-11-01T10:00:00Z")]).map((p) => p.id)).toEqual(["a"]);
   });
 });
+
+describe("PurchaseTracker overrides (optimistic resolve of a pending purchase)", () => {
+  const pending = { ...row("p1"), status: "pending" as const, shares: [] };
+  function row(id: string) {
+    return {
+      id,
+      household_id: "h1",
+      payer_id: "me",
+      amount: 1000,
+      description: "Magnum",
+      merchant: "Magnum",
+      source: "apple_pay" as const,
+      status: "shared" as const,
+      created_at: "2026-11-07T10:00:00.000Z",
+      shares: [],
+    };
+  }
+
+  it("shows the resolved row while the server still says pending, then yields to the server", () => {
+    const t = new PurchaseTracker();
+    const resolved = { ...pending, status: "shared" as const, description: "Хлеб" };
+    t.override(resolved);
+    expect(t.view("h1", [pending])[0]).toMatchObject({ status: "shared", description: "Хлеб" });
+    // the server caught up: its row wins and the override is gone
+    const serverRow = { ...resolved, description: "Хлеб (сервер)" };
+    expect(t.view("h1", [serverRow])[0].description).toBe("Хлеб (сервер)");
+    expect(t.view("h1", [pending])[0].status).toBe("pending");
+  });
+
+  it("dropOverride (failed resolve) brings the pending row back", () => {
+    const t = new PurchaseTracker();
+    t.override({ ...pending, status: "personal" });
+    t.dropOverride("p1");
+    expect(t.view("h1", [pending])[0].status).toBe("pending");
+  });
+
+  it("expires after the TTL and is cleared on sign-out", () => {
+    const t = new PurchaseTracker();
+    t.override({ ...pending, status: "personal" }, Date.now() - 31_000);
+    expect(t.view("h1", [pending])[0].status).toBe("pending");
+    t.override({ ...pending, status: "personal" });
+    t.clear();
+    expect(t.view("h1", [pending])[0].status).toBe("pending");
+  });
+});

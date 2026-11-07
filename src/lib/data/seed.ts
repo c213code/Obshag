@@ -22,6 +22,11 @@ export type MockDb = {
   joinAttempts: Array<{ user_id: string; at: string }>;
   /** mark/cancel calls (rate limit: 20 per user per hour). */
   settlementOps: Array<{ user_id: string; at: string }>;
+  /** capture tokens: only the sha256 hex hash is stored (SQL capture_tokens). */
+  captureTokens: Array<{ user_id: string; token_hash: string; created_at: string; last_used_at: string | null }>;
+  pushSubscriptions: Array<{ user_id: string; endpoint: string; p256dh: string; auth: string; created_at: string }>;
+  /** successful captures (rate limit: 30 per user per hour). */
+  captureOps: Array<{ user_id: string; at: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();
@@ -114,5 +119,17 @@ export function createSeed(): MockDb {
     { id: nurik.id, email: "nurik@obshak.test", password: SEED_PASSWORD },
   ];
 
-  return { users, profiles, households: [household], members, purchases, shares, settlements: [], joinAttempts: [], settlementOps: [] };
+  return {
+    users,
+    profiles,
+    households: [household],
+    members,
+    purchases,
+    shares,
+    settlements: [], joinAttempts: [],
+    settlementOps: [],
+    captureTokens: [],
+    pushSubscriptions: [],
+    captureOps: [],
+  };
 }
