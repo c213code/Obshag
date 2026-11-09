@@ -179,6 +179,7 @@ export function ShortcutScreen() {
           <li>{ru.shortcut.quick.one}</li>
           <li>{ru.shortcut.quick.two}</li>
           <li>{ru.shortcut.quick.three}</li>
+          <li>{ru.shortcut.quick.four}</li>
         </ol>
       </section>
 
