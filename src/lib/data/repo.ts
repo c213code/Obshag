@@ -9,10 +9,12 @@ import type {
   MonthlyRun,
   Profile,
   Purchase,
+  PendingDigestUser,
   PushSubscriptionInput,
   ReminderTarget,
   Settlement,
   Share,
+  TgResolveResult,
   Uuid,
 } from "./types";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
@@ -75,6 +77,17 @@ export interface Repo {
   upsertProfile(input: ProfileDraft): Promise<Profile>;
   /** Accepts `@name` or `name`; empty or null clears it. invalid = not 5-32 letters, digits or underscores. Returns the saved value. */
   setTelegramUsername(username: string | null): Promise<string | null>;
+
+  /** A fresh single-use code (15 minutes) for `t.me/<bot>?start=<code>`; only its hash is stored. */
+  createTelegramLinkCode(): Promise<string>;
+  /** Forgets the linked Telegram account. */
+  unlinkTelegram(): Promise<void>;
+  /** SERVER ONLY (CRON_SECRET): consumes the code and links the Telegram user. Returns the display name, or null for a bad or expired code. */
+  tgLinkAccount(secret: string, code: string, tgUserId: number): Promise<string | null>;
+  /** SERVER ONLY: resolves a pending purchase from a Telegram button; forbidden = that Telegram user is not the payer. */
+  tgResolvePending(secret: string, tgUserId: number, purchaseId: Uuid, shared: boolean): Promise<TgResolveResult>;
+  /** SERVER ONLY: the 19:00 digest, one entry per payer with pending purchases older than 10 minutes; logged as sent. */
+  runPendingDigest(secret: string): Promise<PendingDigestUser[]>;
 
   listHouseholds(): Promise<Household[]>;
   listMembers(householdId: Uuid): Promise<MemberWithProfile[]>;

@@ -11,6 +11,12 @@ export function readCronSecret(env: Record<string, string | undefined> = process
   return secret && secret.length >= MIN_SECRET ? secret : null;
 }
 
+/** Constant-time string compare (both sides hashed first, so length and prefixes do not leak). */
+export function secretsMatch(given: string | null | undefined, expected: string | null | undefined): boolean {
+  if (!given || !expected) return false;
+  return timingSafeEqual(digest(given), digest(expected));
+}
+
 /**
  * `Authorization: Bearer <CRON_SECRET>` in constant time: both sides are hashed first, so the comparison always sees
  * 32 bytes and neither the length nor any prefix of the secret leaks through timing.

@@ -6,7 +6,10 @@ export type ReminderPushPayload = { type: "reminder"; fromUserId: string; fromNa
 /** «Коммуналка: введи сумму за ноябрь»: the worker composes the text; tapping opens /monthly. */
 export type BillPushPayload = { type: "bill"; billId: string; title: string; month: string };
 
-export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload;
+/** «Ждут решения: 2 покупки» at 19:00: one push per user; the worker composes the text; tapping opens `/`. */
+export type DigestPushPayload = { type: "digest"; count: number };
+
+export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload;
 
 /** What the service worker receives. Title and body are composed there (it formats the amount itself). */
 export type PendingPushPayload = { type: "pending"; purchaseId: string; merchant: string | null; amount: number };

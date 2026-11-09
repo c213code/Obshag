@@ -105,7 +105,30 @@ function showBill(data) {
   });
 }
 
+function purchases(n) {
+  // 1 покупка, 2-4 покупки, 5+ покупок (11-14 are покупок)
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return n + " покупка";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return n + " покупки";
+  return n + " покупок";
+}
+
+function showDigest(data) {
+  // 19:00: one notification per user for everything still on «Потом»; tapping opens the app (Главная lists them)
+  const n = Math.max(1, Math.round(Number(data.count)) || 1);
+  return self.registration.showNotification("Ждут решения: " + purchases(n), {
+    body: "Общее или моё? Открой Общак",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "pending-digest",
+    renotify: false,
+    data: { url: "/" },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "digest") return showDigest(data);
   if (data && data.type === "bill") return showBill(data);
   if (data && data.type === "reminder" && typeof data.fromUserId === "string") return showReminder(data);
   const ok = data && data.type === "pending" && typeof data.purchaseId === "string";

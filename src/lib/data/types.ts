@@ -15,6 +15,10 @@ export type Profile = {
   kaspi_phone: string | null;
   /** Telegram handle without the @ (the group bot tags it); null = not set. */
   telegram_username?: string | null;
+  /** Database row only; getMe replaces it with `telegram_linked` so the chat id never reaches the UI. */
+  telegram_user_id?: number | null;
+  /** The signed-in user's Telegram DM is linked (set by getMe). */
+  telegram_linked?: boolean;
   avatar_color: string | null;
   created_at: IsoDateTime;
   /** Where Apple Pay captures land; null = the most recently joined active household. */
@@ -49,6 +53,17 @@ export type ReminderTarget = {
   amount: number;
   subscriptions: PushSubscriptionInput[];
 };
+
+/** One payer's slice of the 19:00 digest (run_pending_digest): who to push, whom to DM, and what is waiting. */
+export type PendingDigestUser = {
+  user_id: Uuid;
+  telegram_user_id: number | null;
+  subscriptions: PushSubscriptionInput[];
+  purchases: Array<{ id: Uuid; merchant: string | null; amount: number; created_at: IsoDateTime }>;
+};
+
+/** tg_resolve_pending: what happened to the purchase. */
+export type TgResolveResult = "shared" | "personal" | "already_resolved" | "too_small";
 
 export type Household = {
   id: Uuid;

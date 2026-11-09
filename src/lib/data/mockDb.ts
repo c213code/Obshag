@@ -15,6 +15,7 @@ const profile = z.object({
   created_at: iso,
   default_household_id: uuid.nullish(),
   telegram_username: z.string().max(40).nullish(),
+  telegram_user_id: z.number().int().positive().nullish(),
 });
 const household = z.object({
   id: uuid,
@@ -96,6 +97,8 @@ export const mockDbSchema = z.object({
     .max(2000),
   captureOps: z.array(z.object({ user_id: uuid, at: iso })).max(5000),
   reminderLog: z.array(z.object({ from_id: uuid, to_id: uuid, at: iso })).max(5000),
+  telegramCodes: z.array(z.object({ code_hash: z.string().max(100), user_id: uuid, expires_at: iso })).max(500).optional(),
+  digestLog: z.array(z.object({ purchase_id: uuid, sent_on: z.string().max(10) })).max(5000).optional(),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

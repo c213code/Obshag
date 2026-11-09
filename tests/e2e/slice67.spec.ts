@@ -230,6 +230,30 @@ test.describe("slices 6+7", () => {
     });
   });
 
+  test("Профиль: «Подключить Telegram» creates a one-time link to the bot (slice 12)", async ({ browser, baseURL, request }) => {
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await page.addInitScript(() => {
+        (window as unknown as { __opened: string[] }).__opened = [];
+        window.open = ((url?: string | URL) => ((window as unknown as { __opened: string[] }).__opened.push(String(url)), null)) as typeof window.open;
+      });
+      await logIn(page, A);
+      await page.getByRole("link", { name: "Квартира", exact: true }).click();
+      await page.getByTestId("profile-row").click();
+      await expect(page.getByTestId("telegram-connect")).toHaveText("Подключить Telegram");
+      await page.getByTestId("telegram-connect").click();
+      const open = page.getByTestId("telegram-open");
+      await expect(open).toHaveText("Открыть Telegram");
+      const href = (await open.getAttribute("href"))!;
+      expect(href).toMatch(/^https:\/\/t\.me\/obshagk_bot\?start=[A-Za-z0-9_-]{16,}$/);
+      await expect(page.getByTestId("telegram-open-hint")).toContainText("15 минут");
+      expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([href]);
+      // the code is stored hashed, and the account is not linked until the bot confirms it
+      const me = (await readStore(request)).db.profiles.find((x) => x.id === A.id);
+      expect(me?.telegram_user_id ?? null).toBeNull();
+      await page.screenshot({ path: `${SHOTS}/s12-app-telegram-link.png` });
+    });
+  });
+
   test("Квартира: the invite link falls back to copy, QR opens, a member cannot add bills", async ({ browser, baseURL }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       // no Web Share, and a clipboard we can read back

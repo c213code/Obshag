@@ -30,6 +30,10 @@ export type MockDb = {
   captureOps: Array<{ user_id: string; at: string }>;
   /** reminders sent (SQL reminder_log): from = creditor, to = debtor; 6h cooldown per pair. */
   reminderLog: Array<{ from_id: string; to_id: string; at: string }>;
+  /** Telegram link codes (SQL private.telegram_link_codes): only the sha256 hex hash is stored. */
+  telegramCodes?: Array<{ code_hash: string; user_id: string; expires_at: string }>;
+  /** Digest log (SQL private.pending_digest_log): one row per purchase and Almaty day. */
+  digestLog?: Array<{ purchase_id: string; sent_on: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();

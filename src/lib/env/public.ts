@@ -11,6 +11,8 @@ const schema = z
     NEXT_PUBLIC_SUPABASE_URL: optional(z.url()),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: optional(z.string().min(1)),
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: optional(z.string().min(1)),
+    /** The bot's username (no @) for the «Подключить Telegram» deep link; defaults to obshagk_bot. */
+    NEXT_PUBLIC_TELEGRAM_BOT: optional(z.string().regex(/^[A-Za-z0-9_]{5,32}$/)),
   })
   .superRefine((env, ctx) => {
     if (env.NEXT_PUBLIC_DATA_MODE === "mock") return;
@@ -46,6 +48,7 @@ export function getPublicEnv(): PublicEnv {
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      NEXT_PUBLIC_TELEGRAM_BOT: process.env.NEXT_PUBLIC_TELEGRAM_BOT,
     },
     process.env.NODE_ENV,
   );

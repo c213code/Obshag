@@ -121,7 +121,7 @@ describe("supabaseRepo", () => {
     const profile = { id: "u1", display_name: "А", kaspi_phone: null, avatar_color: "blue", created_at: "x" };
     const repo = createSupabaseRepo(fakeClient({ user: { id: "u1", email: "a@x.kz" }, tables: { profiles: { data: profile, error: null } } }).client);
     expect(await repo.getSession()).toEqual({ user_id: "u1", email: "a@x.kz" });
-    expect(await repo.getMe()).toEqual(profile);
+    expect(await repo.getMe()).toEqual({ ...profile, telegram_linked: false });
   });
 
   it("writes go through RPCs with the parameter names the migration defines", async () => {

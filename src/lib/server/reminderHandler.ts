@@ -1,17 +1,21 @@
 import { decline } from "@/lib/i18n/declension";
 import { RepoError, type Repo } from "@/lib/data/repo";
-import type { BillNotice, ReminderTarget } from "@/lib/data/types";
+import type { BillNotice, PendingDigestUser, ReminderTarget } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { isMonthKey } from "@/lib/domain/almaty";
 import { remindBodySchema } from "@/lib/domain/schemas";
 import { bearerMatches } from "./cronAuth";
 import type { PushSender } from "./push";
+import type { TelegramApi } from "./telegram/api";
+import { digestKeyboard, digestText, MAX_DM } from "./telegram/digest";
 
 export type ReminderDeps = {
-  repo: Pick<Repo, "remind" | "runDailyReminders" | "runMonthlyBills">;
+  repo: Pick<Repo, "remind" | "runDailyReminders" | "runMonthlyBills" | "runPendingDigest">;
   /** null = push is not configured: reminders are still logged, nothing is sent. */
   push: PushSender | null;
   secret: string;
+  /** null / missing = the bot is not configured: the digest then only pushes. */
+  telegram?: TelegramApi | null;
 };
 
 export type ReminderOutcome<B> = {
@@ -50,11 +54,43 @@ async function sendAll(targets: ReminderTarget[], push: PushSender | null, notic
   );
 }
 
+/**
+ * The 19:00 digest: one push per user («Ждут решения: N»), plus one Telegram DM per purchase (the database caps it at 10)
+ * with the Общее / Моё buttons. A pending purchase is never posted to the group. Every failure is swallowed.
+ */
+async function sendDigest(users: PendingDigestUser[], push: PushSender | null, telegram: TelegramApi | null): Promise<void> {
+  await Promise.all(
+    users.map(async (u) => {
+      if (push) {
+        await Promise.all(
+          u.subscriptions.map(async (sub) => {
+            try {
+              await push.send(sub, { type: "digest", count: u.purchases.length });
+            } catch {
+              // ignored on purpose
+            }
+          }),
+        );
+      }
+      if (telegram && u.telegram_user_id !== null) {
+        // in order, so the DMs arrive oldest first
+        for (const p of u.purchases.slice(0, MAX_DM)) {
+          try {
+            await telegram.sendMessage(u.telegram_user_id, digestText(p), digestKeyboard(p.id));
+          } catch {
+            // ignored on purpose
+          }
+        }
+      }
+    }),
+  );
+}
+
 /** GET /api/cron/daily. 401 unless the bearer matches (constant time); an unset secret keeps it closed. */
 export async function handleCron(
   authorization: string | null,
   deps: ReminderDeps | null,
-): Promise<ReminderOutcome<{ ok: boolean; reminders?: number; bills?: number }>> {
+): Promise<ReminderOutcome<{ ok: boolean; reminders?: number; bills?: number; digests?: number }>> {
   if (!deps || !bearerMatches(authorization, deps.secret)) return { status: 401, body: { ok: false } };
   let targets: ReminderTarget[];
   try {
@@ -70,10 +106,22 @@ export async function handleCron(
   } catch {
     billsFailed = true;
   }
+  // the pending digest comes last, and its failure hides nothing that was already logged
+  let digest: PendingDigestUser[] = [];
+  let digestFailed = false;
+  try {
+    digest = await deps.repo.runPendingDigest(deps.secret);
+  } catch {
+    digestFailed = true;
+  }
+  const failed = billsFailed || digestFailed;
   return {
-    status: billsFailed ? 500 : 200,
-    body: { ok: !billsFailed, reminders: targets.length, bills: bills.created },
-    afterResponse: () => sendAll(targets, deps.push, bills.notices),
+    status: failed ? 500 : 200,
+    body: { ok: !failed, reminders: targets.length, bills: bills.created, digests: digest.length },
+    afterResponse: async () => {
+      await sendAll(targets, deps.push, bills.notices);
+      await sendDigest(digest, deps.push, deps.telegram ?? null);
+    },
   };
 }
 

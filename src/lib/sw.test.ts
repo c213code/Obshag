@@ -73,6 +73,17 @@ describe("sw.js", () => {
     expect(sw.opened).toEqual(["/monthly"]);
   });
 
+  it("push: the 19:00 digest shows «Ждут решения: N покупок» once and opens /", async () => {
+    for (const [n, word] of [[1, "1 покупка"], [2, "2 покупки"], [5, "5 покупок"], [11, "11 покупок"], [22, "22 покупки"]] as const) {
+      const sw = load();
+      await sw.wait(sw.handlers.push, pushEvent({ type: "digest", count: n }));
+      expect(sw.shown).toHaveLength(1);
+      expect(sw.shown[0].title).toBe(`Ждут решения: ${word}`);
+      expect(sw.shown[0].options).toMatchObject({ body: "Общее или моё? Открой Общак", data: { url: "/" } });
+      expect(sw.shown[0].options).not.toHaveProperty("actions");
+    }
+  });
+
   it("push: a reminder shows «Ты должен Айдосу 200 ₸» · «Рассчитаться» and opens /settle/<creditor>", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "reminder", fromUserId: "u1", fromName: "Айдосу", amount: 200 }));

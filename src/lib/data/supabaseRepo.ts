@@ -26,7 +26,7 @@ import {
   type Repo,
   type RepoErrorCode,
 } from "./repo";
-import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, Profile, ReminderTarget, Settlement, SettlementShare, Share } from "./types";
+import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, PendingDigestUser, Profile, ReminderTarget, Settlement, SettlementShare, Share, TgResolveResult } from "./types";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 
@@ -102,6 +102,12 @@ function ok<T>(result: { data: unknown; error: DbError }): T {
   if (result.error) throw mapDbError(result.error);
   if (result.data === null || result.data === undefined) throw new RepoError("not_found", "Not found");
   return result.data as T;
+}
+
+/** The chat id stays on the server: the UI only learns whether Telegram is linked. */
+function toProfile(row: Profile): Profile {
+  const { telegram_user_id: id, ...rest } = row;
+  return { ...rest, telegram_linked: id !== null && id !== undefined };
 }
 
 const firstIssue = (e: { issues: ReadonlyArray<{ message: string }> }) => e.issues[0]?.message ?? "Invalid input";
@@ -218,14 +224,37 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       if (!user) throw new RepoError("unauthenticated", "Not signed in");
       const { data, error } = await client.from("profiles").select("*").eq("id", user.user_id).maybeSingle();
       if (error) throw mapDbError(error);
-      return (data as Profile | null) ?? null;
+      return data ? toProfile(data as Profile) : null;
+    },
+
+    async createTelegramLinkCode() {
+      return ok<string>(await client.rpc("create_telegram_link_code"));
+    },
+
+    async unlinkTelegram() {
+      const { error } = await client.rpc("unlink_telegram");
+      if (error) throw mapDbError(error);
+    },
+
+    async tgLinkAccount(secret, code, tgUserId) {
+      const res = await client.rpc("tg_link_account", { p_secret: secret, p_code: code, p_tg_user_id: tgUserId });
+      if (res.error) throw mapDbError(res.error);
+      return typeof res.data === "string" ? res.data : null;
+    },
+
+    async tgResolvePending(secret, tgUserId, purchaseId, shared) {
+      return ok<TgResolveResult>(await client.rpc("tg_resolve_pending", { p_secret: secret, p_tg_user_id: tgUserId, p_purchase: purchaseId, p_shared: shared }));
+    },
+
+    async runPendingDigest(secret) {
+      return ok<PendingDigestUser[]>(await client.rpc("run_pending_digest", { p_secret: secret }));
     },
 
     async upsertProfile(input: ProfileDraft) {
       const parsed = profileSchema.safeParse(input);
       if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
       const res = await client.rpc("upsert_profile", { p_name: parsed.data.display_name, p_phone: parsed.data.kaspi_phone });
-      return ok<Profile>(res);
+      return toProfile(ok<Profile>(res));
     },
 
     async listHouseholds() {

@@ -31,7 +31,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
-import type { Bill, BillNotice, CaptureChoice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
+import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, PendingDigestUser, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
 export type SessionStore = { get(): Uuid | null; set(userId: Uuid | null): void };
@@ -339,7 +339,112 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
 
     async getMe() {
       const id = uid();
-      return read((db) => structuredClone(profileOf(db, id) ?? null));
+      return read((db) => {
+        const p = profileOf(db, id);
+        if (!p) return null;
+        const { telegram_user_id: tg, ...rest } = structuredClone(p);
+        return { ...rest, telegram_linked: tg !== null && tg !== undefined };
+      });
+    },
+
+    async createTelegramLinkCode() {
+      const id = uid();
+      const code = newCaptureToken().slice(0, 24);
+      const hash = await sha256Hex(code);
+      return tx((db) => {
+        requireProfile(db, id);
+        const t = now().getTime();
+        db.telegramCodes = (db.telegramCodes ?? []).filter((c) => c.user_id !== id && Date.parse(c.expires_at) > t);
+        db.telegramCodes.push({ code_hash: hash, user_id: id, expires_at: new Date(t + 15 * 60_000).toISOString() });
+        return code;
+      });
+    },
+
+    async unlinkTelegram() {
+      const id = uid();
+      await tx((db) => {
+        const p = profileOf(db, id);
+        if (p) p.telegram_user_id = null;
+        db.telegramCodes = (db.telegramCodes ?? []).filter((c) => c.user_id !== id);
+      });
+    },
+
+    async tgLinkAccount(secret, code, tgUserId) {
+      requireSecret(secret);
+      if (typeof code !== "string" || code.length < 16 || code.length > 64 || !Number.isInteger(tgUserId) || tgUserId <= 0) return null;
+      const hash = await sha256Hex(code);
+      return tx((db) => {
+        const t = now().getTime();
+        const row = (db.telegramCodes ?? []).find((c) => c.code_hash === hash && Date.parse(c.expires_at) > t);
+        if (!row) return null;
+        db.telegramCodes = (db.telegramCodes ?? []).filter((c) => c !== row);
+        for (const p of db.profiles) if (p.telegram_user_id === tgUserId && p.id !== row.user_id) p.telegram_user_id = null;
+        const me = profileOf(db, row.user_id);
+        if (!me) return null;
+        me.telegram_user_id = tgUserId;
+        return me.display_name;
+      });
+    },
+
+    async tgResolvePending(secret, tgUserId, purchaseId, shared) {
+      requireSecret(secret);
+      return tx((db) => {
+        const p = db.purchases.find((x) => x.id === purchaseId);
+        if (!p || profileOf(db, p.payer_id)?.telegram_user_id !== tgUserId || !isMember(db, p.household_id, p.payer_id)) {
+          throw new RepoError("forbidden", "Not allowed");
+        }
+        if (p.status !== "pending") return "already_resolved";
+        if (!shared) {
+          p.status = "personal";
+          return "personal";
+        }
+        const roster = db.members
+          .filter((m) => m.household_id === p.household_id && m.active)
+          .sort((a, b) => a.joined_at.localeCompare(b.joined_at) || a.user_id.localeCompare(b.user_id));
+        const home = roster.filter((m) => !isAway(m.away_until, almatyDay(now()).date));
+        const who = (home.length > 0 ? home : roster).map((m) => m.user_id);
+        if (who.length === 0 || p.amount < who.length) return "too_small";
+        p.status = "shared";
+        p.description = p.merchant?.trim() || "Покупка";
+        for (const s of splitEqual(p.amount, who, p.payer_id)) {
+          db.shares.push({ purchase_id: p.id, debtor_id: s.debtor_id, amount: s.amount, settled_at: s.settled ? now().toISOString() : null, settlement_id: null });
+        }
+        return "shared";
+      });
+    },
+
+    async runPendingDigest(secret) {
+      requireSecret(secret);
+      return tx((db) => {
+        const t = now().getTime();
+        const today = almatyDay(now()).date;
+        db.digestLog = (db.digestLog ?? []).filter((l) => t - Date.parse(`${l.sent_on}T00:00:00Z`) < 8 * DAY_MS);
+        const out: PendingDigestUser[] = [];
+        for (const prof of [...db.profiles].sort((a, b) => a.id.localeCompare(b.id))) {
+          const subs = subscriptionsOf(db, prof.id);
+          const tg = prof.telegram_user_id ?? null;
+          if (tg === null && subs.length === 0) continue;
+          const waiting = db.purchases
+            .filter(
+              (p) =>
+                p.payer_id === prof.id &&
+                p.status === "pending" &&
+                t - Date.parse(p.created_at) > 10 * 60_000 &&
+                !(db.digestLog ?? []).some((l) => l.purchase_id === p.id && l.sent_on === today),
+            )
+            .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+            .slice(0, 10);
+          if (waiting.length === 0) continue;
+          for (const p of waiting) db.digestLog = [...(db.digestLog ?? []), { purchase_id: p.id, sent_on: today }];
+          out.push({
+            user_id: prof.id,
+            telegram_user_id: tg,
+            subscriptions: subs,
+            purchases: waiting.map((p) => ({ id: p.id, merchant: p.merchant, amount: p.amount, created_at: p.created_at })),
+          });
+        }
+        return out;
+      });
     },
 
     async upsertProfile(input: ProfileDraft) {

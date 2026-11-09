@@ -293,7 +293,7 @@ export function FlatScreen() {
         onAction={(a) => void doMemberAction(a)}
       />
       <AwaySheet open={sheet === "away"} onClose={() => setSheet(null)} today={today} current={away} busy={busy} error={awayError} onSave={(u) => void saveAway(u)} />
-      <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} initialTelegram={me.telegram_username ?? null} onSave={saveProfile} />
+      <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} initialTelegram={me.telegram_username ?? null} telegramLinked={me.telegram_linked === true} onTelegramChanged={() => void refresh({ silent: true })} onSave={saveProfile} />
     </Screen>
   );
 }

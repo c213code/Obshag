@@ -123,10 +123,11 @@ describe("handleCapture", () => {
   describe("choice from the Shortcut menu", () => {
     const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/1", p256dh: "k", auth: "a" };
 
-    it("parses English and Russian forms leniently; everything else means later", () => {
+    it("parses English and Russian forms leniently; later is explicit, everything else is null", () => {
       for (const v of ["shared", " Shared ", "ОБЩЕЕ", "общее"]) expect(parseChoice(v), v).toBe("shared");
       for (const v of ["personal", "PERSONAL", "моё", "Моё ", "мое"]) expect(parseChoice(v), v).toBe("personal");
-      for (const v of ["later", "потом", "", "  ", "yes", 1, null, undefined, {}]) expect(parseChoice(v), String(v)).toBeNull();
+      for (const v of ["later", " Потом ", "ПОТОМ"]) expect(parseChoice(v), v).toBe("later");
+      for (const v of ["", "  ", "yes", 1, null, undefined, {}]) expect(parseChoice(v), String(v)).toBeNull();
     });
 
     it("shared: created shared at once, split among the home members, no push", async () => {
@@ -150,13 +151,23 @@ describe("handleCapture", () => {
       expect(p).toMatchObject({ status: "personal", description: "Покупка" });
     });
 
-    it("later, junk or no choice: still pending with a push", async () => {
+    it("explicit later: pending, no instant push (the 19:00 digest asks)", async () => {
       await owner.savePushSubscription(sub);
-      for (const [i, choice] of [undefined, "later", "потом", "", "xyz"].entries()) {
+      for (const [i, choice] of ["later", "потом", " Потом "].entries()) {
+        const out = await handleCapture({ token, amount: 100 + i, choice }, deps(createRecordingSender()));
+        expect(out, choice).toMatchObject({ status: 201, body: { ok: true } });
+        expect(out.afterResponse, choice).toBeUndefined();
+      }
+      expect(await owner.listPending(householdId)).toHaveLength(3);
+    });
+
+    it("no choice or junk (an old Shortcut): pending WITH the instant push, so nothing is lost", async () => {
+      await owner.savePushSubscription(sub);
+      for (const [i, choice] of [undefined, "", "xyz"].entries()) {
         const out = await handleCapture({ token, amount: 100 + i, choice }, deps(createRecordingSender()));
         expect(out.afterResponse, String(choice)).toBeDefined();
       }
-      expect(await owner.listPending(householdId)).toHaveLength(5);
+      expect(await owner.listPending(householdId)).toHaveLength(3);
     });
   });
 });

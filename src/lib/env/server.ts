@@ -9,6 +9,8 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: optional(z.string().min(1)),
   VAPID_SUBJECT: optional(z.string().min(1)),
   CRON_SECRET: optional(z.string().min(16)),
+  TELEGRAM_BOT_TOKEN: optional(z.string().min(1)),
+  TELEGRAM_WEBHOOK_SECRET: optional(z.string().min(16)),
 });
 
 export type ServerEnv = z.infer<typeof schema>;
@@ -33,6 +35,8 @@ export function getServerEnv(): ServerEnv {
       VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
       VAPID_SUBJECT: process.env.VAPID_SUBJECT,
       CRON_SECRET: process.env.CRON_SECRET,
+      TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+      TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
     },
     { requireServiceRole: process.env.NEXT_PUBLIC_DATA_MODE !== "mock" },
   );

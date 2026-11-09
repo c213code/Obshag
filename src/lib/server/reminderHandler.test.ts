@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { RepoError, type Repo } from "@/lib/data/repo";
-import type { ReminderTarget } from "@/lib/data/types";
+import type { PendingDigestUser, ReminderTarget } from "@/lib/data/types";
 import { bearerMatches, readCronSecret } from "./cronAuth";
 import { createRecordingSender } from "./push";
+import { createRecordingTelegram } from "./telegram/api";
+import { digestText, formatWhen } from "./telegram/digest";
 import { handleCron, handleRemind, reminderPayload } from "./reminderHandler";
 
 const SECRET = "cron-secret-0123456789abcdef";
@@ -16,10 +18,11 @@ const target: ReminderTarget = {
     { endpoint: "https://fcm.googleapis.com/b", p256dh: "k", auth: "a" },
   ],
 };
-const repo = (over: Partial<Pick<Repo, "remind" | "runDailyReminders" | "runMonthlyBills">> = {}) => ({
+const repo = (over: Partial<Pick<Repo, "remind" | "runDailyReminders" | "runMonthlyBills" | "runPendingDigest">> = {}) => ({
   remind: async () => target,
   runDailyReminders: async () => [target],
   runMonthlyBills: async () => ({ created: 0, notices: [] }),
+  runPendingDigest: async () => [],
   ...over,
 });
 
@@ -95,6 +98,72 @@ describe("handleCron", () => {
     const boom = { send: async () => Promise.reject(new Error("push down")) };
     const out = await handleCron(`Bearer ${SECRET}`, { repo: repo(), push: boom, secret: SECRET });
     await expect(out.afterResponse?.()).resolves.toBeUndefined();
+  });
+});
+
+describe("pending digest in the daily cron", () => {
+  const sub = { endpoint: "https://fcm.googleapis.com/d", p256dh: "k", auth: "a" };
+  const purchase = (n: number) => ({ id: `00000000-0000-4000-8000-00000000000${n}`, merchant: "Small", amount: 3780, created_at: "2026-11-08T09:32:00.000Z" });
+  const user = (over: Partial<PendingDigestUser> = {}): PendingDigestUser => ({
+    user_id: "u2",
+    telegram_user_id: 4242,
+    subscriptions: [sub],
+    purchases: [purchase(1), purchase(2)],
+    ...over,
+  });
+  const run = (users: PendingDigestUser[], telegram = createRecordingTelegram(), push = createRecordingSender()) =>
+    handleCron(`Bearer ${SECRET}`, { repo: repo({ runDailyReminders: async () => [], runPendingDigest: async () => users }), push, secret: SECRET, telegram }).then(async (out) => {
+      await out.afterResponse?.();
+      return { out, telegram, push };
+    });
+
+  it("sends ONE push per user (not per purchase) and one DM per purchase with the two buttons", async () => {
+    const { out, telegram, push } = await run([user()]);
+    expect(out).toMatchObject({ status: 200, body: { ok: true, digests: 1 } });
+    expect(push.calls).toEqual([{ endpoint: sub.endpoint, payload: { type: "digest", count: 2 } }]);
+    expect(telegram.calls.map((c) => c.method)).toEqual(["sendMessage", "sendMessage"]);
+    const [chat, body, keyboard] = telegram.calls[0].args as [number, string, Array<Array<{ text: string; callback_data: string }>>];
+    expect(chat).toBe(4242);
+    expect(body).toContain("🛒 Small · 3\u00a0780\u00a0₸ · 8 нояб, 14:32");
+    expect(body.endsWith("Чья покупка?")).toBe(true);
+    expect(keyboard).toEqual([
+      [
+        { text: "Общее", callback_data: "s:00000000-0000-4000-8000-000000000001" },
+        { text: "Моё", callback_data: "p:00000000-0000-4000-8000-000000000001" },
+      ],
+    ]);
+  });
+  it("no telegram id: push only; no push subscription: DM only", async () => {
+    const a = await run([user({ telegram_user_id: null })]);
+    expect(a.telegram.calls).toEqual([]);
+    expect(a.push.calls).toHaveLength(1);
+    const b = await run([user({ subscriptions: [] })]);
+    expect(b.push.calls).toEqual([]);
+    expect(b.telegram.calls).toHaveLength(2);
+  });
+  it("caps the DMs at 10 per user", async () => {
+    const many = Array.from({ length: 14 }, (_, i) => ({ ...purchase(1), id: `00000000-0000-4000-8000-0000000001${String(i).padStart(2, "0")}` }));
+    const { telegram, push } = await run([user({ purchases: many })]);
+    expect(telegram.calls).toHaveLength(10);
+    expect(push.calls[0].payload).toEqual({ type: "digest", count: 14 });
+  });
+  it("a failing digest still sends the reminders and reports the failure", async () => {
+    const push = createRecordingSender();
+    const out = await handleCron(`Bearer ${SECRET}`, { repo: repo({ runPendingDigest: async () => Promise.reject(new Error("x")) }), push, secret: SECRET });
+    expect(out).toMatchObject({ status: 500, body: { ok: false, reminders: 1 } });
+    await out.afterResponse?.();
+    expect(push.calls).toHaveLength(2);
+  });
+  it("a Telegram or push failure never throws", async () => {
+    const boom = { send: async () => Promise.reject(new Error("push down")) };
+    const tg = { ...createRecordingTelegram(), sendMessage: async () => Promise.reject(new Error("tg down")) };
+    const out = await handleCron(`Bearer ${SECRET}`, { repo: repo({ runPendingDigest: async () => [user()] }), push: boom, secret: SECRET, telegram: tg });
+    await expect(out.afterResponse?.()).resolves.toBeUndefined();
+  });
+  it("formats the message in Almaty time and falls back to «Покупка»", () => {
+    expect(formatWhen("2026-11-08T09:32:00.000Z")).toBe("8 нояб, 14:32");
+    expect(formatWhen("garbage")).toBe("");
+    expect(digestText({ ...purchase(1), merchant: null })).toContain("🛒 Покупка ·");
   });
 });
 

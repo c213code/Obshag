@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Pill } from "@/components/ui/Pill";
 import { Sheet } from "@/components/ui/Sheet";
 import { TextField } from "@/components/ui/TextField";
+import { TelegramLink } from "./TelegramLink";
 import { formatLocalPhone } from "@/lib/domain/phoneFormat";
 import { normalizeTelegramUsername, profileSchema } from "@/lib/domain/schemas";
 import { ru } from "@/lib/i18n/ru";
@@ -15,6 +16,8 @@ export function ProfileSheet({
   initialName,
   initialPhone,
   initialTelegram = null,
+  telegramLinked = false,
+  onTelegramChanged = () => undefined,
   onSave,
 }: {
   open: boolean;
@@ -23,6 +26,10 @@ export function ProfileSheet({
   /** '+7XXXXXXXXXX' or null. */
   initialPhone: string | null;
   initialTelegram?: string | null;
+  /** The Telegram DM bot is linked to this account. */
+  telegramLinked?: boolean;
+  /** The link state changed (disconnected): reload the profile. */
+  onTelegramChanged?: () => void;
   /** Resolves null on success, or a message. */
   onSave: (input: { display_name: string; kaspi_phone: string; telegram_username: string | null }) => Promise<string | null>;
 }) {
@@ -98,6 +105,7 @@ export function ProfileSheet({
             setErrors((s) => ({ ...s, telegram: undefined }));
           }}
         />
+        <TelegramLink linked={telegramLinked} onChanged={onTelegramChanged} />
         {errors.form ? (
           <p role="alert" className="px-1 text-label text-orange">
             {errors.form}

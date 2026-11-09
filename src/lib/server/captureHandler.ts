@@ -17,12 +17,17 @@ export type CaptureOutcome = {
   afterResponse?: () => Promise<void>;
 };
 
-/** Lenient: trim, lowercase, Russian too. Anything else (later, потом, empty, junk, not a string) = decide later. */
-export function parseChoice(raw: unknown): CaptureChoice | null {
+/**
+ * Lenient: trim, lowercase, Russian too.
+ * `later` / `потом` is an explicit «decide later» (no instant push: the 19:00 digest asks).
+ * Anything else (empty, junk, not a string) = null: an old Shortcut with no menu, which still gets the instant push.
+ */
+export function parseChoice(raw: unknown): CaptureChoice | "later" | null {
   if (typeof raw !== "string") return null;
   const v = raw.trim().toLowerCase();
   if (v === "shared" || v === "общее") return "shared";
   if (v === "personal" || v === "моё" || v === "мое") return "personal";
+  if (v === "later" || v === "потом") return "later";
   return null;
 }
 
@@ -40,9 +45,10 @@ export async function handleCapture(raw: unknown, deps: CaptureDeps): Promise<Ca
   const { token } = body.data;
   const merchant = body.data.merchant?.trim() || null;
 
+  const choice = parseChoice(body.data.choice ?? body.data.choise);
   let captured;
   try {
-    captured = await deps.repo.capture(token, amount, merchant, parseChoice(body.data.choice ?? body.data.choise));
+    captured = await deps.repo.capture(token, amount, merchant, choice === "later" ? null : choice);
   } catch (e) {
     if (e instanceof RepoError) {
       if (e.code === "unauthenticated") return fail(401);
@@ -53,7 +59,7 @@ export async function handleCapture(raw: unknown, deps: CaptureDeps): Promise<Ca
   }
 
   const { push, repo } = deps;
-  if (!push || captured.status !== "pending" || captured.subscriptions.length === 0) return { status: 201, body: { ok: true } };
+  if (!push || choice === "later" || captured.status !== "pending" || captured.subscriptions.length === 0) return { status: 201, body: { ok: true } };
   const payload = { type: "pending" as const, purchaseId: captured.purchase_id, merchant: captured.merchant, amount: captured.amount };
   return {
     status: 201,
