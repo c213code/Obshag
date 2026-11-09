@@ -18,6 +18,7 @@ import { ru } from "@/lib/i18n/ru";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { useAppData } from "../AppDataProvider";
 import { Screen } from "../Screen";
+import { useSwipeDelete } from "../swipe/useSwipeDelete";
 
 const EMPTY: Record<PurchaseFilter, { title: string; text: string }> = {
   all: { title: ru.purchases.emptyTitle, text: ru.purchases.emptyText },
@@ -56,6 +57,7 @@ function Row({ purchase, payerName, meId }: { purchase: UiPurchase; payerName: s
     <Link
       href={`/purchases/${purchase.id}`}
       aria-label={ru.purchases.open(purchase.description, formatTenge(purchase.amount))}
+      draggable={false}
       className="block transition-transform duration-200 ease-smooth active:scale-[0.98]"
     >
       {inner}
@@ -68,6 +70,7 @@ export function PurchasesScreen() {
   const { me, members, purchases, activeId } = useAppData();
   const { reduced } = useReducedMotionSafe();
   const [filter, setFilter] = useState<PurchaseFilter>("all");
+  const { wrap, sheet } = useSwipeDelete();
 
   const list = useMemo(() => (activeId ? (purchases[activeId] ?? []) : []), [purchases, activeId]);
   const names = useMemo(() => new Map((activeId ? (members[activeId] ?? []) : []).map((m) => [m.user_id, m.profile.display_name])), [members, activeId]);
@@ -122,7 +125,7 @@ export function PurchasesScreen() {
                 <ul className="flex flex-col gap-2">
                   {g.items.map((p) => (
                     <li key={p.clientKey} data-testid="purchase-list-row">
-                      <Row purchase={p} payerName={names.get(p.payer_id) ?? ru.main.formerMember} meId={me.id} />
+                      {wrap(p, <Row purchase={p} payerName={names.get(p.payer_id) ?? ru.main.formerMember} meId={me.id} />)}
                     </li>
                   ))}
                 </ul>
@@ -131,6 +134,7 @@ export function PurchasesScreen() {
           </motion.div>
         </AnimatePresence>
       )}
+      {sheet}
     </Screen>
   );
 }

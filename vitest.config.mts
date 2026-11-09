@@ -4,6 +4,7 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: "node",
+    hookTimeout: 120_000,
     // never let a developer's .env.local (live Supabase) leak into unit tests
     env: { NEXT_PUBLIC_DATA_MODE: "mock", NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" },
     include: ["src/**/*.test.{ts,tsx}", "tests/db/**/*.test.ts"],

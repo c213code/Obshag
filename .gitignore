@@ -18,3 +18,6 @@ gan-harness/screenshots
 
 .DS_Store
 .vercel
+
+# video recording scratch
+scripts/video/.raw/

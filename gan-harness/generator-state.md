@@ -308,3 +308,15 @@ Nothing committed. 0001-0007 and `.env.local` untouched; nothing applied to the 
 - App: `parseChoice` in `captureHandler.ts` (lenient, Russian too), `choice` passed through `Repo.capture` (mock + supabase), `CaptureResult.status`; no push unless pending. Old Shortcut without `choice` is unchanged.
 - Tests: `tests/db/slice10.test.ts` (PGlite), choice cases in `captureHandler.test.ts`, supabaseRepo arg test updated.
 - Gap: the Shortcut recipe text in /settings/shortcut is not updated (out of spec); mock-mode `away` uses the Almaty day like SQL.
+
+---
+
+# Slice 11 "Swipe left to delete + Telegram reminder" (one pass)
+
+Nothing committed. 0001-0008 and `.env.local` untouched; nothing applied to the live DB.
+
+- SQL `supabase/migrations/0009_slice11_admin_delete.sql`: `create or replace public.delete_purchase(uuid)` (payer, or active admin via `private.is_admin` only when `status = 'shared'`; pending/personal of others stay P0002; non-admin non-payer 42501; has_payments unchanged; grants authenticated only), new `private.tg_remind_message(debtor, creditor, amount)`, `create or replace public.remind(text, uuid, uuid)` (same body as 0005 plus a guarded `tg_send` after the reminder_log insert). Anon surface stays 4.
+- Manual vs cron: only `remind` (the manual RPC, behind `/api/remind`) posts; `run_daily_reminders` is unchanged and never calls Telegram. Cooldown raises `rate_limited` before the insert, so a blocked remind posts nothing. The send sits in `begin ... exception when others then null`; no chat id, pg_net or vault secret means `tg_send` is a no-op.
+- App: `src/lib/domain/canDelete.ts` (used by `deletePurchase` in AppDataProvider, the detail screen delete button, the swipe rows), mockRepo allows admin delete of shared, `src/components/app/swipe/` (`SwipeDeleteRow` motion drag x with dragDirectionLock and an opacity-faded «Удалить» capsule, `DeleteConfirmSheet` on the Sheet kit, `useSwipeDelete`), wired into Home «Последние покупки» and Покупки. Reduced motion: no drag, the detail-screen delete remains. Copy in ru.ts `purchases.swipe*`.
+- Tests: tests/db/slice11.test.ts (16, PGlite), canDelete unit tests, tests/e2e/slice11.spec.ts (2). vitest `hookTimeout` raised to 120 s.
+- Gaps: pg_net/vault path never runs in tests (recording stub only); the e2e swipe uses synthetic mouse moves and retries because a loaded machine drops frames; under load (load avg ~20) a different unrelated e2e test flaked on each full run (slice3, slice4, slice52, kit double tap), all green when rerun.

@@ -517,7 +517,8 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       await tx((db) => {
         const p = db.purchases.find((x) => x.id === purchaseId);
         if (!p || !isMember(db, p.household_id, id) || (p.status !== "shared" && p.payer_id !== id)) throw new RepoError("not_found", "Purchase not found");
-        if (p.payer_id !== id) throw new RepoError("forbidden", "Only the payer can delete");
+        const admin = p.status === "shared" && db.members.some((m) => m.household_id === p.household_id && m.user_id === id && m.active && m.role === "admin");
+        if (p.payer_id !== id && !admin) throw new RepoError("forbidden", "Only the payer or an admin can delete");
         const paid = db.shares.some((s) => s.purchase_id === p.id && s.settled_at !== null && s.debtor_id !== p.payer_id);
         const covered = db.settlements.some((s) => s.status !== "cancelled" && s.covered.some((c) => c.purchase_id === p.id));
         if (paid || covered) throw new RepoError("has_payments", "Something was already paid for this purchase");

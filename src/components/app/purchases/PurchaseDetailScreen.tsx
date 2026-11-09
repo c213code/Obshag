@@ -1,5 +1,6 @@
 "use client";
 
+import { canDelete } from "@/lib/domain/canDelete";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -191,7 +192,7 @@ export function PurchaseDetailScreen() {
       ) : null}
 
       <div className="flex-1" />
-      {isPayer && !editing ? (
+      {canDelete(purchase, me.id, members[purchase.household_id]) && !editing ? (
         <div className="flex justify-center">
           <AnimatePresence initial={false} mode="popLayout">
             {confirming ? (

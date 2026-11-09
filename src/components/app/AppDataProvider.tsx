@@ -1,5 +1,6 @@
 "use client";
 
+import { canDelete } from "@/lib/domain/canDelete";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRepo } from "@/components/RepoProvider";
 import { PurchaseTracker, type UiPurchase } from "@/lib/data/purchaseTracker";
@@ -370,7 +371,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     async (purchaseId: string): Promise<boolean> => {
       const me = meRef.current;
       const current = findPurchase(purchaseId);
-      if (!me || !current || current.payer_id !== me.id || purchaseId.startsWith("optimistic-")) return false;
+      if (!me || !current || !canDelete(current, me.id, snapRef.current.members[current.household_id]) || purchaseId.startsWith("optimistic-")) return false;
       tracker.remove(purchaseId);
       patchPurchases(current.household_id);
       try {

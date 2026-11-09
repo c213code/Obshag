@@ -399,6 +399,10 @@ export const ru = {
   },
   purchases: {
     title: "Покупки",
+    swipeDelete: "Удалить",
+    swipeAsk: (what: string, amount: string) => `Удалить «${what}» · ${amount}?`,
+    swipeAskHint: "Доли у всех исчезнут.",
+    swipeCancel: "Отмена",
     filters: "Фильтр покупок",
     all: "Все",
     mine: "Мои",

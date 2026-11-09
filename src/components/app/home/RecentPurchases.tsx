@@ -7,6 +7,7 @@ import { PillLink } from "@/components/ui/Pill";
 import { ease, useReducedMotionSafe } from "@/lib/motion";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { ru } from "@/lib/i18n/ru";
+import { useSwipeDelete } from "../swipe/useSwipeDelete";
 import { PurchaseCard } from "./PurchaseCard";
 
 const MAX_ROWS = 5;
@@ -21,6 +22,7 @@ export function RecentPurchases({
   payerNames: ReadonlyMap<string, string>;
 }) {
   const { reduced } = useReducedMotionSafe();
+  const { wrap, sheet } = useSwipeDelete();
   return (
     <section aria-labelledby="recent-title" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
@@ -55,18 +57,22 @@ export function RecentPurchases({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4, ease: ease.smooth }}
               >
-                {p.id.startsWith("optimistic-") ? (
-                  <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
-                ) : (
-                  <Link href={`/purchases/${p.id}`} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
+                {wrap(
+                  p,
+                  p.id.startsWith("optimistic-") ? (
                     <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
-                  </Link>
+                  ) : (
+                    <Link href={`/purchases/${p.id}`} draggable={false} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
+                      <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
+                    </Link>
+                  ),
                 )}
               </motion.li>
             ))}
           </AnimatePresence>
         </ul>
       )}
+      {sheet}
     </section>
   );
 }
