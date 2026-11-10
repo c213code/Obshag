@@ -528,7 +528,14 @@ export const ru = {
     copy: "Скопировать",
     copied: "скопирован",
     copyFailed: (phone: string) => `Не удалось скопировать — номер: ${phone}`,
-    paid: "Я оплатил",
+    /** «Ты перевёл?» — asked when the debtor comes back from Kaspi (and by the bot a couple of minutes later). */
+    askPaid: {
+      title: (name: string, amount: string) => `Ты перевёл ${decline(name, "dat")} ${amount}?`,
+      text: (name: string) => `Если да, отметим оплату — ${name} подтвердит, что деньги пришли.`,
+      yes: "Да, перевёл",
+      no: "Ещё нет",
+      done: "отмечено",
+    },
     transfer: (amount: string) => `Перевести ${amount}`,
     waiting: (name: string) => `Ждём подтверждения от ${decline(name, "gen")}`,
     waitingTitle: "Ждём подтверждения",

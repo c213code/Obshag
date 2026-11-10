@@ -116,6 +116,17 @@ const swapRequest = z.object({
   decided_at: iso.nullable(),
 });
 
+const paidPrompt = z.object({
+  id: uuid,
+  household_id: uuid,
+  from_user: uuid,
+  to_user: uuid,
+  amount: z.number().int().positive(),
+  opened_at: iso,
+  status: z.enum(["pending", "yes", "no", "expired"]),
+  asked_at: iso.nullable(),
+});
+
 export const mockDbSchema = z.object({
   users: z.array(z.object({ id: uuid, email: z.string().max(200), password: z.string().max(200) })).max(500),
   profiles: z.array(profile).max(500),
@@ -146,6 +157,7 @@ export const mockDbSchema = z.object({
   swapRequests: z.array(swapRequest).max(5000).optional(),
   dutyEvents: z.array(dutyEvent).max(5000).optional(),
   dutyMorningLog: z.array(z.object({ duty_id: uuid, day: z.string().max(10) })).max(5000).optional(),
+  paidPrompts: z.array(paidPrompt).max(5000).optional(),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

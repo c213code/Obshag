@@ -10,6 +10,7 @@ import { getPushSender } from "./captureDeps";
 import { readCronSecret } from "./cronAuth";
 import type { Repo } from "@/lib/data/repo";
 import type { DutyDeps } from "./dutyHandler";
+import type { PaidDeps } from "./paidHandler";
 import type { ReminderDeps } from "./reminderHandler";
 import { getTelegramApi } from "./telegram/env";
 
@@ -81,4 +82,13 @@ export async function getDutyNotifyDeps(request: Request, headers: Record<string
   if (!session) return null;
   const mock = getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock";
   return { ...session, push: getPushSender(), telegram: mock ? null : getTelegramApi() };
+}
+
+/** Dependencies of /api/settle/opened: the SIGNED-IN debtor (same session rules as getRemindDeps). In mock mode the bot is never called. */
+export async function getPaidDeps(request: Request, headers: Record<string, string>): Promise<PaidDeps | null> {
+  const session = await getSessionRepo(request, headers);
+  if (!session) return null;
+  const mock = getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock";
+  // mock mode (E2E): no 150 s timer holding the server; the notice then finds the prompt too young and sends nothing
+  return { ...session, push: getPushSender(), telegram: mock ? null : getTelegramApi(), ...(mock ? { wait: () => Promise.resolve() } : {}) };
 }

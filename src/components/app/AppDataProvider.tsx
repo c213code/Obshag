@@ -17,7 +17,7 @@ import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
 import { RepoError, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
-import type { Profile } from "@/lib/data/types";
+import type { PaidAnswer, Profile } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { removeDevicePush, syncPush } from "@/lib/pushClient";
@@ -53,6 +53,8 @@ export type AppActions = {
   setRemindersEnabled(householdId: string, enabled: boolean): Promise<boolean>;
   /** «Я оплатил»: optimistic `marked` settlement to `toUserId` for the current net. Resolves true when the server accepted it. */
   markPaid(householdId: string, toUserId: string): Promise<boolean>;
+  /** «Да, перевёл» / «Ещё нет» on the «Ты перевёл?» question. Resolves the result, or null when the call failed (a notice is shown). */
+  answerPaid(promptId: string, yes: boolean): Promise<PaidAnswer | null>;
   /** Creditor only: «Списать 75 ₸». Optimistic: the pair's open shares show as settled at once; rolled back with a notice on failure. */
   writeOff(householdId: string, debtorId: string): Promise<boolean>;
   /** «Получил»: optimistic confirm; the covered shares show as settled at once. Rolled back with a notice on failure. */
@@ -562,6 +564,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [repo, settlementTracker, patchSettlements, refresh, scheduleRefresh],
   );
 
+  const answerPaid = useCallback(
+    async (promptId: string, yes: boolean): Promise<PaidAnswer | null> => {
+      try {
+        const out = await repo.answerPaidPrompt(promptId, yes);
+        if (!alive.current) return out.result;
+        if (out.result === "marked") await refresh({ silent: true });
+        else if (out.result === "too_small" || out.result === "stale") {
+          setNotice(ru.settle.errors.nothingToPay);
+          void refresh({ silent: true });
+        }
+        return out.result;
+      } catch (e) {
+        if (alive.current) setNotice(e instanceof RepoError && e.code === "rate_limited" ? ru.settle.errors.rateLimited : ru.settle.errors.markFailed);
+        return null;
+      }
+    },
+    [repo, refresh],
+  );
+
   const writeOff = useCallback(
     async (householdId: string, debtorId: string): Promise<boolean> => {
       const me = meRef.current;
@@ -709,8 +730,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const stage = useMemo(

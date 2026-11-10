@@ -178,3 +178,46 @@ describe("webhook swap buttons", () => {
     expect(none.api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery"]);
   });
 });
+
+describe("webhook pp: buttons (slice 17)", () => {
+  const answers = (result: string, name = "Ерасыл") => {
+    const seen: unknown[][] = [];
+    return { seen, repo: { tgAnswerPaid: async (...a: unknown[]) => (seen.push(a), { result, to_name: name }) } as Partial<WebhookDeps["repo"]> };
+  };
+  const question = "Ты перевёл @erasyl 200 ₸ через Kaspi?";
+
+  it("«Да» calls tg_answer_paid with the tapper and the prompt, answers the callback and edits the text", async () => {
+    const a = answers("marked");
+    const { d, api } = deps(a.repo);
+    expect((await handleWebhook(WEBHOOK, tap(`pp:y:${ID}`, question), d)).status).toBe(200);
+    expect(a.seen).toEqual([[SERVER, 77, ID, true]]);
+    expect(api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery", "editMessageText"]);
+    expect(api.calls[1].args).toEqual([77, 9, `${question}\n✓ Отметил, ждём подтверждения от Ерасыла`]);
+  });
+  it("«Ещё нет» passes yes = false and says «Ок, напомню позже»", async () => {
+    const a = answers("no");
+    const { d, api } = deps(a.repo);
+    await handleWebhook(WEBHOOK, tap(`pp:n:${ID}`, question), d);
+    expect(a.seen).toEqual([[SERVER, 77, ID, false]]);
+    expect(api.calls[1].args[2]).toBe(`${question}\nОк, напомню позже`);
+  });
+  it("expired, too small and stale get their own line", async () => {
+    for (const [result, line] of [["expired", text.paidExpired], ["too_small", text.paidTooSmall], ["stale", text.paidStale], ["already", text.paidAlready]] as const) {
+      const { d, api } = deps(answers(result).repo);
+      await handleWebhook(WEBHOOK, tap(`pp:y:${ID}`, question), d);
+      expect(api.calls[1].args[2], result).toBe(`${question}\n${line}`);
+    }
+  });
+  it("somebody else's tap only answers the callback (no edit, nothing marked)", async () => {
+    const { d, api } = deps({ tgAnswerPaid: async () => { throw new RepoError("forbidden", "no"); } });
+    await handleWebhook(WEBHOOK, tap(`pp:y:${ID}`, question), d);
+    expect(api.calls).toEqual([{ method: "answerCallbackQuery", args: ["cb1", text.paidNotYours] }]);
+  });
+  it("a malformed pp: id never reaches the database", async () => {
+    const a = answers("marked");
+    const { d, api } = deps(a.repo);
+    await handleWebhook(WEBHOOK, tap("pp:y:not-a-uuid", question), d);
+    expect(a.seen).toEqual([]);
+    expect(api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery"]);
+  });
+});

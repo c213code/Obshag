@@ -14,6 +14,9 @@ import type {
   Household,
   Member,
   MonthlyRun,
+  PaidAnswerResult,
+  PaidPrompt,
+  PaidPromptNotice,
   NewDuty,
   Profile,
   Purchase,
@@ -249,6 +252,18 @@ export interface Repo {
   setWaterPrice(dutyId: Uuid, price: number): Promise<Duty>;
   /** SERVER ONLY (CRON_SECRET + session): who to push for the caller's own fresh ping / empty event. */
   dutyEventNotice(secret: string, eventId: Uuid): Promise<DutyEventNotice>;
+
+  // ---- «Ты перевёл?» (slice 17)
+  /** I opened Kaspi to pay `toUser`: records (or refreshes) my pending prompt. too_small below 100 ₸, invalid = I owe nothing. */
+  openPaidPrompt(householdId: Uuid, toUser: Uuid): Promise<PaidPrompt>;
+  /** My pending prompts of a household (older than 30 minutes are expired first), newest first. */
+  listPaidPrompts(householdId: Uuid): Promise<PaidPrompt[]>;
+  /** «Да, перевёл» marks the settlement (the creditor confirms as before); «Ещё нет» closes the prompt. */
+  answerPaidPrompt(promptId: Uuid, yes: boolean): Promise<PaidAnswerResult>;
+  /** SERVER ONLY (CRON_SECRET + session of the debtor): is the delayed question due? When it is, asked_at is set and who to ask comes back. */
+  paidPromptNotice(secret: string, promptId: Uuid): Promise<PaidPromptNotice>;
+  /** SERVER ONLY: a Telegram button on the question. forbidden = that Telegram user is not the debtor. */
+  tgAnswerPaid(secret: string, tgUserId: number, promptId: Uuid, yes: boolean): Promise<PaidAnswerResult>;
 }
 
 export type RepoErrorCode =

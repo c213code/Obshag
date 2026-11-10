@@ -41,6 +41,7 @@ const MIGRATIONS = [
   "0012_slice14_duty.sql",
   "0013_slice15_trash_water.sql",
   "0014_slice16_queue_fix_bill_icons.sql",
+  "0015_slice17_paid_prompt.sql",
 ];
 
 let db: PGlite;
@@ -297,7 +298,7 @@ describe("notice, morning, security", () => {
     await as(B);
     await expectCode(db.query(`select private.duty_current($1)`, [trash]), "42501");
   });
-  it("the anon surface is still exactly nine", async () => {
+  it("the anon surface is exactly ten (0015 adds tg_answer_paid)", async () => {
     await admin();
     const r = await db.query<{ n: string }>(
       `select p.proname n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
@@ -305,7 +306,7 @@ describe("notice, morning, security", () => {
          and p.proname not in ('uid')
        order by 1`,
     );
-    expect(r.rows).toHaveLength(9);
+    expect(r.rows).toHaveLength(10);
     expect(r.rows.map((x) => x.n)).not.toContain("duty_event_notice");
   });
   it("every new function is security definer with an empty search_path", async () => {

@@ -29,6 +29,7 @@ import {
 import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, PendingDigestUser, Profile, ReminderTarget, Settlement, SettlementShare, Share, TgResolveResult } from "./types";
 import { historyCutoff } from "./history";
 import { createSupabaseDuty } from "./supabaseDuty";
+import { createSupabasePaid } from "./supabasePaid";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 
@@ -609,5 +610,6 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
     },
 
     ...createSupabaseDuty(client, { ok, mapDbError }),
+    ...createSupabasePaid(client, { ok, mapDbError }),
   };
 }

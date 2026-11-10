@@ -171,7 +171,21 @@ function showDutyEvent(data) {
   });
 }
 
+function showPaidAsk(data) {
+  // ~2.5 min after the debtor opened Kaspi: «Перевёл Айдосу 200 ₸?»; tapping opens the pair screen with the question
+  const who = str(data.name, "соседу");
+  return self.registration.showNotification("Перевёл " + who + " " + tenge(data.amount) + "?", {
+    body: "Да или ещё нет — ответь в Общаке",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "paid-ask-" + str(data.toUserId, "x"),
+    renotify: true,
+    data: { url: typeof data.toUserId === "string" ? "/settle/" + encodeURIComponent(data.toUserId) + "?ask=1" : "/settle" },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "paid-ask") return showPaidAsk(data);
   if (data && data.type === "duty-event") return showDutyEvent(data);
   if (data && data.type === "duty-today") return showDutyToday(data);
   if (data && (data.type === "swap-request" || data.type === "swap-declined")) return showSwap(data);

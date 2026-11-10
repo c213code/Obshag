@@ -4,13 +4,14 @@ import { secretsMatch } from "../cronAuth";
 import type { TelegramApi } from "./api";
 import type { PushSender } from "../push";
 import { sendSwapNotice } from "../dutyHandler";
-import { parseCallbackData, parseStart, parseSwapCallback, updateSchema } from "./parse";
+import { decline } from "@/lib/i18n/declension";
+import { parseCallbackData, parsePaidCallback, parseStart, parseSwapCallback, updateSchema } from "./parse";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 export const SECRET_HEADER = "x-telegram-bot-api-secret-token";
 
 export type WebhookDeps = {
-  repo: Pick<Repo, "tgLinkAccount" | "tgResolvePending"> & Partial<Pick<Repo, "tgRespondSwap">>;
+  repo: Pick<Repo, "tgLinkAccount" | "tgResolvePending"> & Partial<Pick<Repo, "tgRespondSwap" | "tgAnswerPaid">>;
   /** Web Push, used to tell the requester that a swap was declined from Telegram. */
   push?: PushSender | null;
   /** null = the bot token is not configured: updates are processed, nothing is sent back. */
@@ -36,6 +37,13 @@ export const text = {
   swapExpired: "Время вышло — запрос сгорел",
   swapStale: "Расписание уже изменилось. Открой Общак",
   swapNotYours: "Этот запрос не тебе",
+  paidMarked: (creditor: string) => `✓ Отметил, ждём подтверждения от ${decline(creditor, "gen")}`,
+  paidNo: "Ок, напомню позже",
+  paidExpired: "Это уже неактуально. Открой Общак",
+  paidTooSmall: "Долг уже меньше 100 ₸ — Kaspi столько не переводит. Открой Общак",
+  paidStale: "Долг уже изменился. Открой Общак",
+  paidAlready: "Уже отвечено",
+  paidNotYours: "Это не твой вопрос",
 } as const;
 
 /** The secret check alone (the route runs it before reading the body). */
@@ -89,6 +97,11 @@ async function onMessage(chatId: number, tgUserId: number, body: string | undefi
 }
 
 async function onCallback(cb: NonNullable<ReturnType<typeof updateSchema.parse>["callback_query"]>, deps: WebhookDeps): Promise<void> {
+  const paid = parsePaidCallback(cb.data);
+  if (paid) {
+    await onPaidCallback(cb, paid, deps);
+    return;
+  }
   const swap = parseSwapCallback(cb.data);
   if (swap) {
     await onSwapCallback(cb, swap, deps);
@@ -143,5 +156,43 @@ async function onSwapCallback(
   }
   if (out.result === "declined" && out.notice) {
     await sendSwapNotice(out.notice, "declined", deps.push ?? null, null);
+  }
+}
+
+async function onPaidCallback(
+  cb: NonNullable<ReturnType<typeof updateSchema.parse>["callback_query"]>,
+  paid: NonNullable<ReturnType<typeof parsePaidCallback>>,
+  deps: WebhookDeps,
+): Promise<void> {
+  if (!deps.repo.tgAnswerPaid) {
+    await deps.api?.answerCallbackQuery(cb.id);
+    return;
+  }
+  let out: Awaited<ReturnType<NonNullable<WebhookDeps["repo"]["tgAnswerPaid"]>>>;
+  try {
+    out = await deps.repo.tgAnswerPaid(deps.serverSecret, cb.from.id, paid.promptId, paid.yes);
+  } catch (e) {
+    const notYours = e instanceof RepoError && e.code === "forbidden";
+    await deps.api?.answerCallbackQuery(cb.id, notYours ? text.paidNotYours : text.failed);
+    return;
+  }
+  await deps.api?.answerCallbackQuery(cb.id);
+  const msg = cb.message;
+  if (msg) {
+    const line =
+      out.result === "marked"
+        ? text.paidMarked(out.to_name)
+        : out.result === "no"
+          ? text.paidNo
+          : out.result === "expired"
+            ? text.paidExpired
+            : out.result === "too_small"
+              ? text.paidTooSmall
+              : out.result === "stale"
+                ? text.paidStale
+                : text.paidAlready;
+    // the question line stays, the buttons go
+    const head = msg.text?.split("\n")[0];
+    await deps.api?.editMessageText(msg.chat.id, msg.message_id, head ? `${head}\n${line}` : line);
   }
 }

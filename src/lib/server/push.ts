@@ -26,7 +26,10 @@ export type DutyEventPushPayload = { type: "duty-event"; kind: "ping" | "empty";
 
 export type DutyPushPayload = DutyTodayPushPayload | SwapPushPayload | DutyEventPushPayload;
 
-export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload | DutyPushPayload;
+/** «Перевёл Айдосу 200 ₸?» ~2.5 min after Kaspi was opened (no Telegram linked); tapping opens /settle/<toUserId>?ask=1. `name` is in the dative. */
+export type PaidAskPushPayload = { type: "paid-ask"; toUserId: string; name: string; amount: number };
+
+export type PushPayload = PaidAskPushPayload | PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload | DutyPushPayload;
 
 /** What the service worker receives. Title and body are composed there (it formats the amount itself). */
 export type PendingPushPayload = { type: "pending"; purchaseId: string; merchant: string | null; amount: number };

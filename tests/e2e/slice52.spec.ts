@@ -1,4 +1,5 @@
 import { expect, devices, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { payViaKaspi } from "./payFlow";
 
 /**
  * Slices 5 + 2: «Свои суммы», purchase detail (edit / delete), the Покупки tab and «Напомнить». Mock mode, production
@@ -233,14 +234,12 @@ test.describe("slices 5+2", () => {
       await logIn(page, ME);
       await buy(page, 800, "Чай и печенье", ["Айдос"]);
     });
-    // Айдос says «я оплатил» (a marked settlement covers every open share between them)
+    // Айдос opens Kaspi, comes back and says «Да, перевёл» (a marked settlement covers every open share between them)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
       await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
-      const saved = savedToStore(page);
-      await page.getByRole("button", { name: "Я оплатил" }).click();
-      await saved;
+      await payViaKaspi(page);
       await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
     });
     await withPhone(browser, baseURL, async ({ page }) => {

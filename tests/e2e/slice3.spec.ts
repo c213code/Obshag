@@ -1,4 +1,5 @@
 import { expect, devices, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { payViaKaspi } from "./payFlow";
 
 /**
  * Slice 3: netting and settlement, mock mode, production build. Several browser contexts share one mock database
@@ -120,13 +121,10 @@ function savedToStore(page: Page) {
   return page.waitForResponse((r) => r.url().includes("/api/mock-store") && r.request().method() === "PUT" && r.status() === 204);
 }
 
-/** Taps «Я оплатил» and waits for the save, so closing the phone right after cannot lose the mark. */
-async function markPaidSaved(page: Page, dbl = false) {
-  const button = page.getByRole("button", { name: "Я оплатил" });
-  const saved = savedToStore(page);
-  if (dbl) await button.dblclick();
-  else await button.click();
-  await saved;
+/** «Перевести» -> back from Kaspi -> «Да, перевёл», and waits for the save, so closing the phone right after cannot lose the mark. */
+async function markPaidSaved(page: Page) {
+  await waitHydrated(page);
+  await payViaKaspi(page, "yes");
 }
 
 /** Equal split of `amount` over the signed-in user and the named housemates (everyone else is switched off). */
@@ -267,26 +265,27 @@ test.describe("slice 3: netting and settlement", () => {
     });
   });
 
-  test("«Я оплатил» marks once, shows the wait, and the creditor sees «Подтверди оплату»", async ({ browser, baseURL }) => {
+  test("«Да, перевёл» marks once, shows the wait, and the creditor sees «Подтверди оплату»", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous test");
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
       await page.goto(`/settle/${adamId}`);
       await waitHydrated(page);
-      const paid = page.getByRole("button", { name: "Я оплатил" });
-      await expect(paid).toBeVisible();
-      // a double tap is idempotent: one settlement, and the button is already «Отменить»
-      await markPaidSaved(page, true);
+      // no «Я оплатил» any more: the way to pay is «Перевести …», and the question comes when the user is back
+      await expect(page.getByRole("button", { name: "Я оплатил" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
+      await markPaidSaved(page);
       await expect(page.getByTestId("waiting")).toContainText("Ждём подтверждения от Айдоса");
       await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Я оплатил" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
       await page.screenshot({ path: `${SHOTS}/s3-app-pay-4-waiting.png` });
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
       await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toBeVisible();
       const rows = page.getByTestId("incoming-row");
-      await expect(rows).toHaveCount(1); // the double tap made one settlement
+      await expect(rows).toHaveCount(1); // one settlement
       await expect(rows.first()).toContainText(`${BORIS.name} отметил оплату ${money(200)}`);
       // it sits above «Последние покупки»
       const above = await page.getByRole("heading", { name: "Подтверди оплату" }).boundingBox();
@@ -385,7 +384,7 @@ test.describe("slice 3: netting and settlement", () => {
     });
   });
 
-  test("cancel: a tap during the guard is ignored, afterwards «Отменить» withdraws the mark; a stranger's id goes back to the list", async ({
+  test("cancel: «Отменить» withdraws the mark and the debtor can pay again; a stranger's id goes back to the list", async ({
     browser,
     baseURL,
   }) => {
@@ -397,33 +396,21 @@ test.describe("slice 3: netting and settlement", () => {
       // the open «Соль» mark from the previous test is still marked: cancel it first, so this test starts clean
       await page.getByRole("button", { name: "Отменить" }).click();
       await expect(page.getByTestId("waiting")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Я оплатил" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
       // one-sided: no netting, one arrow, no caption
       await expect(page.getByTestId("equation")).toHaveText(`200−0=200${NBSP}₸`);
       await expect(page.getByTestId("scene-caption")).toHaveCount(0);
 
-      // hold the save: while it is pending the mark is only optimistic, so «Отменить» is aria-disabled and ignores taps
-      let open!: () => void;
-      const gate = new Promise<void>((resolve) => (open = resolve));
-      await page.route("**/api/mock-store", async (route) => {
-        if (route.request().method() === "PUT") await gate;
-        await route.continue();
-      });
-      await page.getByRole("button", { name: "Я оплатил" }).click();
+      // «Да, перевёл» marks again; «Отменить» withdraws the mark and Kaspi stays available
+      await markPaidSaved(page);
       await expect(page.getByTestId("waiting")).toBeVisible();
       const cancel = page.getByRole("button", { name: "Отменить" });
-      await expect(cancel).toHaveAttribute("aria-disabled", "true");
-      await cancel.click({ force: true });
-      await expect(page.getByTestId("waiting")).toBeVisible(); // ignored
-
-      // the save goes through; once the guard is over «Отменить» is live and withdraws the mark
-      open();
-      await expect(cancel).not.toHaveAttribute("aria-disabled", "true");
+      await expect(cancel).toBeVisible();
       const saved = savedToStore(page);
       await cancel.click();
       await saved;
       await expect(page.getByTestId("waiting")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Я оплатил" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);

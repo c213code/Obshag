@@ -280,3 +280,37 @@ export type DutyMorningItem = {
 };
 
 export type NewDuty = { household_id: Uuid; kind: DutyKind; title: string; start_date?: IsoDate | null; order?: Uuid[] | null };
+
+// ---- «Ты перевёл?» (slice 17)
+export type PaidPromptStatus = "pending" | "yes" | "no" | "expired";
+
+/** One «opened Kaspi» of the debtor. Visible to its from_user only. */
+export type PaidPrompt = {
+  id: Uuid;
+  household_id: Uuid;
+  from_user: Uuid;
+  to_user: Uuid;
+  amount: number;
+  opened_at: IsoDateTime;
+  status: PaidPromptStatus;
+  asked_at: IsoDateTime | null;
+};
+
+/** What the answer did: marked = a settlement now waits for the creditor; no = «Ещё нет». */
+export type PaidAnswer = "marked" | "no" | "already" | "expired" | "stale" | "too_small";
+export type PaidAnswerResult = { result: PaidAnswer; to_name: string };
+
+/** paid_prompt_notice: ask = false means nothing to send (answered, expired, already asked, or opened again meanwhile). */
+export type PaidPromptNotice =
+  | { ask: false }
+  | {
+      ask: true;
+      prompt_id: Uuid;
+      household_id: Uuid;
+      to_user: Uuid;
+      to_name: string;
+      to_username: string | null;
+      amount: number;
+      telegram_user_id: number | null;
+      subscriptions: PushSubscriptionInput[];
+    };

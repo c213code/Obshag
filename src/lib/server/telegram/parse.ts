@@ -38,6 +38,17 @@ export function parseSwapCallback(data: string | undefined): SwapCallback | null
   return { accept: kind === "a:", requestId: id.toLowerCase() };
 }
 
+export type PaidCallback = { yes: boolean; promptId: string };
+
+/** `pp:y:<uuid>` = «Да, перевёл», `pp:n:<uuid>` = «Ещё нет». Anything else is null. */
+export function parsePaidCallback(data: string | undefined): PaidCallback | null {
+  if (typeof data !== "string" || data.length !== 41 || !data.startsWith("pp:")) return null;
+  const kind = data.slice(3, 5);
+  const id = data.slice(5);
+  if ((kind !== "y:" && kind !== "n:") || !UUID.test(id)) return null;
+  return { yes: kind === "y:", promptId: id.toLowerCase() };
+}
+
 /** Only what the bot uses; everything else in an update is dropped. */
 export const updateSchema = z.object({
   message: z

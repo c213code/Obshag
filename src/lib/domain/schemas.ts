@@ -92,6 +92,9 @@ export const descriptionSchema = z.string().trim().min(1, "Description is requir
 /** The body of POST /api/remind. */
 export const remindBodySchema = z.object({ household_id: z.string().min(1).max(64), debtor_id: z.string().min(1).max(64) }).strict();
 
+/** The body of POST /api/settle/opened. */
+export const paidOpenedBodySchema = z.object({ household_id: z.string().min(1).max(64), to_user: z.string().min(1).max(64) }).strict();
+
 /** The body of POST /api/duty/notify. */
 export const dutyNotifyBodySchema = z
   .object({ request_id: z.string().min(1).max(64), event: z.enum(["requested", "declined"]) })

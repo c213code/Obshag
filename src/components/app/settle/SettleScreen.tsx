@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
 import { BottomActions } from "@/components/ui/BottomActions";
@@ -8,7 +8,10 @@ import { Bar } from "@/components/ui/Bar";
 import { Header } from "@/components/ui/Header";
 import { CheckIcon, ExternalIcon } from "@/components/ui/icons";
 import { Pill } from "@/components/ui/Pill";
+import { useRepo } from "@/components/RepoProvider";
 import { KASPI_TRANSFERS_URL } from "@/lib/clipboard";
+import { getPublicEnv } from "@/lib/env/public";
+import { postPaidOpened } from "@/lib/paidClient";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { isAccumulating } from "@/lib/domain/minTransfer";
 import { maskKaspiPhone } from "@/lib/domain/phoneFormat";
@@ -22,15 +25,15 @@ import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { EmptySettle } from "./EmptySettle";
 import { IncomingRow } from "./IncomingRow";
+import { PaidPromptSheet } from "./PaidPromptSheet";
 import { PairScene } from "./PairScene";
 import { useHeldIncoming } from "./useHeldIncoming";
 import { useKaspiCopy } from "./useKaspiCopy";
+import { usePaidPrompt } from "./usePaidPrompt";
 import { WriteOffButton } from "./WriteOffButton";
 import { useSettleData, type Incoming } from "./useSettleData";
 
 const MAX_ITEMS = 3;
-/** «Я оплатил» turns into «Отменить» under the same finger: a tap that close to the first one is the same gesture. */
-const CANCEL_GUARD_MS = 350;
 
 /** One column of Pay.dc.html: a colored label and the top shares behind that side, plus «и ещё N». */
 function Side({ label, tone, items, testId }: { label: string; tone: "orange" | "lime"; items: ReadonlyArray<NetItem>; testId: string }) {
@@ -56,28 +59,24 @@ export function SettleScreen() {
   const router = useRouter();
   const { userId } = useParams<{ userId: string }>();
   const { me } = useAppData();
-  const { markPaid, confirmReceived, cancelSettlement } = useAppActions();
+  const { answerPaid, confirmReceived, cancelSettlement } = useAppActions();
+  const repo = useRepo();
   const { reduced } = useReducedMotionSafe();
   const data = useSettleData();
 
   const liveIncoming = (data?.incoming ?? []).filter((r) => r.from.user_id === userId);
   const { rows: incomingRows, hold, release, snapshot: frozen } = useHeldIncoming<PairNet>(liveIncoming);
   const [busy, setBusy] = useState(false);
-  /** True for CANCEL_GUARD_MS after «Я оплатил»: «Отменить» is dimmed and aria-disabled meanwhile. */
-  const [guarded, setGuarded] = useState(false);
-  const guardUntil = useRef(0);
-  const guardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const other = data?.memberOf(userId);
   const phone = other?.profile.kaspi_phone ?? null;
   const kaspi = useKaspiCopy(userId, phone);
 
-  useEffect(
-    () => () => {
-      if (guardTimer.current) clearTimeout(guardTimer.current);
-    },
-    [],
-  );
+  // «Ты перевёл?»: asked when the user comes back from Kaspi (or from the push with ?ask=1), only while there is something to pay
+  const livePairNow = data && other ? data.pairWith(userId) : null;
+  const canAsk =
+    !!livePairNow && livePairNow.direction === "i_pay" && !isAccumulating(livePairNow.net) && !data?.outgoing.some((s) => s.to_id === userId);
+  const [askOnMount] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ask") === "1");
+  const { prompt, clear } = usePaidPrompt({ householdId: data?.householdId ?? null, userId, enabled: canAsk, askOnMount });
 
   // not a neighbour and no debt with them either: back to the list. A neighbour who LEFT but still has a debt stays here
   // (the list never sends the user back to such a person, so there is no loop).
@@ -121,24 +120,22 @@ export function SettleScreen() {
     // both calls happen synchronously inside the tap: popup blockers and iOS only allow window.open there
     void kaspi.copy();
     window.open(KASPI_TRANSFERS_URL, "_blank", "noopener,noreferrer");
+    if (!marked) void notifyOpened();
   };
 
-  const onPaid = async (e: MouseEvent) => {
-    if (busy) return;
-    setBusy(true);
-    guardUntil.current = e.timeStamp + CANCEL_GUARD_MS;
-    setGuarded(true);
-    if (guardTimer.current) clearTimeout(guardTimer.current);
-    guardTimer.current = setTimeout(() => setGuarded(false), CANCEL_GUARD_MS);
-    try {
-      await markPaid(data.householdId, userId);
-    } finally {
-      setBusy(false);
+  /** Tells the server the debtor went to pay: it asks «ты перевёл?» a couple of minutes later. Never blocks the tap. */
+  const notifyOpened = async () => {
+    const headers: Record<string, string> = {};
+    if (getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock") {
+      // mock mode has no cookie session on the server: the route trusts this header only behind the E2E store gate
+      const session = await repo.getSession().catch(() => null);
+      if (session) headers["x-mock-user"] = session.user_id;
     }
+    await postPaidOpened({ household_id: data.householdId, to_user: userId }, headers);
   };
 
-  const onCancel = async (e: MouseEvent) => {
-    if (busy || !marked || e.timeStamp < guardUntil.current) return;
+  const onCancel = async () => {
+    if (busy || !marked) return;
     setBusy(true);
     try {
       await cancelSettlement(marked.id);
@@ -252,30 +249,20 @@ export function SettleScreen() {
             <WriteOffButton householdId={data.householdId} debtorId={userId} name={name} amount={pair.net} size="pay" className="flex-1" testId="writeoff-pair" />
           ) : iPay ? (
             <>
-              <AnimatePresence initial={false} mode="popLayout">
-                <m.span
-                  key={marked ? "cancel" : "paid"}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2, ease: ease.smooth }}
-                >
-                  {marked ? (
-                    <Pill
-                      variant="ghost"
-                      size="pay"
-                      onClick={(e) => void onCancel(e)}
-                      aria-disabled={guarded || busy}
-                      className={guarded || busy ? "!opacity-40" : undefined}
-                    >
+              <AnimatePresence initial={false}>
+                {marked ? (
+                  <m.span
+                    key="cancel"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: ease.smooth }}
+                  >
+                    <Pill variant="ghost" size="pay" onClick={() => void onCancel()} aria-disabled={busy} className={busy ? "!opacity-40" : undefined}>
                       {ru.settle.cancel}
                     </Pill>
-                  ) : (
-                    <Pill variant="on" size="pay" onClick={(e) => void onPaid(e)} disabled={busy}>
-                      {ru.settle.paid}
-                    </Pill>
-                  )}
-                </m.span>
+                  </m.span>
+                ) : null}
               </AnimatePresence>
               <Pill variant="lime" size="pay" onClick={transfer} className="flex-1">
                 {ru.settle.transfer(formatTenge(pair.net))}
@@ -286,6 +273,15 @@ export function SettleScreen() {
             <RemindButton householdId={data.householdId} debtorId={userId} name={name} variant="on" size="pay" className="flex-1" testId="remind-pair" />
           )}
         </BottomActions>
+      ) : null}
+      {prompt ? (
+        <PaidPromptSheet
+          key={prompt.id}
+          name={name}
+          amount={prompt.amount}
+          onAnswer={(yes) => void answerPaid(prompt.id, yes)}
+          onClosed={clear}
+        />
       ) : null}
     </Screen>
   );

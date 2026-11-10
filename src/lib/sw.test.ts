@@ -114,6 +114,13 @@ describe("sw.js", () => {
     expect(sw.shown[1].options).toMatchObject({ data: { url: "/duty?kind=water" } });
   });
 
+  it("push: «Перевёл Айдосу 200 ₸?» opens the pair screen with the question", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "paid-ask", toUserId: "u2", name: "Айдосу", amount: 200 }));
+    expect(sw.shown[0].title).toBe("Перевёл Айдосу 200 ₸?");
+    expect(sw.shown[0].options).toMatchObject({ tag: "paid-ask-u2", data: { url: "/settle/u2?ask=1" } });
+  });
+
   it("push: a swap request and a decline open the request screen", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "swap-request", requestId: "r1", name: "Ерасыл", fromLabel: "пн 17", toLabel: "вт 18" }));

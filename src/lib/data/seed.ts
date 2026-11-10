@@ -1,4 +1,4 @@
-import type { Bill, Duty, DutyEvent, Household, Member, Profile, Purchase, Settlement, Share, SwapRequest } from "./types";
+import type { Bill, Duty, DutyEvent, Household, Member, Profile, PaidPrompt, Purchase, Settlement, Share, SwapRequest } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
@@ -43,6 +43,8 @@ export type MockDb = {
   dutyEvents?: DutyEvent[];
   /** private.duty_morning_log */
   dutyMorningLog?: Array<{ duty_id: string; day: string }>;
+  /** public.paid_prompts («Ты перевёл?») */
+  paidPrompts?: PaidPrompt[];
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();
