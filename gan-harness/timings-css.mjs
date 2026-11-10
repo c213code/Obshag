@@ -1,0 +1,26 @@
+// Lists the running CSS transitions/animations (property, duration, delay, easing) for the main motions. Usage: node gan-harness/timings-css.mjs <baseUrl>
+import { devices, webkit } from "@playwright/test";
+const browser = await webkit.launch();
+const ctx = await browser.newContext({ ...devices["iPhone 15"], baseURL: process.argv[2], serviceWorkers: "block" });
+const page = await ctx.newPage();
+const dump = (label) => page.evaluate((label) => ({ label, anims: document.getAnimations().map((a) => { const t = a.effect.getComputedTiming(); const e = a.effect; return { target: (e.target?.className?.toString() || e.target?.tagName).slice(0, 40), prop: a.transitionProperty ?? a.animationName, dur: t.duration, delay: t.delay, ease: e.getTiming().easing }; }) }), label);
+await page.goto("/login");
+await page.locator("html[data-hydrated='true']").waitFor({ state: "attached" });
+await page.getByLabel("Почта").fill("erasyl@obshak.test");
+await page.getByLabel("Пароль", { exact: true }).fill("password123");
+await page.getByRole("button", { name: "Войти", exact: true }).click();
+await page.getByText("Привет, Ерасыл").waitFor();
+await page.waitForTimeout(2500);
+await page.getByRole("button", { name: "Добавить", exact: true }).tap();
+console.log(JSON.stringify(await dump("fab open"), null, 1));
+await page.waitForTimeout(1200);
+await page.getByRole("button", { name: "Закрыть" }).tap();
+await page.waitForTimeout(1200);
+await page.getByRole("link", { name: "Покупки" }).tap();
+console.log(JSON.stringify(await dump("tab switch"), null, 1));
+await page.goto("/kit");
+await page.locator("html[data-hydrated='true']").waitFor({ state: "attached" });
+await page.getByRole("button", { name: "Оплатить Apple Pay" }).tap();
+await page.waitForTimeout(120);
+console.log(JSON.stringify(await dump("sheet open"), null, 1));
+await browser.close();

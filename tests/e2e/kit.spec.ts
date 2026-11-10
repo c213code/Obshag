@@ -218,7 +218,7 @@ test.describe("/kit gallery", () => {
 
     test("the Fab menu fades without scaling", async ({ page }) => {
       await openKit(page);
-      const menu = page.getByRole("menu");
+      const menu = page.getByRole("menu", { includeHidden: true });
       expect(await css(menu, "transform")).toBe("none");
       await page.getByRole("button", { name: "Добавить" }).tap();
       await expect.poll(() => css(menu, "opacity")).toBe("1");

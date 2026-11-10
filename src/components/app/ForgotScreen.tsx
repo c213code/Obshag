@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Pill } from "@/components/ui/Pill";
 import { TextField } from "@/components/ui/TextField";
 import { useRepo } from "@/components/RepoProvider";
@@ -72,7 +72,7 @@ export function ForgotScreen() {
         />
         <AnimatePresence>
           {sent ? (
-            <motion.p
+            <m.p
               role="status"
               data-testid="forgot-sent"
               className="rounded-lg border border-hairline bg-card p-4 text-body"
@@ -81,7 +81,7 @@ export function ForgotScreen() {
               transition={{ duration: 0.3, ease: ease.smooth }}
             >
               {ru.auth.forgot.sent}
-            </motion.p>
+            </m.p>
           ) : null}
         </AnimatePresence>
         <Link href="/login" className="self-start pl-[6px] text-caption !text-lime">

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { Avatar, type AvatarColor } from "@/components/ui/Avatar";
 import { cx } from "@/components/ui/cx";
 import { Money } from "@/components/ui/Money";
-import { ease, spring, useReducedMotionSafe } from "@/lib/motion";
+import { cssTransition, useReducedMotionSafe } from "@/lib/motion";
+import { usePresenceValue } from "@/lib/motion/presence";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import type { NetDirection } from "@/lib/domain/netting";
 import { ru } from "@/lib/i18n/ru";
@@ -90,8 +90,10 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
   const finished = stage === 3;
   /** The bigger side keeps its arrow; the smaller one is dissolved into it. */
   const orangeWins = direction === "i_pay";
-  const smooth = { duration: 0.5, ease: ease.smooth };
-  const fade = { duration: 0.4, ease: ease.smooth };
+  const arrowTransition = cssTransition({ transform: 0.5, opacity: 0.4 });
+  const waiting = usePresenceValue(waitingLabel, 400);
+  const showCaption = bothSides && !waitingLabel;
+  const caption = usePresenceValue(showCaption ? true : null, 400);
   /** An arrow that lost the merge: fully hidden in the final state, also when nothing was animated (reduced motion). */
   const orangeGone = !orangeWins && bothSides && merged;
   const limeGone = orangeWins && bothSides && merged;
@@ -105,14 +107,11 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
   const eqSmallTone = orangeWins ? "text-lime" : "text-orange";
 
   return (
-    <motion.section
+    <section
       data-testid="pair-scene"
       data-stage={stage}
       aria-label={ru.settle.scene(meName, otherName, formatTenge(iOwe), formatTenge(theyOwe))}
-      className="flex flex-col gap-4 rounded-lg border border-hairline bg-card px-4 py-5"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={fade}
+      className="enter flex flex-col gap-4 rounded-lg border border-hairline bg-card px-4 py-5"
     >
       <div className="grid grid-cols-[60px_1fr_60px] items-center">
         <div className="flex flex-col items-center gap-1">
@@ -120,12 +119,10 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
           <span className="text-label">{ru.settle.you}</span>
         </div>
         <div className="flex flex-col gap-2 px-[6px]">
-          <motion.div
+          <div
             data-testid="arrow-owe"
             className="flex flex-col items-center gap-[2px]"
-            initial={false}
-            animate={{ y: orangeY, opacity: orangeGone ? 0 : dim(iOwe) }}
-            transition={{ y: smooth, opacity: fade }}
+            style={{ transform: `translateY(${orangeY}px)`, opacity: orangeGone ? 0 : dim(iOwe), transition: arrowTransition }}
           >
             <Money
               value={orangeWins && merged ? net : iOwe}
@@ -134,13 +131,11 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
               className="text-amount !text-[17px] text-orange"
             />
             <ArrowRight />
-          </motion.div>
-          <motion.div
+          </div>
+          <div
             data-testid="arrow-owed"
             className="flex flex-col items-center gap-[2px]"
-            initial={false}
-            animate={{ y: limeY, opacity: limeGone ? 0 : dim(theyOwe) }}
-            transition={{ y: smooth, opacity: fade }}
+            style={{ transform: `translateY(${limeY}px)`, opacity: limeGone ? 0 : dim(theyOwe), transition: arrowTransition }}
           >
             <ArrowLeft />
             <Money
@@ -149,7 +144,7 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
               data-testid="arrow-owed-amount"
               className="text-amount !text-[17px] text-lime"
             />
-          </motion.div>
+          </div>
         </div>
         <div className="flex flex-col items-center gap-1">
           <Avatar name={otherName} color={otherColor} size={52} decorative />
@@ -165,50 +160,41 @@ export function PairScene({ meName, otherName, meColor, otherColor, iOwe, theyOw
         <span className="text-amount text-muted">−</span>
         <span className={cx("text-amount", eqSmallTone)}>{formatNumber(eqSmall)}</span>
         <span className="text-amount text-muted">=</span>
-        <motion.span
+        <span
           data-testid="equation-result"
           className={cx(
             "inline-block text-[34px] font-bold leading-[1.05] tracking-[-0.02em] font-rounded tabular-nums transition-colors duration-[600ms] ease-smooth",
             flash ? "text-lime" : "text-text",
+            finished && animate && "pop",
           )}
-          initial={false}
-          animate={{ scale: finished && animate ? [1.08, 1] : 1 }}
-          transition={finished && animate ? spring.soft : { duration: 0 }}
         >
           {formatTenge(net)}
-        </motion.span>
+        </span>
       </div>
       <div className="relative min-h-[17px]">
-        <AnimatePresence initial={false} mode="popLayout">
-          {waitingLabel ? (
-            <motion.p
-              key="waiting"
-              data-testid="waiting"
-              role="status"
-              className="flex items-center justify-center gap-2 text-[13px]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={fade}
-            >
-              <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-orange" />
-              {waitingLabel}
-            </motion.p>
-          ) : bothSides ? (
-            <motion.p
-              key="caption"
-              data-testid="scene-caption"
-              className="text-center text-caption"
-              initial={false}
-              animate={{ opacity: finished ? 1 : 0 }}
-              exit={{ opacity: 0 }}
-              transition={fade}
-            >
-              {ru.settle.oneTransfer}
-            </motion.p>
-          ) : null}
-        </AnimatePresence>
+        {waiting.shown ? (
+          <p
+            data-testid="waiting"
+            role="status"
+            className={cx(
+              "flex items-center justify-center gap-2 text-[13px]",
+              waiting.exiting ? "leave absolute inset-x-0 top-0" : "enter",
+            )}
+          >
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-orange" />
+            {waiting.shown}
+          </p>
+        ) : null}
+        {caption.shown ? (
+          <p
+            data-testid="scene-caption"
+            className={cx("text-center text-caption", caption.exiting && "leave absolute inset-x-0 top-0")}
+            style={{ opacity: finished ? 1 : 0, transition: cssTransition({ opacity: 0.4 }) }}
+          >
+            {ru.settle.oneTransfer}
+          </p>
+        ) : null}
       </div>
-    </motion.section>
+    </section>
   );
 }

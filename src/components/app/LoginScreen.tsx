@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import { Pill } from "@/components/ui/Pill";
 import { Segmented } from "@/components/ui/Segmented";
@@ -143,7 +143,7 @@ function LoginForm() {
         )}
         <AnimatePresence initial={false}>
           {signup ? (
-            <motion.div
+            <m.div
               key="repeat"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -166,7 +166,7 @@ function LoginForm() {
                   clear("repeat");
                 }}
               />
-            </motion.div>
+            </m.div>
           ) : null}
         </AnimatePresence>
       </AuthFrame>

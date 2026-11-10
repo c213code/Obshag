@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { useMemo } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { formatTenge } from "@/lib/format/money";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
+import { cx } from "@/components/ui/cx";
+import { usePresenceList } from "@/lib/motion/presence";
 import { ru } from "@/lib/i18n/ru";
 import { avatarColorFor } from "../avatars";
 import { useSettleData } from "../settle/useSettleData";
@@ -17,13 +18,18 @@ import { useSettleData } from "../settle/useSettleData";
  */
 export function WaitingSection() {
   const data = useSettleData();
-  const { reduced } = useReducedMotionSafe();
-  if (!data) return null;
-  const rows = data.outgoing.flatMap((s) => {
-    const to = data.memberOf(s.to_id);
-    return to ? [{ settlement: s, to }] : [];
-  });
-  if (rows.length === 0) return null;
+  const outgoing = data?.outgoing;
+  const memberOf = data?.memberOf;
+  const rows = useMemo(
+    () =>
+      (outgoing ?? []).flatMap((s) => {
+        const to = memberOf?.(s.to_id);
+        return to ? [{ settlement: s, to }] : [];
+      }),
+    [outgoing, memberOf],
+  );
+  const entries = usePresenceList(rows, (r) => r.settlement.id, 400);
+  if (!data || entries.length === 0) return null;
 
   return (
     <section aria-labelledby="waiting-title" data-testid="waiting-section" className="flex flex-col gap-3">
@@ -31,15 +37,8 @@ export function WaitingSection() {
         {ru.settle.waitingTitle}
       </h2>
       <ul className="flex flex-col gap-3">
-        <AnimatePresence initial={false}>
-          {rows.map(({ settlement, to }) => (
-            <motion.li
-              key={settlement.id}
-              initial={reduced ? { opacity: 0 } : { opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: ease.smooth }}
-            >
+        {entries.map(({ key, item: { settlement, to }, exiting, fresh }) => (
+          <li key={key} className={cx("[--enter-y:-12px]", exiting ? "leave" : fresh && "enter")}>
               <Link
                 href={`/settle/${to.user_id}`}
                 prefetch={false}
@@ -53,9 +52,8 @@ export function WaitingSection() {
                 </div>
                 <ChevronRightIcon size={20} className="mr-2 shrink-0 text-muted" />
               </Link>
-            </motion.li>
-          ))}
-        </AnimatePresence>
+          </li>
+        ))}
       </ul>
     </section>
   );

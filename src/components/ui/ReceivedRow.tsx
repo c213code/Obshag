@@ -1,7 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
+import { css, cssTransition, useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { Avatar, type AvatarColor } from "./Avatar";
 import { CheckIcon } from "./icons";
@@ -36,7 +35,6 @@ export function ReceivedRow({
   const { reduced } = useReducedMotionSafe();
   const complete = received && paid >= total;
   const fill = complete ? 1 : paid / total;
-  const smooth = { duration: 0.5, ease: ease.smooth };
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-[10px]">
@@ -47,11 +45,9 @@ export function ReceivedRow({
           aria-valuenow={paid}
           className="h-[6px] flex-1 overflow-hidden rounded-[3px] bg-card-2"
         >
-          <motion.div
+          <div
             className="h-full origin-left bg-lime"
-            initial={false}
-            animate={{ scaleX: fill }}
-            transition={reduced ? { duration: 0.2, ease: "linear" } : smooth}
+            style={{ transform: `scaleX(${fill})`, transition: reduced ? "transform 0.2s linear" : cssTransition({ transform: 0.5 }) }}
           />
         </div>
         <span
@@ -69,40 +65,43 @@ export function ReceivedRow({
             {received ? receivedLabel : pendingLabel}
           </span>
         </div>
-        <motion.button
+        <button
           type="button"
           disabled={received}
           onClick={onReceive}
-          initial={false}
-          animate={received ? { scale: reduced ? 1 : 0.5, opacity: 0 } : { scale: 1, opacity: 1 }}
-          transition={reduced ? { duration: 0.2, ease: "linear" } : smooth}
+          style={{
+            transform: `scale(${received && !reduced ? 0.5 : 1})`,
+            opacity: received ? 0 : 1,
+            transition: reduced ? "transform 0.2s linear, opacity 0.2s linear" : cssTransition({ transform: 0.5, opacity: 0.5 }),
+          }}
           className="min-w-[84px] rounded-pill bg-lime px-[14px] py-[10px] text-[13px] font-semibold text-on-lime"
           aria-hidden={received}
           tabIndex={received ? -1 : 0}
         >
           {/* the label is gone before the button has shrunk much: no clipped «Получ…» under the ✓ circle */}
-          <motion.span
+          <span
             className="inline-block"
-            initial={false}
-            animate={{ opacity: received ? 0 : 1 }}
-            transition={reduced ? { duration: 0.1, ease: "linear" } : { duration: 0.14, ease: ease.smooth }}
+            style={{
+              opacity: received ? 0 : 1,
+              transition: reduced ? "opacity 0.1s linear" : cssTransition({ opacity: 0.14 }),
+            }}
           >
             {buttonLabel}
-          </motion.span>
-        </motion.button>
-        <motion.span
+          </span>
+        </button>
+        <span
           aria-hidden="true"
           className="absolute right-[6px] inline-flex size-10 items-center justify-center rounded-full bg-lime text-on-lime"
-          initial={false}
-          animate={received ? { scale: 1, opacity: 1 } : { scale: reduced ? 1 : 0.4, opacity: 0 }}
-          transition={
-            reduced
-              ? { duration: 0.2, ease: "linear" }
-              : { scale: { duration: 0.55, ease: ease.softSpring, delay: received ? 0.12 : 0 }, opacity: { duration: 0.35, ease: ease.smooth, delay: received ? 0.12 : 0 } }
-          }
+          style={{
+            transform: `scale(${received || reduced ? 1 : 0.4})`,
+            opacity: received ? 1 : 0,
+            transition: reduced
+              ? "transform 0.2s linear, opacity 0.2s linear"
+              : `transform 0.55s ${css.softSpring} ${received ? 0.12 : 0}s, opacity 0.35s ${css.smooth} ${received ? 0.12 : 0}s`,
+          }}
         >
           <CheckIcon size={20} />
-        </motion.span>
+        </span>
       </div>
     </div>
   );

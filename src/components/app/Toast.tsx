@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { CloseIcon } from "@/components/ui/icons";
 import { Bar } from "@/components/ui/Bar";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
+import { cx } from "@/components/ui/cx";
+import { usePresenceValue } from "@/lib/motion/presence";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useNotice } from "./AppDataProvider";
 
@@ -14,7 +14,7 @@ const VISIBLE_MS = 6000;
 export function Toast() {
   const notice = useNotice();
   const { dismissNotice } = useAppActions();
-  const { reduced } = useReducedMotionSafe();
+  const { shown, exiting } = usePresenceValue(notice, 350);
 
   useEffect(() => {
     if (!notice) return;
@@ -24,19 +24,15 @@ export function Toast() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[120px] z-50 flex justify-center px-5">
-      <AnimatePresence>
-        {notice ? (
-          <motion.div
-            key={notice}
-            role="alert"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
-            transition={{ duration: 0.35, ease: ease.smooth }}
-            className="pointer-events-auto w-full max-w-[350px]"
-          >
+      {shown ? (
+        // keyed by the text: a new notice replaces the old one with a fresh enter
+        <div
+          key={shown}
+          role="alert"
+          className={cx("pointer-events-auto w-full max-w-[350px] [--enter-d:0.35s] [--enter-y:16px] [--leave-d:0.35s] [--leave-y:8px]", exiting ? "leave" : "enter")}
+        >
             <Bar className="gap-3 !bg-card pl-5">
-              <p className="min-w-0 flex-1 py-2 text-body">{notice}</p>
+              <p className="min-w-0 flex-1 py-2 text-body">{shown}</p>
               <button
                 type="button"
                 aria-label={ru.toast.close}
@@ -46,9 +42,8 @@ export function Toast() {
                 <CloseIcon size={18} />
               </button>
             </Bar>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+        </div>
+      ) : null}
     </div>
   );
 }

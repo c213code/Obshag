@@ -1,8 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ease } from "@/lib/motion";
+import { cx } from "@/components/ui/cx";
+import { usePresenceValue } from "@/lib/motion/presence";
 import { ru } from "@/lib/i18n/ru";
 
 function subscribe(onChange: () => void) {
@@ -25,23 +25,21 @@ export function useOnline(): boolean {
 /** «Офлайн» pill under the header while the device has no connection. Writes keep their rollback and toasts. */
 export function OfflineBanner() {
   const online = useOnline();
+  const { shown, exiting } = usePresenceValue(online ? null : true, 250);
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),12px)] z-30 flex justify-center">
-      <AnimatePresence>
-        {online ? null : (
-          <motion.div
-            role="status"
-            data-testid="offline-banner"
-            className="mt-[52px] rounded-pill border border-wait-line bg-orange-soft px-3 py-1 text-label !text-orange"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: ease.smooth }}
-          >
-            {ru.offline.banner}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {shown ? (
+        <div
+          role="status"
+          data-testid="offline-banner"
+          className={cx(
+            "mt-[52px] rounded-pill border border-wait-line bg-orange-soft px-3 py-1 text-label !text-orange [--enter-d:0.25s] [--enter-y:-8px] [--leave-d:0.25s]",
+            exiting ? "leave" : "enter",
+          )}
+        >
+          {ru.offline.banner}
+        </div>
+      ) : null}
     </div>
   );
 }

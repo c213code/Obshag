@@ -1,11 +1,10 @@
 "use client";
 
-import { useId } from "react";
-import { LayoutGroup, motion } from "motion/react";
-import { spring, useReducedMotionSafe } from "@/lib/motion";
+import { useReducedMotionSafe } from "@/lib/motion";
 import { Bar } from "./Bar";
 import { cx } from "./cx";
 import { pillClass } from "./Pill";
+import { useSlidePill } from "./useSlidePill";
 
 export type SegmentedOption<T extends string> = {
   value: T;
@@ -29,10 +28,10 @@ export function Segmented<T extends string>({
   /** Accessible group name, e.g. "Способ деления". */
   label: string;
 }) {
-  const group = useId();
-  const { reduced, t } = useReducedMotionSafe();
+  const { reduced } = useReducedMotionSafe();
+  const pillRef = useSlidePill(value, reduced);
   return (
-    <LayoutGroup id={group}>
+    <>
       <Bar role="group" aria-label={label} className="w-full">
         {options.map((o) => {
           const active = o.value === value;
@@ -50,11 +49,10 @@ export function Segmented<T extends string>({
               )}
             >
               {active ? (
-                <motion.span
-                  layoutId="segmented-active"
+                <span
+                  ref={pillRef(o.value)}
                   aria-hidden="true"
-                  className={cx("absolute inset-0 rounded-pill", activeVariant === "lime" ? "bg-lime" : "bg-card-2")}
-                  transition={reduced ? t() : spring.snap}
+                  className={cx("absolute inset-0 origin-left rounded-pill", activeVariant === "lime" ? "bg-lime" : "bg-card-2")}
                 />
               ) : null}
               <span className="relative">{o.label}</span>
@@ -63,6 +61,6 @@ export function Segmented<T extends string>({
           );
         })}
       </Bar>
-    </LayoutGroup>
+    </>
   );
 }

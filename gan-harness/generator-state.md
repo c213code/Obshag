@@ -369,3 +369,25 @@ Nothing committed. No servers running. No SQL, `.env.local` untouched. Visual de
 - Cached snapshot can show data up to one session old for a moment before the real load replaces it.
 - `.is("shares.settled_at", null)` on an embedded `shares!inner` and `.or(marked_at.gte...,status.eq.marked)` are PostgREST filters verified only against the fake client, not a live project.
 - A prefetch header can be forged, but it only returns the data-less page shell (data stays behind RLS).
+
+# CSS motion (spec-css-motion.md, one pass)
+
+Nothing committed. Servers stopped. No SQL, `.env.local` untouched.
+
+## Mechanisms
+- Curves: `src/lib/motion/index.ts` `css.{smooth,softSpring,snap}` (+ `cssTransition`, `SNAP_MS`, own `useReducedMotion` on matchMedia). Mapping: spring.snap -> `cubic-bezier(.25,.25,.2,1)` 270 ms (least-squares fit of the spring step response); softSpring = the reference `--s` curve; spring.soft pop [1.08,1] -> `.pop` keyframe 450 ms softSpring.
+- TabBar / Segmented pill: `ui/useSlidePill.ts`, FLIP with WAAPI (`translateX` + `scaleX` from the previous pill box to identity, measured once per change, `origin-left`); each active tab still renders its own pill (SSR-exact at rest). Reduced: 150 ms opacity.
+- Fab / Fab menu: `.fab`, `.fab-menu` in globals.css, toggled by `data-hidden` / `data-open`; menu `visibility:hidden` after the 0.55 s close transition (kit test now queries it with `includeHidden`).
+- CardStack: inline `transform`/`opacity` + CSS transition (.6 s, slide .22 s); face overlays CSS opacity. 650 ms deferred switch unchanged.
+- Sheet: card laid out at final size; `.sheet-face` scales from pill size (`--sx/--sy`, `--ex/--ey`, `--h` written in a layout effect), origin top center; a real `.sheet-pill` crossfades (no radius distortion); backdrop `enter`/`leave` CSS; content mounted from the pill phase (opacity 0), so a backdrop tap is also accepted in the pill phase. Phases, timers, ✓ «Поделено», no-island path, focus handling and test ids unchanged.
+- Lists / Toast / OfflineBanner / InstallPrompt / WaitingSection: `.enter` / `.leave` keyframes (`--enter-y`, `--enter-d`...), exits via `src/lib/motion/presence.ts` (`usePresenceValue`, `usePresenceList`, tested).
+- Netting, ReceivedRow, PairScene: inline transform/opacity + CSS transitions, `.pop`; PairScene waiting/caption swap via presence.
+- motion/react remains in: Money (number roll, `animate`), SwipeDeleteRow (drag), and cross-fades on Login, Forgot, PurchaseDetail, RemindButton, SettleScreen (rare, `m` + `AnimatePresence`). Providers uses `LazyMotion` with an async `domMax` bundle (only when online; offline leaves them static).
+
+## Results
+- `npm run verify` green; touched e2e (kit, slice1, 3, 4, 11, 52, 67, 8) green (see final report for the full run).
+- Screenshots `gan-harness/screenshots/css-{before,after}-*.png`, side by side `css-cmp-*.png` (scripts `shoot-css.mjs`, `compare-css.mjs`, `combine-css.mjs`); end states match (Покупки 0 px differ; Главная only AA at the avatar edge). Mid frames are timing-noisy; use `gan-harness/timings-css.mjs` for computed durations/easings: Fab .4/.5 s, menu .35/.55 s soft, sheet .55 s soft + content .25 s after .22 s.
+
+## Known
+- Sheet corners during the first ~100 ms are a crossfade pill -> card (squashed corners hidden under the pill).
+- Interrupting a tab-pill slide jumps from the last resting box (motion's layout handled interruptions smoothly).

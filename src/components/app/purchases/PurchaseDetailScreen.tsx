@@ -3,7 +3,7 @@
 import { canDelete } from "@/lib/domain/canDelete";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Header } from "@/components/ui/Header";
 import { EditIcon } from "@/components/ui/icons";
 import { Money } from "@/components/ui/Money";
@@ -196,7 +196,7 @@ export function PurchaseDetailScreen() {
         <div className="flex justify-center">
           <AnimatePresence initial={false} mode="popLayout">
             {confirming ? (
-              <motion.div
+              <m.div
                 key="ask"
                 role="alertdialog"
                 aria-label={ru.detail.deleteAsk}
@@ -213,9 +213,9 @@ export function PurchaseDetailScreen() {
                 <Pill variant="on" size="row" onClick={() => setConfirming(false)}>
                   {ru.detail.deleteCancel}
                 </Pill>
-              </motion.div>
+              </m.div>
             ) : (
-              <motion.button
+              <m.button
                 key="ask-trigger"
                 type="button"
                 onClick={() => setConfirming(true)}
@@ -226,7 +226,7 @@ export function PurchaseDetailScreen() {
                 transition={fade}
               >
                 {ru.detail.delete}
-              </motion.button>
+              </m.button>
             )}
           </AnimatePresence>
         </div>

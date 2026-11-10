@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { BottomActions } from "@/components/ui/BottomActions";
 import { Bar } from "@/components/ui/Bar";
 import { Header } from "@/components/ui/Header";
@@ -188,7 +188,7 @@ export function SettleScreen() {
 
           <AnimatePresence initial={false}>
             {incomingRows.map((r) => (
-              <motion.div
+              <m.div
                 key={r.settlement.id}
                 initial={reduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -196,7 +196,7 @@ export function SettleScreen() {
                 transition={fade}
               >
                 <IncomingRow row={r} meId={data.meId} received={r.received} onReceive={onReceive} />
-              </motion.div>
+              </m.div>
             ))}
           </AnimatePresence>
 
@@ -213,7 +213,7 @@ export function SettleScreen() {
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-[6px] rounded-pill bg-card-2 px-[14px] text-[13px] font-semibold text-lime transition-transform duration-200 ease-smooth active:scale-[0.97]"
               >
                 <AnimatePresence initial={false} mode="popLayout">
-                  <motion.span
+                  <m.span
                     key={kaspi.copied ? "copied" : "copy"}
                     className="inline-flex items-center gap-[6px]"
                     initial={{ opacity: 0 }}
@@ -223,7 +223,7 @@ export function SettleScreen() {
                   >
                     {kaspi.copied ? <CheckIcon size={14} strokeWidth={3} /> : null}
                     {kaspi.copied ? ru.settle.copied : ru.settle.copy}
-                  </motion.span>
+                  </m.span>
                 </AnimatePresence>
               </button>
             ) : null}
@@ -241,7 +241,7 @@ export function SettleScreen() {
           {iPay ? (
             <>
               <AnimatePresence initial={false} mode="popLayout">
-                <motion.span
+                <m.span
                   key={marked ? "cancel" : "paid"}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -263,7 +263,7 @@ export function SettleScreen() {
                       {ru.settle.paid}
                     </Pill>
                   )}
-                </motion.span>
+                </m.span>
               </AnimatePresence>
               <Pill variant="lime" size="pay" onClick={transfer} className="flex-1">
                 {ru.settle.transfer(formatTenge(pair.net))}

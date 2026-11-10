@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { CheckIcon } from "@/components/ui/icons";
 import { Pill, type PillSize, type PillVariant } from "@/components/ui/Pill";
 import { ease } from "@/lib/motion";
@@ -54,7 +54,7 @@ export function RemindButton({
       onClick={() => void press()}
     >
       <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
+        <m.span
           key={entry.kind}
           className={entry.kind === "cooldown" ? "inline-flex items-center gap-[6px] text-muted" : "inline-flex items-center gap-[6px]"}
           initial={{ opacity: 0 }}
@@ -65,7 +65,7 @@ export function RemindButton({
         >
           {entry.kind === "sent" ? <CheckIcon size={14} strokeWidth={3} /> : null}
           {text}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </Pill>
   );

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { memo } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { memo, useMemo } from "react";
 import { BasketIcon } from "@/components/ui/icons";
 import { pillClass } from "@/components/ui/Pill";
 import { formatTenge } from "@/lib/format/money";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
+import { cx } from "@/components/ui/cx";
+import { usePresenceList } from "@/lib/motion/presence";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { ru } from "@/lib/i18n/ru";
 
@@ -42,28 +42,20 @@ const Row = memo(function Row({ purchase }: { purchase: UiPurchase }) {
  * (same row language as «Ждём подтверждения»). Renders nothing when there are none.
  */
 export function PendingSection({ purchases }: { purchases: ReadonlyArray<UiPurchase> }) {
-  const { reduced } = useReducedMotionSafe();
-  const rows = purchases.filter((p) => p.status === "pending");
-  if (rows.length === 0) return null;
+  const rows = useMemo(() => purchases.filter((p) => p.status === "pending"), [purchases]);
+  const entries = usePresenceList(rows, (p) => p.clientKey, 400);
+  if (entries.length === 0) return null;
   return (
     <section aria-labelledby="pending-title" data-testid="pending-section" className="flex flex-col gap-3">
       <h2 id="pending-title" className="text-headline">
         {ru.pending.title}
       </h2>
       <ul className="flex flex-col gap-3">
-        <AnimatePresence initial={false}>
-          {rows.map((p) => (
-            <motion.li
-              key={p.clientKey}
-              initial={reduced ? { opacity: 0 } : { opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: ease.smooth }}
-            >
-              <Row purchase={p} />
-            </motion.li>
-          ))}
-        </AnimatePresence>
+        {entries.map(({ key, item: p, exiting, fresh }) => (
+          <li key={key} className={cx("[--enter-y:-12px]", exiting ? "leave" : fresh && "enter")}>
+            <Row purchase={p} />
+          </li>
+        ))}
       </ul>
     </section>
   );

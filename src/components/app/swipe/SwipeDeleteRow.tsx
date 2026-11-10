@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useRef, useState, type ReactNode } from "react";
-import { animate, motion, useMotionValue, useTransform } from "motion/react";
+import { animate, m, useMotionValue, useTransform } from "motion/react";
 import { spring } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 
@@ -32,7 +32,7 @@ export const SwipeDeleteRow = memo(function SwipeDeleteRow({ enabled, onRequest,
   return (
     <div className="relative" data-swipeable="true">
       {revealed ? (
-        <motion.button
+        <m.button
           type="button"
           data-testid="swipe-delete"
           aria-label={ru.purchases.swipeDelete}
@@ -45,9 +45,9 @@ export const SwipeDeleteRow = memo(function SwipeDeleteRow({ enabled, onRequest,
           className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center rounded-pill bg-danger text-headline !text-bg"
         >
           {ru.purchases.swipeDelete}
-        </motion.button>
+        </m.button>
       ) : null}
-      <motion.div
+      <m.div
         style={{ x }}
         drag="x"
         dragDirectionLock
@@ -76,7 +76,7 @@ export const SwipeDeleteRow = memo(function SwipeDeleteRow({ enabled, onRequest,
         className="relative"
       >
         {children}
-      </motion.div>
+      </m.div>
     </div>
   );
 });

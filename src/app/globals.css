@@ -89,3 +89,197 @@ a,
   content-visibility: auto;
   contain-intrinsic-size: auto 72px;
 }
+
+/*
+ * Compositor motion (CSS keyframes / transitions on transform + opacity only). Curves are the tokens of tokens.css:
+ * smooth = cubic-bezier(.22,1,.36,1), soft spring = cubic-bezier(.34,1.18,.64,1) (docs/design/motion-reference.html).
+ * Reduced motion: no movement, the same fade.
+ */
+
+/* Enter / leave of list rows, toasts, banners. Per use: --enter-y / --enter-d, --leave-y / --leave-d. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-y, 0px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes leave {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(var(--leave-y, 0px));
+  }
+}
+.enter {
+  animation: enter var(--enter-d, 0.4s) cubic-bezier(0.22, 1, 0.36, 1) var(--enter-delay, 0s) backwards;
+}
+.leave {
+  animation: leave var(--leave-d, 0.4s) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+/* The result of a count-down pops: 1.08 -> 1 (the former spring.soft keyframes [1.08, 1]). */
+@keyframes pop {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.pop {
+  animation: pop 0.45s cubic-bezier(0.34, 1.18, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .leave {
+    --enter-y: 0px;
+    --leave-y: 0px;
+  }
+  .pop {
+    animation: none;
+  }
+}
+
+/* Tab bar: the Fab shrinks to .6 and fades while the menu grows out of its bottom-right corner (reference #1). */
+.fab {
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.fab:active:not(:disabled):not([data-hidden="true"]) {
+  transform: scale(0.94);
+}
+.fab:disabled {
+  opacity: 0.4;
+}
+.fab[data-hidden="true"] {
+  transform: scale(0.6);
+  opacity: 0;
+}
+.fab-menu {
+  transform-origin: bottom right;
+  transform: scale(0.24);
+  opacity: 0;
+  visibility: hidden;
+  /* hidden only after the close transition has finished */
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.55s;
+}
+.fab-menu[data-open="true"] {
+  transform: scale(1);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab,
+  .fab-menu,
+  .fab-menu[data-open="true"] {
+    transform: none !important;
+    transition:
+      opacity 0.2s linear,
+      visibility 0s linear 0.2s;
+  }
+  .fab-menu[data-open="true"] {
+    transition:
+      opacity 0.2s linear,
+      visibility 0s;
+  }
+}
+
+/*
+ * Island sheet (reference #2). The card is laid out at its final size; its black face grows with a transform scale from
+ * the pill size (--sx/--sy, set from the measured box) with origin top center, a real pill element crossfades with it
+ * so the corners never distort. Collapse scales back to --ex/--ey.
+ */
+.sheet-face,
+.sheet-pill {
+  transform-origin: top center;
+}
+.sheet-face {
+  opacity: 0;
+  transform: scale(var(--sx, 1), var(--sy, 1));
+  will-change: transform, opacity;
+}
+.sheet-pill {
+  opacity: 0;
+  transition: opacity 0.15s linear;
+}
+.sheet-content {
+  opacity: 0;
+  transition: opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet[data-phase="pill"] .sheet-face {
+  transition: none;
+}
+.sheet[data-phase="pill"] .sheet-content {
+  pointer-events: none;
+}
+.sheet[data-phase="open"] .sheet-face,
+.sheet[data-phase="fading"] .sheet-face {
+  opacity: 1;
+  transform: none;
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.12s linear;
+}
+.sheet[data-island="false"][data-phase="open"] .sheet-face,
+.sheet[data-island="false"][data-phase="fading"] .sheet-face {
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet[data-phase="open"] .sheet-content {
+  opacity: 1;
+  transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1) 0.22s;
+}
+.sheet[data-phase="collapsed"] {
+  height: var(--h);
+}
+.sheet[data-phase="collapsed"] .sheet-face {
+  opacity: 0;
+  transform: scale(var(--ex, 1), var(--ey, 1));
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
+}
+/* no Dynamic Island and nothing to show: the card simply fades out while it collapses */
+.sheet[data-island="false"][data-done="false"][data-phase="collapsed"] .sheet-face {
+  transition:
+    transform 0.55s cubic-bezier(0.34, 1.18, 0.64, 1),
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet[data-island="true"][data-phase="pill"] .sheet-pill,
+.sheet[data-island="true"][data-phase="collapsed"] .sheet-pill,
+.sheet[data-done="true"][data-phase="collapsed"] .sheet-pill {
+  opacity: 1;
+}
+/* reduced motion: the card is already full size and only fades */
+.sheet[data-reduced="true"] .sheet-face {
+  transform: none;
+  transition: opacity 0.2s linear;
+}
+.sheet[data-reduced="true"][data-phase="open"] .sheet-content {
+  transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet[data-reduced="true"] .sheet-pill {
+  display: none;
+}
+.sheet[data-reduced="true"][data-phase="open"] .sheet-face {
+  animation: enter 0.2s linear backwards;
+}
+.sheet[data-reduced="true"][data-phase="open"] .sheet-content {
+  animation: enter 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}

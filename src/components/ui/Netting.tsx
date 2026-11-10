@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
-import { ease, spring, useReducedMotionSafe } from "@/lib/motion";
+import { cssTransition, useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { Avatar } from "./Avatar";
 import { Money } from "./Money";
@@ -40,7 +39,6 @@ function Scene({ play, onDone }: { play: boolean; onDone: () => void }) {
 
   const merged = stage >= 2;
   const finished = stage === 3;
-  const smooth = { duration: 0.5, ease: ease.smooth };
 
   return (
     <>
@@ -52,10 +50,9 @@ function Scene({ play, onDone }: { play: boolean; onDone: () => void }) {
         <Avatar name="Ерасыл" color="me" size={40} decorative />
         <div className="relative h-16">
           {/* Е -> А: 2 000 (orange) */}
-          <motion.div
+          <div
             className="absolute inset-x-0 top-[18px] flex flex-col items-center"
-            animate={{ y: merged && !reduced ? 4 : 0 }}
-            transition={smooth}
+            style={{ transform: `translateY(${merged && !reduced ? 4 : 0}px)`, transition: cssTransition({ transform: 0.5 }) }}
           >
             <Money
               value={merged ? NET : OWED}
@@ -65,31 +62,35 @@ function Scene({ play, onDone }: { play: boolean; onDone: () => void }) {
             <div className="relative h-[3px] w-full rounded-[2px] bg-orange">
               <span className="absolute -top-[4px] -right-[2px] border-y-[5.5px] border-l-8 border-y-transparent border-l-orange" />
             </div>
-          </motion.div>
+          </div>
           {/* А -> Е: 1 800 (lime) slides up onto the orange arrow and dissolves */}
-          <motion.div
+          <div
             className="absolute inset-x-0 top-[42px] flex flex-col items-center"
-            initial={false}
-            animate={{ y: stage >= 1 && !reduced ? -24 : 0, opacity: merged ? 0 : 1 }}
-            transition={{ y: smooth, opacity: { duration: 0.4, ease: ease.smooth } }}
+            style={{
+              transform: `translateY(${stage >= 1 && !reduced ? -24 : 0}px)`,
+              opacity: merged ? 0 : 1,
+              transition: cssTransition({ transform: 0.5, opacity: 0.4 }),
+            }}
           >
             <div className="relative h-[3px] w-full rounded-[2px] bg-lime">
               <span className="absolute -top-[4px] -left-[2px] border-y-[5.5px] border-r-8 border-y-transparent border-r-lime" />
             </div>
             <Money value={OWE} className="mt-1 text-[14px] font-bold text-lime" />
-          </motion.div>
+          </div>
         </div>
         <Avatar name="Айдос" color="blue" size={40} decorative />
       </div>
       <div className="flex items-center justify-center gap-[10px] rounded-pill border border-card-2 bg-card p-3">
         <span className="text-[13px] text-muted">{ru.kit.netting.transferTo}</span>
-        <motion.span
-          className={cx("inline-block text-[26px] font-bold transition-colors duration-[400ms] ease-smooth", finished ? "text-lime" : "text-text")}
-          animate={{ scale: finished && !reduced ? [1.08, 1] : 1 }}
-          transition={finished ? spring.soft : { duration: 0 }}
+        <span
+          className={cx(
+            "inline-block text-[26px] font-bold transition-colors duration-[400ms] ease-smooth",
+            finished ? "text-lime" : "text-text",
+            finished && "pop",
+          )}
         >
           <Money value={merged ? NET : OWED} duration={0.8} data-testid="netting-total" />
-        </motion.span>
+        </span>
       </div>
     </>
   );
@@ -127,15 +128,13 @@ export function Netting() {
         <span aria-live="polite" className="sr-only">
           {finished ? ru.kit.netting.caption : ""}
         </span>
-        <motion.span
+        <span
           aria-hidden="true"
-          className="text-[12px] text-muted"
-          initial={false}
-          animate={{ opacity: finished ? 1 : 0 }}
-          transition={{ duration: 0.4, ease: ease.smooth }}
+          className="text-[12px] text-muted transition-opacity duration-[400ms] ease-smooth"
+          style={{ opacity: finished ? 1 : 0 }}
         >
           {ru.kit.netting.caption}
-        </motion.span>
+        </span>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 "use client";
 
-import { memo, useEffect, useId, useRef, useState } from "react";
-import { motion } from "motion/react";
-import { ease, useReducedMotionSafe, useTapLock } from "@/lib/motion";
+import { memo, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { css, useReducedMotionSafe, useTapLock } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { BalanceCard, CARD_HEIGHT, type BalanceCardData } from "./BalanceCard";
 
@@ -103,21 +102,18 @@ export const CardStack = memo(function CardStack({
         const d = Math.min(depth, MAX_DEPTH);
         const isFront = depth === 0;
         const slidingFront = isFront && sliding;
-        const target = reduced
-          ? { opacity: isFront ? 1 : 0 }
-          : slidingFront
-            ? { y: 36, scale: 0.94, opacity: 1 }
-            : { y: -d * STEP, scale: 1 - d * SCALE_STEP, opacity: depth > MAX_DEPTH ? 0 : 1 };
+        // inline transform + CSS transition (compositor): the slide is 0.22 s, the settle into the order 0.6 s, both smooth
+        const y = slidingFront ? 36 : -d * STEP;
+        const scale = slidingFront ? 0.94 : 1 - d * SCALE_STEP;
+        const layerStyle: CSSProperties = {
+          zIndex: MAX_DEPTH + 1 + n - depth,
+          transform: reduced ? undefined : `translateY(${y}px) scale(${scale})`,
+          opacity: reduced ? (isFront ? 1 : 0) : depth > MAX_DEPTH ? 0 : 1,
+          transition: `transform ${slidingFront ? SLIDE_MS / 1000 : 0.6}s ${css.smooth}, opacity ${slidingFront ? SLIDE_MS / 1000 : 0.6}s ${css.smooth}`,
+        };
         const balanceId = `${hintId}-balance-${card.id}`;
         return (
-          <motion.div
-            key={card.id}
-            className="absolute inset-x-0 bottom-0 origin-bottom"
-            style={{ zIndex: MAX_DEPTH + 1 + n - depth }}
-            initial={false}
-            animate={target}
-            transition={{ duration: slidingFront ? SLIDE_MS / 1000 : 0.6, ease: ease.smooth }}
-          >
+          <div key={card.id} className="absolute inset-x-0 bottom-0 origin-bottom will-change-transform" style={layerStyle}>
             {isFront && interactive ? (
               <>
                 <button
@@ -142,21 +138,17 @@ export const CardStack = memo(function CardStack({
               </div>
             )}
             {/* neutral faces for the layers behind (opacity only, never a filter) */}
-            <motion.div
+            <div
               aria-hidden="true"
-              className="pointer-events-none absolute -inset-px rounded-lg bg-stack"
-              initial={false}
-              animate={{ opacity: reduced ? 0 : d >= 1 ? 1 : 0 }}
-              transition={{ duration: 0.6, ease: ease.smooth }}
+              className="pointer-events-none absolute -inset-px rounded-lg bg-stack transition-opacity duration-[600ms] ease-smooth"
+              style={{ opacity: reduced ? 0 : d >= 1 ? 1 : 0 }}
             />
-            <motion.div
+            <div
               aria-hidden="true"
-              className="pointer-events-none absolute -inset-px rounded-lg bg-card-2"
-              initial={false}
-              animate={{ opacity: reduced ? 0 : d >= 2 ? 1 : 0 }}
-              transition={{ duration: 0.6, ease: ease.smooth }}
+              className="pointer-events-none absolute -inset-px rounded-lg bg-card-2 transition-opacity duration-[600ms] ease-smooth"
+              style={{ opacity: reduced ? 0 : d >= 2 ? 1 : 0 }}
             />
-          </motion.div>
+          </div>
         );
       })}
     </div>

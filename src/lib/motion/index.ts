@@ -11,8 +11,8 @@
  * 4. Under prefers-reduced-motion, movement becomes a short opacity fade
  *    (see `useReducedMotionSafe`).
  */
-import { useCallback, useRef } from "react";
-import { useReducedMotion, type Transition } from "motion/react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
+import type { Transition } from "motion/react";
 
 export const ease = {
   smooth: [0.22, 1, 0.36, 1],
@@ -27,6 +27,33 @@ export const spring = {
   soft: { type: "spring", stiffness: 300, damping: 20, mass: 0.9 },
 } as const satisfies Record<string, Transition>;
 
+/**
+ * The same curves as CSS `cubic-bezier()` strings, for the compositor (CSS transitions / keyframes / WAAPI).
+ * Frequent motion runs there, not in motion/react (a rAF loop that WebKit throttles to ~30 fps in Low Power Mode).
+ *
+ * Spring -> bezier mapping (what the CSS uses in place of the JS springs):
+ * - `spring.snap` (k520 c40 m.8, critically damped, settles in ~0.27 s) -> `snap` below, 270 ms. Fitted by least squares
+ *   against the spring's step response (max error < 1.5% of the travel).
+ * - `ease.softSpring` -> `softSpring`, the very curve of docs/design/motion-reference.html (`--s`).
+ * - `spring.soft` pop on a result ([1.08, 1]) -> a `pop` keyframe, 450 ms `softSpring`.
+ * Tailwind exposes `ease-smooth` / `ease-soft-spring` (tokens.css); globals.css holds the keyframes (enter / leave / pop).
+ */
+export const css = {
+  smooth: "cubic-bezier(0.22, 1, 0.36, 1)",
+  softSpring: "cubic-bezier(0.34, 1.18, 0.64, 1)",
+  snap: "cubic-bezier(0.25, 0.25, 0.2, 1)",
+} as const;
+
+/** CSS `transition` value on the smooth curve: `smoothTransition({ transform: 0.5, opacity: 0.4 })` (durations in s). */
+export function cssTransition(props: Record<string, number>, curve: string = css.smooth): string {
+  return Object.entries(props)
+    .map(([prop, seconds]) => `${prop} ${seconds}s ${curve}`)
+    .join(", ");
+}
+
+/** Duration of the `snap` pill slide, in ms. */
+export const SNAP_MS = 270;
+
 export const durations = { fast: 0.2, base: 0.38, slow: 0.5 } as const;
 
 export const smoothTransition: Transition = { duration: durations.base, ease: ease.smooth };
@@ -38,8 +65,25 @@ const reducedTransition: Transition = { duration: 0.15, ease: "linear" };
  * when the user prefers reduced motion. Components also drop x/y/scale targets
  * when `reduced` is true so only opacity changes.
  */
+const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReduced(onChange: () => void) {
+  const mq = window.matchMedia(REDUCED_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+/** `prefers-reduced-motion: reduce`, live (false on the server). */
+export function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeReduced,
+    () => window.matchMedia(REDUCED_QUERY).matches,
+    () => false,
+  );
+}
+
 export function useReducedMotionSafe() {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = useReducedMotion();
   const t = useCallback(
     (transition: Transition = smoothTransition): Transition => (reduced ? reducedTransition : transition),
     [reduced],

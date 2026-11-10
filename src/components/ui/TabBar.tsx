@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGroup, motion } from "motion/react";
-import { ease, spring, useReducedMotionSafe } from "@/lib/motion";
+import { useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { Bar } from "./Bar";
 import { Fab } from "./Fab";
+import { useSlidePill } from "./useSlidePill";
 import { cx } from "./cx";
 import { CalendarIcon, CartIcon, HomeIcon, ListIcon, PlusIcon, UsersIcon } from "./icons";
 
@@ -31,11 +31,11 @@ const menuItem = "flex items-center gap-[10px] rounded-pill px-3 py-[10px] text-
 
 /**
  * Floating tab bar: a Bar with 4 tabs (active = icon + label in a card-2 pill that slides
- * via layoutId) plus a lime Fab "+".
+ * via a WAAPI transform, see useSlidePill) plus a lime Fab "+".
  *
  * Fab menu (approved reference, docs/design/motion-reference.html #1): the Fab does NOT rotate,
  * it shrinks to .6 and fades while the menu grows out of its bottom-right corner (scale .24 -> 1,
- * soft spring). The menu has a highlighted first row, lime icons and a lime «Закрыть» pill.
+ * soft spring, all CSS transitions toggled by data-open). The menu has a highlighted first row, lime icons and a lime «Закрыть» pill.
  *
  * Tabs with `href` derive the active tab from the pathname; tabs without it use `value`.
  * Taps are never locked: every handler is idempotent.
@@ -56,7 +56,6 @@ export function TabBar({
   /** Menu actions whose screen does not exist yet: shown disabled with a «скоро» badge, skipped by the arrow keys. */
   soonActions?: ReadonlyArray<FabAction>;
 }) {
-  const group = useId();
   const pathname = usePathname();
   const { reduced } = useReducedMotionSafe();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -66,6 +65,7 @@ export function TabBar({
 
   const monthlySoon = soonActions.includes("monthly");
   const activeId = tabs.find((t) => t.href && isHrefActive(pathname, t.href))?.id ?? value;
+  const pillRef = useSlidePill(activeId, reduced);
 
   const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[data-menu-focus]") ?? []);
 
@@ -107,13 +107,6 @@ export function TabBar({
     onAction?.(action);
   };
 
-  const menuAnimate = reduced
-    ? { opacity: menuOpen ? 1 : 0 }
-    : { scale: menuOpen ? 1 : 0.24, opacity: menuOpen ? 1 : 0 };
-  const menuTransition = reduced
-    ? { duration: 0.2, ease: "linear" as const }
-    : { scale: { duration: 0.55, ease: ease.softSpring }, opacity: { duration: 0.35, ease: ease.smooth } };
-
   return (
     <>
       {position === "fixed" ? (
@@ -134,8 +127,7 @@ export function TabBar({
             position === "fixed" ? "w-full max-w-[390px] px-5" : "w-full",
           )}
         >
-          <LayoutGroup id={group}>
-            <nav aria-label={ru.nav.label} className="min-w-0 flex-1">
+          <nav aria-label={ru.nav.label} className="min-w-0 flex-1">
               <Bar className="justify-between">
                 {tabs.map((tab) => {
                   const active = tab.id === activeId;
@@ -148,23 +140,16 @@ export function TabBar({
                   const inner = (
                     <>
                       {active ? (
-                        <motion.span
-                          layoutId="tab-active"
+                        <span
+                          ref={pillRef(tab.id)}
                           aria-hidden="true"
-                          className="absolute inset-0 rounded-pill bg-card-2"
-                          transition={reduced ? { duration: 0.15 } : spring.snap}
+                          className="absolute inset-0 origin-left rounded-pill bg-card-2"
                         />
                       ) : null}
                       <span className="relative inline-flex items-center gap-2">
                         {tab.icon}
                         {active ? (
-                          <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.25, delay: 0.05, ease: ease.smooth }}
-                          >
-                            {tab.label}
-                          </motion.span>
+                          <span className="enter [--enter-d:0.25s] [--enter-delay:0.05s]">{tab.label}</span>
                         ) : null}
                       </span>
                     </>
@@ -194,7 +179,6 @@ export function TabBar({
                 })}
               </Bar>
             </nav>
-          </LayoutGroup>
 
           <Fab
             ref={fabRef}
@@ -208,20 +192,15 @@ export function TabBar({
             <PlusIcon size={26} strokeWidth={2.4} />
           </Fab>
 
-          <motion.div
+          <div
             ref={menuRef}
             role="menu"
             aria-label={ru.nav.add}
             inert={!menuOpen}
-            initial={false}
-            animate={menuAnimate}
-            transition={menuTransition}
+            data-open={menuOpen}
             onKeyDown={onMenuKeyDown}
-            style={{ transformOrigin: "bottom right" }}
             className={cx(
-              "absolute right-5 bottom-0 z-10 flex w-[220px] flex-col gap-[6px] rounded-lg border border-card-2 bg-card p-2",
-              // reduced motion: fade only, even before hydration knows the preference
-              "motion-reduce:transform-none!",
+              "fab-menu absolute right-5 bottom-0 z-10 flex w-[220px] flex-col gap-[6px] rounded-lg border border-card-2 bg-card p-2",
               !menuOpen && "pointer-events-none",
             )}
           >
@@ -259,7 +238,7 @@ export function TabBar({
             >
               {ru.common.close}
             </button>
-          </motion.div>
+          </div>
         </div>
       </div>
     </>

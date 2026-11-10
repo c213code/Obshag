@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { useMemo } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PillLink } from "@/components/ui/Pill";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
+import { usePresenceList } from "@/lib/motion/presence";
+import { cx } from "@/components/ui/cx";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { ru } from "@/lib/i18n/ru";
 import { useSwipeDelete } from "../swipe/useSwipeDelete";
@@ -21,8 +22,9 @@ export function RecentPurchases({
   /** user id -> display name for the people in this household. */
   payerNames: ReadonlyMap<string, string>;
 }) {
-  const { reduced } = useReducedMotionSafe();
   const { wrap, sheet } = useSwipeDelete();
+  const shown = useMemo(() => purchases.slice(0, MAX_ROWS), [purchases]);
+  const entries = usePresenceList(shown, (p) => p.clientKey, 400);
   return (
     <section aria-labelledby="recent-title" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
@@ -46,16 +48,8 @@ export function RecentPurchases({
         />
       ) : (
         <ul className="flex flex-col gap-3">
-          <AnimatePresence initial={false}>
-            {purchases.slice(0, MAX_ROWS).map((p) => (
-              <motion.li
-                key={p.clientKey}
-                data-testid="purchase-row"
-                initial={reduced ? { opacity: 0 } : { opacity: 0, y: -16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4, ease: ease.smooth }}
-              >
+          {entries.map(({ key, item: p, exiting, fresh }) => (
+            <li key={key} data-testid="purchase-row" className={cx("[--enter-y:-16px]", exiting ? "leave" : fresh && "enter")}>
                 {wrap(
                   p,
                   p.id.startsWith("optimistic-") ? (
@@ -66,9 +60,8 @@ export function RecentPurchases({
                     </Link>
                   ),
                 )}
-              </motion.li>
-            ))}
-          </AnimatePresence>
+            </li>
+          ))}
         </ul>
       )}
       {sheet}
