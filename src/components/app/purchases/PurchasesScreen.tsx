@@ -31,8 +31,8 @@ const Row = memo(function Row({ purchase, payerName, meId }: { purchase: UiPurch
   const who = mine ? ru.main.you : payerName;
   const source = [purchase.merchant, who, formatTime(purchase.created_at)].filter(Boolean).join(" · ");
   const inner = (
-    <div className="flex items-center gap-3 rounded-pill border border-hairline bg-card p-[6px]">
-      <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-full bg-lime-soft text-lime">
+    <div className="flex items-center gap-3 rounded-[20px] border border-hairline bg-card p-[6px]">
+      <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-[14px] bg-lime-soft text-lime">
         <BasketIcon size={20} />
       </span>
       <div className="min-w-0 flex-1">
@@ -69,7 +69,7 @@ type Wrap = ReturnType<typeof useSwipeDelete>["wrap"];
 /** One list row. Re-renders only when its own purchase (structurally shared, so the same object across refreshes) changes. */
 const Item = memo(function Item({ purchase, payerName, meId, wrap }: { purchase: UiPurchase; payerName: string; meId: string; wrap: Wrap }) {
   return (
-    <li data-testid="purchase-list-row" className="row-cv">
+    <li data-testid="purchase-list-row">
       {wrap(purchase, <Row purchase={purchase} payerName={payerName} meId={meId} />)}
     </li>
   );

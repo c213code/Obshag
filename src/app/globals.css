@@ -84,11 +84,6 @@ a,
 .list-fade-in {
   animation: list-fade-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Long lists: rows far off screen are not laid out or painted until they get close. */
-.row-cv {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 72px;
-}
 
 /*
  * Compositor motion (CSS keyframes / transitions on transform + opacity only). Curves are the tokens of tokens.css:

@@ -43,8 +43,8 @@ export function SkeletonCard() {
 /** Same footprint as ListRow: avatar, two text lines, trailing chip. */
 export function SkeletonRow() {
   return (
-    <Busy className="flex items-center gap-3 rounded-pill border border-hairline bg-card p-[6px]">
-      <Skeleton className="size-[44px] shrink-0 rounded-full" />
+    <Busy className="flex items-center gap-3 rounded-[20px] border border-hairline bg-card p-[6px]">
+      <Skeleton className="size-[44px] shrink-0 rounded-[14px]" />
       <div className="flex flex-1 flex-col gap-2">
         <Skeleton className="h-4 w-1/2" />
         <Skeleton className="h-3 w-1/3" />

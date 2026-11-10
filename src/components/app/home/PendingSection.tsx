@@ -20,9 +20,9 @@ const Row = memo(function Row({ purchase }: { purchase: UiPurchase }) {
       prefetch={false}
       data-testid="pending-row"
       aria-label={`${ru.pending.rowLabel(merchant, formatTenge(purchase.amount))}, ${ru.pending.decide}`}
-      className="flex items-center gap-[10px] rounded-pill border border-card-2 bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
+      className="flex items-center gap-[10px] rounded-[20px] border border-card-2 bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
     >
-      <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-full bg-lime-soft text-lime">
+      <span aria-hidden="true" className="grid size-[44px] shrink-0 place-items-center rounded-[14px] bg-lime-soft text-lime">
         <BasketIcon size={20} />
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
