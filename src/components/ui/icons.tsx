@@ -172,6 +172,16 @@ export const ReceiptIcon = (p: IconProps) => (
     <path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6" />
   </Svg>
 );
+export const FlameIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .2 1.2.8 2 1.6 2.4C10.2 8.6 10.6 5.4 12 3z" />
+  </Svg>
+);
+export const DocLinesIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v4h4M8.5 11h7M8.5 14.5h7M8.5 18h4" />
+  </Svg>
+);
 export const QrIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z" />

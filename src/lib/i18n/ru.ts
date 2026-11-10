@@ -392,7 +392,7 @@ export const ru = {
       titleLabel: "Название",
       titlePlaceholder: "Аренда",
       icon: "Значок",
-      icons: { home: "Дом", drop: "Вода", wifi: "Интернет", bolt: "Свет", other: "Другое" },
+      icons: { home: "Дом", internet: "Интернет", gas: "Газ", utility: "Коммуналка", receipt: "Чек" },
       amount: "Сумма в месяц",
       variable: "Переменная сумма",
       variableCaption: "Платящий вводит её каждый месяц",

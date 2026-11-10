@@ -15,8 +15,14 @@ describe("turn queue", () => {
     const away = roster.map((m) => (m.user_id === "b" ? { ...m, away_until: "2026-11-10" } : m));
     expect(currentOf(order, away, [ev("done", "a", "2026-11-09T10:00:00Z")], "2026-11-10")).toBe("c");
   });
-  it("two carriers: past the later one; everybody away keeps the plain order", () => {
-    expect(currentOf(order, roster, [ev("done", "a", "2026-11-09T10:00:00Z", { partner_id: "c" })], "2026-11-10")).toBe("a");
+  it("two carriers: walk from the actor, skip the whole trip; everybody away keeps the plain order", () => {
+    expect(currentOf(order, roster, [ev("done", "a", "2026-11-09T10:00:00Z", { partner_id: "c" })], "2026-11-10")).toBe("b");
+    const four = ["a", "p", "n", "e"];
+    const r4 = four.map((user_id) => ({ user_id, active: true, away_until: null as string | null }));
+    expect(currentOf(four, r4, [ev("done", "e", "2026-11-09T10:00:00Z", { partner_id: "a" })], "2026-11-10")).toBe("p");
+    const four2 = ["e", "a", "p", "n"];
+    const r42 = four2.map((user_id) => ({ user_id, active: true, away_until: null as string | null }));
+    expect(currentOf(four2, r42, [ev("done", "e", "2026-11-09T10:00:00Z", { partner_id: "n" })], "2026-11-10")).toBe("a");
     const all = roster.map((m) => ({ ...m, away_until: "2026-12-01" }));
     expect(currentOf(order, all, [], "2026-11-10")).toBe("a");
   });

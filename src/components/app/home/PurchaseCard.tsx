@@ -6,6 +6,8 @@ import { categoryFor } from "@/lib/domain/category";
 import { purchaseProgress } from "@/lib/domain/summary";
 import type { PurchaseWithShares } from "@/lib/data/repo";
 import { ru } from "@/lib/i18n/ru";
+import { useAppData } from "../AppDataProvider";
+import { BillIcon } from "../bills/BillIcon";
 import { CategoryTile } from "./CategoryTile";
 
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -22,9 +24,11 @@ function dayLabel(iso: string, now: Date): string {
 export const PurchaseCard = memo(function PurchaseCard({ purchase, payerName }: { purchase: PurchaseWithShares; payerName: string }) {
   const { paid, total } = purchaseProgress(purchase.payer_id, purchase.shares);
   const complete = total === 0 || paid === total;
+  const { bills, activeId } = useAppData();
+  const billIcon = purchase.bill_id && activeId ? (bills[activeId] ?? []).find((b) => b.id === purchase.bill_id)?.icon : undefined;
   return (
     <article className="flex items-center gap-3 bg-card px-4 py-3">
-      <CategoryTile category={categoryFor(purchase)} />
+      {billIcon ? <BillIcon icon={billIcon} size={20} tile /> : <CategoryTile category={categoryFor(purchase)} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <h3 className="truncate text-body font-medium">{purchase.description}</h3>
         <span className="truncate text-caption">

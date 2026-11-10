@@ -11,20 +11,22 @@ export const EMPTY_COOLDOWN_S = 3600;
 
 export type EventRoster = ReadonlyArray<{ user_id: string; active: boolean; away_until: string | null }>;
 
-/** The rotation from the pointer on: the member after the last `done` carrier (after the later of two), first when none. */
+/** The rotation from the pointer on: walk forward from the ACTOR of the last `done`, the trip (actor and partner) goes to the back. */
 export function turnQueue(order: ReadonlyArray<string>, roster: EventRoster, events: ReadonlyArray<DutyEvent>, today: string): string[] {
   const n = order.length;
   if (n === 0) return [];
   const last = events.filter((e) => e.kind === "done").reduce<DutyEvent | null>((a, e) => (!a || e.created_at >= a.created_at ? e : a), null);
-  let base = -1;
-  if (last) base = Math.max(order.indexOf(last.user_id), last.partner_id ? order.indexOf(last.partner_id) : -1);
-  const start = (base + 1) % n;
-  const rotated = Array.from({ length: n }, (_, i) => order[(start + i) % n]);
+  const from = last ? order.indexOf(last.user_id) : -1;
+  const walked = Array.from({ length: n }, (_, i) => order[(from + 1 + i) % n]);
+  const trip = last ? [last.user_id, last.partner_id] : [];
+  const rotated = [...walked.filter((id) => !trip.includes(id)), ...walked.filter((id) => trip.includes(id))];
   const free = rotated.filter((id) => {
     const m = roster.find((r) => r.user_id === id);
     return !!m && m.active && !isAway(m.away_until, today);
   });
-  return free.length > 0 ? free : rotated; // everybody away: the plain rotation stands
+  const rest = free.filter((id) => !trip.includes(id));
+  if (rest.length > 0) return [...rest, ...free.filter((id) => trip.includes(id))];
+  return walked; // nobody else is home: the plain next member after the actor
 }
 
 export const currentOf = (order: ReadonlyArray<string>, roster: EventRoster, events: ReadonlyArray<DutyEvent>, today: string): string | null =>

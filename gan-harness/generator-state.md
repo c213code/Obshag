@@ -456,3 +456,14 @@ Nothing committed. `0013_slice15_trash_water.sql` is NOT applied to the live DB;
 - Not run against live Supabase; pg_net Telegram lines untested outside PGlite (tg_send is a no-op there).
 - Trash card sub-line can wrap when the time is «сегодня, HH:MM» (mock shows «вчера»).
 - «Вода кончилась» push only when the current person is not the caller.
+
+---
+
+# Slice 16 (queue pointer fix + bill icons)
+
+Nothing committed. `0014_slice16_queue_fix_bill_icons.sql` NOT applied live; 0001-0013, `.env.local` untouched.
+
+- SQL: `private.duty_current` replaced (walks forward from the ACTOR of the last `done`, skips actor + partner and away/inactive; nobody else home -> plain next after the actor). `bills.icon` mapped (drop/bolt -> utility, wifi -> internet, other/unknown -> receipt) + `bills_icon_check` (home, internet, gas, utility, receipt); `upsert_bill` replaced with the new list (the only old check lived in the RPC). Tests in `tests/db/slice15.test.ts` (examples, solo, all-away, icons).
+- TS: `turnQueue` in `domain/dutyEvents.ts` mirrors it (mock repo uses it). `BillIcon` type/`BILL_ICONS`/ru.ts names (Дом, Интернет, Газ, Коммуналка, Чек), new `FlameIcon`, `DocLinesIcon`; `BillIcon` has a `tile` variant used by `PurchaseCard` for monthly-bill purchases (looks the bill up in `useAppData().bills`; falls back to the home category tile if the bill was deleted).
+- Verify green (828 tests); e2e slice67 + slice15 green.
+- Gap: slice67 DB test still runs migrations only to 0013-less list (uses 'bolt' on 0006). No visual screenshot of the new picker.

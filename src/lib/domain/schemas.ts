@@ -133,7 +133,7 @@ export const pushSubscriptionSchema = z.object({
   auth: z.string().min(1).max(256),
 });
 
-export const BILL_ICONS = ["home", "drop", "wifi", "bolt", "other"] as const;
+export const BILL_ICONS = ["home", "internet", "gas", "utility", "receipt"] as const;
 export const BILL_DAYS = 28;
 
 /** The monthly bill form. A variable bill has no amount; a fixed one needs an amount of at least one tenge per participant. */

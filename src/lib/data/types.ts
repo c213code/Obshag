@@ -141,7 +141,7 @@ export type Bill = {
   participants: Uuid[];
 };
 
-export type BillIcon = "home" | "drop" | "wifi" | "bolt" | "other";
+export type BillIcon = "home" | "internet" | "gas" | "utility" | "receipt";
 
 /** Form values of a monthly bill. `amount` is null for a variable bill. */
 export type BillInput = {

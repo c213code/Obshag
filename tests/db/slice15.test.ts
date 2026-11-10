@@ -40,6 +40,7 @@ const MIGRATIONS = [
   "0011_slice13_min_transfer.sql",
   "0012_slice14_duty.sql",
   "0013_slice15_trash_water.sql",
+  "0014_slice16_queue_fix_bill_icons.sql",
 ];
 
 let db: PGlite;
@@ -112,7 +113,7 @@ describe("pointer", () => {
     expect(await current(trash)).toBe(A);
     await done(A);
     expect(await current(trash)).toBe(B);
-    await done(C); // out of turn: the pointer goes after the carrier
+    await done(C); // out of turn: the pointer walks on from the actor
     expect(await current(trash)).toBe(A);
   });
   it("skips members who are away or inactive, and wraps", async () => {
@@ -121,7 +122,7 @@ describe("pointer", () => {
     await db.exec(`update public.members set away_until = (now() at time zone 'Asia/Almaty')::date where user_id = '${B}'`);
     expect(await current(trash)).toBe(C);
     await db.exec(`update public.members set active = false where user_id = '${C}'`);
-    expect(await current(trash)).toBe(A);
+    expect(await current(trash)).toBe(B); // nobody else is home: the plain next after the actor
   });
   it("falls back to the plain next member when everybody is away", async () => {
     await admin();
@@ -130,11 +131,46 @@ describe("pointer", () => {
   });
   it("water for two moves the pointer past both", async () => {
     await brought(A, C);
-    expect(await current(water)).toBe(A); // after C (the later one) wraps to A
+    expect(await current(water)).toBe(B); // from the actor A, skipping A and C
     await brought(B, null);
     expect(await current(water)).toBe(C);
     await brought(A, B);
     expect(await current(water)).toBe(C);
+  });
+});
+
+describe("pointer from the actor (0014)", () => {
+  it("actor last in order with a partner: the first member who stayed home", async () => {
+    await admin();
+    await db.exec(`update public.duty_members set position = position + 10 where duty_id = '${water}'; update public.duty_members set position = case user_id when '${A}' then 0 when '${B}' then 1 when '${C}' then 2 end where duty_id = '${water}'`);
+    await brought(C, A);
+    expect(await current(water)).toBe(B); // not A who just went
+  });
+  it("order C,A,B: C with B goes to A", async () => {
+    await admin();
+    await db.exec(`update public.duty_members set position = position + 10 where duty_id = '${water}'; update public.duty_members set position = case user_id when '${C}' then 0 when '${A}' then 1 when '${B}' then 2 end where duty_id = '${water}'`);
+    await brought(C, B);
+    expect(await current(water)).toBe(A);
+  });
+  it("solo trash moves on to the next member", async () => {
+    await done(B);
+    expect(await current(trash)).toBe(C);
+  });
+  it("all others away: plain next after the actor", async () => {
+    await done(A);
+    await admin();
+    await db.exec(`update public.members set away_until = (now() at time zone 'Asia/Almaty')::date + 3 where user_id <> '${A}'`);
+    expect(await current(trash)).toBe(B);
+  });
+});
+
+describe("bill icons (0014)", () => {
+  it("accepts the five new icons and rejects the old ones", async () => {
+    await as(A);
+    for (const icon of ["home", "internet", "gas", "utility", "receipt"]) {
+      await db.query(`select public.upsert_bill($1, null, 'X', $2, 5000, false, 3, $3, $4)`, [hh, icon, A, [A, B]]);
+    }
+    await expectCode(db.query(`select public.upsert_bill($1, null, 'X', 'bolt', 5000, false, 3, $2, $3)`, [hh, A, [A, B]]), "23514");
   });
 });
 

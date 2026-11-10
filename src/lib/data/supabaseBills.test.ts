@@ -24,14 +24,14 @@ describe("supabaseRepo bills and Квартира", () => {
 
   it("upsertBill validates, then calls the RPC with the amount nulled for a variable bill", async () => {
     const { repo, calls } = fake({ upsert_bill: { data: { id: "b1" }, error: null } });
-    const base = { household_id: H, title: " Коммуналка ", icon: "drop" as const, variable: true, day_of_month: 10, payer_id: U, participants: [U] };
+    const base = { household_id: H, title: " Коммуналка ", icon: "utility" as const, variable: true, day_of_month: 10, payer_id: U, participants: [U] };
     await expect(repo.upsertBill({ ...base, amount: 5000 })).rejects.toMatchObject({ code: "invalid" });
     await expect(repo.upsertBill({ ...base, amount: null, day_of_month: 31 })).rejects.toMatchObject({ code: "invalid" });
     expect(calls).toHaveLength(0);
     await repo.upsertBill({ ...base, amount: null });
     expect(calls[0]).toEqual({
       fn: "upsert_bill",
-      args: { p_household: H, p_id: null, p_title: "Коммуналка", p_icon: "drop", p_amount: null, p_variable: true, p_day: 10, p_payer: U, p_participants: [U] },
+      args: { p_household: H, p_id: null, p_title: "Коммуналка", p_icon: "utility", p_amount: null, p_variable: true, p_day: 10, p_payer: U, p_participants: [U] },
     });
   });
 
