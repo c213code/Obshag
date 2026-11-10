@@ -7,6 +7,7 @@ import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData, useAppDerived } from "../AppDataProvider";
 import { Screen } from "../Screen";
 import { Bento } from "./Bento";
+import { DutyTile } from "./DutyTile";
 import { HomeHeader } from "./HomeHeader";
 import { IncomingSection } from "./IncomingSection";
 import { PendingSection } from "./PendingSection";
@@ -47,6 +48,7 @@ export function HomeScreen() {
         <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} />
       </div>
       <Bento owed={active.balance.owed} owe={active.balance.owe} bills={activeBills} purchases={data.ps} meId={me.id} />
+      <DutyTile />
       <IncomingSection />
       <WaitingSection />
       <RecentPurchases purchases={recent} payerNames={data.names} />

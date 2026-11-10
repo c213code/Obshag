@@ -146,3 +146,35 @@ describe("telegram api wrapper", () => {
     expect(await bad.editMessageText(1, 2, "x")).toBe(false);
   });
 });
+
+describe("webhook swap buttons", () => {
+  const SW = "123e4567-e89b-42d3-a456-426614174000";
+  const swapText = "⇄ Ерасыл просит поменяться днями: пн 17 ⇄ вт 18\nОтветь до 10:00 ближайшего из этих дней.";
+  const notice = { request_id: SW, target_user: "u1", subscriptions: [{ endpoint: "https://fcm.googleapis.com/a", p256dh: "k", auth: "a" }], telegram_user_id: 5, from_name: "Ерасыл", to_name: "Айдос", from_day: "2026-11-17", to_day: "2026-11-18", from_label: "пн 17", to_label: "вт 18", reason: null };
+  it("Согласен answers the callback and rewrites the DM", async () => {
+    const { d, api } = deps({ tgRespondSwap: async () => ({ result: "accepted" as const, notice: null }) });
+    expect((await handleWebhook(WEBHOOK, tap(`sw:a:${SW}`, swapText), d)).status).toBe(200);
+    expect(api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery", "editMessageText"]);
+    expect(api.calls[1].args[2]).toBe(`⇄ Ерасыл просит поменяться днями: пн 17 ⇄ вт 18\n${text.swapAccepted}`);
+  });
+  it("Не могу pushes the requester", async () => {
+    const sent: unknown[] = [];
+    const { d } = deps({ tgRespondSwap: async () => ({ result: "declined" as const, notice }) });
+    d.push = { send: async (sub, payload) => (sent.push([sub.endpoint, payload]), { ok: true as const }) };
+    await handleWebhook(WEBHOOK, tap(`sw:d:${SW}`, swapText), d);
+    expect(sent).toEqual([["https://fcm.googleapis.com/a", { type: "swap-declined", requestId: SW, name: "Айдос", fromLabel: "пн 17", toLabel: "вт 18" }]]);
+  });
+  it("stale and expired get their own line; a stranger is told it is not theirs; a missing repo method is ignored", async () => {
+    for (const [result, line] of [["stale", text.swapStale], ["expired", text.swapExpired]] as const) {
+      const { d, api } = deps({ tgRespondSwap: async () => ({ result, notice: null }) });
+      await handleWebhook(WEBHOOK, tap(`sw:a:${SW}`, swapText), d);
+      expect(api.calls[1].args[2]).toContain(line);
+    }
+    const stranger = deps({ tgRespondSwap: async () => Promise.reject(new RepoError("forbidden", "x")) });
+    await handleWebhook(WEBHOOK, tap(`sw:a:${SW}`, swapText), stranger.d);
+    expect(stranger.api.calls).toEqual([{ method: "answerCallbackQuery", args: ["cb1", text.swapNotYours] }]);
+    const none = deps();
+    await handleWebhook(WEBHOOK, tap(`sw:a:${SW}`, swapText), none.d);
+    expect(none.api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery"]);
+  });
+});

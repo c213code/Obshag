@@ -9,15 +9,16 @@ import { Bar } from "./Bar";
 import { Fab } from "./Fab";
 import { useSlidePill } from "./useSlidePill";
 import { cx } from "./cx";
-import { CalendarIcon, CartIcon, HomeIcon, ListIcon, PlusIcon, UsersIcon } from "./icons";
+import { CalendarIcon, CartIcon, HomeIcon, ListIcon, PlusIcon, PotIcon, UsersIcon } from "./icons";
 
-export type TabId = "home" | "purchases" | "monthly" | "household";
+export type TabId = "home" | "purchases" | "duty" | "monthly" | "household";
 
 export type TabDef = { id: TabId; label: string; icon: ReactNode; href?: string };
 
 export const defaultTabs: ReadonlyArray<TabDef> = [
   { id: "home", label: ru.nav.home, icon: <HomeIcon /> },
   { id: "purchases", label: ru.nav.purchases, icon: <ListIcon /> },
+  { id: "duty", label: ru.nav.duty, icon: <PotIcon /> },
   { id: "monthly", label: ru.nav.monthly, icon: <CalendarIcon /> },
   { id: "household", label: ru.nav.household, icon: <UsersIcon /> },
 ];
@@ -128,12 +129,12 @@ export function TabBar({
           )}
         >
           <nav aria-label={ru.nav.label} className="min-w-0 flex-1">
-              <Bar className="justify-between">
+              <Bar className="justify-between !gap-[2px]">
                 {tabs.map((tab) => {
                   const active = tab.id === activeId;
                   const cls = cx(
                     "relative inline-flex h-11 items-center justify-center gap-2 rounded-pill whitespace-nowrap",
-                    active ? "px-4" : "px-[10px]",
+                    active ? "px-3" : "px-[6px]",
                     "text-label transition-colors duration-200 ease-smooth active:scale-[0.97]",
                     active ? "text-text" : "text-muted",
                   );

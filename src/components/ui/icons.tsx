@@ -219,3 +219,52 @@ export const ChevronDownIcon = (p: IconProps) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+/** Cooking pot (the «Очередь» tab and the Готовка chip, DutyMain.dc.html). */
+export const PotIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 18h10v3H7z" />
+    <path d="M7 18a5 5 0 0 1-2-9.6A4 4 0 0 1 12 5a4 4 0 0 1 7 3.4A5 5 0 0 1 17 18" />
+  </Svg>
+);
+/** Two arrows: a swap of days. */
+export const SwapIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 7h12l-3-3M17 17H5l3 3" />
+  </Svg>
+);
+/** A paper plane: the person is away. */
+export const PlaneIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 13 21 6l-5 14-3-6-6-1z" />
+  </Svg>
+);
+export const SlidersIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" />
+    <circle cx="16" cy="6" r="2" />
+    <circle cx="10" cy="12" r="2" />
+    <circle cx="18" cy="18" r="2" />
+  </Svg>
+);
+export const ClockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="13" r="8" />
+    <path d="M12 9v4l2.5 2M9 2h6" />
+  </Svg>
+);
+export const ArrowRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Svg>
+);
+export const ArrowUpIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 14 6-6 6 6" />
+  </Svg>
+);
+export const ArrowDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 10 6 6 6-6" />
+  </Svg>
+);

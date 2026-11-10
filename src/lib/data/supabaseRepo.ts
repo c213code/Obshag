@@ -28,6 +28,7 @@ import {
 } from "./repo";
 import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, PendingDigestUser, Profile, ReminderTarget, Settlement, SettlementShare, Share, TgResolveResult } from "./types";
 import { historyCutoff } from "./history";
+import { createSupabaseDuty } from "./supabaseDuty";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 
@@ -50,6 +51,12 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   not_small: "Not below the Kaspi minimum",
   not_settled: "Settle up with everyone first",
   stale: "The amounts changed since the payment was marked",
+  busy: "A day of this swap is already in a request",
+  not_assignee: "Not your day",
+  past_day: "That day is in the past",
+  future_day: "That day has not come yet",
+  locked: "That day is closed",
+  expired: "The request has expired",
   invalid_link: "The reset link is invalid or expired",
   signup_unavailable: "Sign-up is unavailable",
   unknown: "Request failed",
@@ -60,6 +67,9 @@ function debugLog(scope: string, error: unknown) {
   if (process.env.NODE_ENV !== "production") console.debug(`[supabaseRepo] ${scope}`, error);
 }
 
+/** Fixed P0001 messages of the slice 14 RPCs. */
+const DUTY_CODES = ["busy", "stale", "not_assignee", "past_day", "future_day", "locked", "expired"] as const;
+
 /** Maps Postgres/PostgREST errors to the same codes mockRepo throws (with fixed messages). */
 export function mapDbError(error: NonNullable<DbError>): RepoError {
   debugLog("db error", error);
@@ -67,6 +77,7 @@ export function mapDbError(error: NonNullable<DbError>): RepoError {
   let code: RepoErrorCode = "unknown";
   if (error.code === "28000") code = "unauthenticated";
   else if (error.code === "42501") code = "forbidden";
+  else if (error.code === "P0001" && (DUTY_CODES as ReadonlyArray<string>).includes(message)) code = message as RepoErrorCode;
   else if (error.code === "23514" && message.includes("stale_settlement")) code = "stale";
   else if (error.code === "23514" && message.includes("has_payments")) code = "has_payments";
   else if (error.code === "23514" && message.includes("not_settled")) code = "not_settled";
@@ -596,5 +607,7 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       const { error } = await client.rpc("set_away", { p_household: householdId, p_until: until });
       if (error) throw mapDbError(error);
     },
+
+    ...createSupabaseDuty(client, { ok, mapDbError }),
   };
 }

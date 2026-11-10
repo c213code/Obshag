@@ -9,7 +9,21 @@ export type BillPushPayload = { type: "bill"; billId: string; title: string; mon
 /** «Ждут решения: 2 покупки» at 19:00: one push per user; the worker composes the text; tapping opens `/`. */
 export type DigestPushPayload = { type: "digest"; count: number };
 
-export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload;
+/** «Сегодня готовишь ты 🍳» at 09:00; tapping opens /duty. */
+export type DutyTodayPushPayload = { type: "duty-today"; kind: string; title: string };
+
+/** A swap request for the counterparty / a decline for the requester; tapping opens /duty/request/<id>. */
+export type SwapPushPayload = {
+  type: "swap-request" | "swap-declined";
+  requestId: string;
+  name: string;
+  fromLabel: string;
+  toLabel: string;
+};
+
+export type DutyPushPayload = DutyTodayPushPayload | SwapPushPayload;
+
+export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload | DutyPushPayload;
 
 /** What the service worker receives. Title and body are composed there (it formats the amount itself). */
 export type PendingPushPayload = { type: "pending"; purchaseId: string; merchant: string | null; amount: number };

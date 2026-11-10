@@ -27,6 +27,17 @@ export function parseCallbackData(data: string | undefined): CallbackAction | nu
   return { shared: kind === "s:", purchaseId: id.toLowerCase() };
 }
 
+export type SwapCallback = { accept: boolean; requestId: string };
+
+/** `sw:a:<uuid>` = Согласен, `sw:d:<uuid>` = Не могу. Anything else is null. */
+export function parseSwapCallback(data: string | undefined): SwapCallback | null {
+  if (typeof data !== "string" || data.length !== 41 || !data.startsWith("sw:")) return null;
+  const kind = data.slice(3, 5);
+  const id = data.slice(5);
+  if ((kind !== "a:" && kind !== "d:") || !UUID.test(id)) return null;
+  return { accept: kind === "a:", requestId: id.toLowerCase() };
+}
+
 /** Only what the bot uses; everything else in an update is dropped. */
 export const updateSchema = z.object({
   message: z

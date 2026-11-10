@@ -1,4 +1,4 @@
-import type { Bill, Household, Member, Profile, Purchase, Settlement, Share } from "./types";
+import type { Bill, Duty, Household, Member, Profile, Purchase, Settlement, Share, SwapRequest } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
@@ -34,6 +34,13 @@ export type MockDb = {
   telegramCodes?: Array<{ code_hash: string; user_id: string; expires_at: string }>;
   /** Digest log (SQL private.pending_digest_log): one row per purchase and Almaty day. */
   digestLog?: Array<{ purchase_id: string; sent_on: string }>;
+  /** «Очередь» (SQL duties + duty_members): the rotation lives in `order`. */
+  duties?: Duty[];
+  dutyOverrides?: Array<{ duty_id: string; day: string; user_id: string; source: "swap" | "admin"; reason: string | null }>;
+  dutyDone?: Array<{ duty_id: string; day: string; user_id: string; done_at: string }>;
+  swapRequests?: SwapRequest[];
+  /** private.duty_morning_log */
+  dutyMorningLog?: Array<{ duty_id: string; day: string }>;
 };
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, n, 12)).toISOString();

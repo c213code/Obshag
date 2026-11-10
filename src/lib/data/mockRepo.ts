@@ -31,6 +31,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
+import { createMockDuty } from "./mockDuty";
 import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
 import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, PendingDigestUser, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
@@ -1174,5 +1175,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         m.away_until = until;
       });
     },
+
+    ...createMockDuty({ tx, read, uid, now, requireSecret, subscriptionsOf }),
   };
 }

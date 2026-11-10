@@ -167,3 +167,82 @@ export type BillNotice = {
 };
 
 export type MonthlyRun = { created: number; notices: BillNotice[] };
+
+// ---------------------------------------------------------------- «Очередь» (slice 14)
+
+export type DutyKind = "cooking" | "trash" | "water" | "custom";
+
+/** A duty of a household with its rotation (`order` = member user ids, first = start_date's cook). */
+export type Duty = {
+  id: Uuid;
+  household_id: Uuid;
+  kind: DutyKind;
+  title: string;
+  start_date: IsoDate;
+  active: boolean;
+  order: Uuid[];
+};
+
+export type DutySource = "rotation" | "swap" | "admin" | "skip";
+
+/** One day of the plan (duty_schedule). `skipped_user` = who it would have been if they had not been away. */
+export type DutyDay = {
+  day: IsoDate;
+  user_id: Uuid;
+  source: DutySource;
+  done: boolean;
+  /** A still-pending swap request that touches this day. */
+  request_id: Uuid | null;
+  skipped_user: Uuid | null;
+};
+
+export type SwapStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
+
+export type SwapRequest = {
+  id: Uuid;
+  duty_id: Uuid;
+  from_user: Uuid;
+  from_day: IsoDate;
+  to_user: Uuid;
+  to_day: IsoDate;
+  reason: string | null;
+  status: SwapStatus;
+  expires_at: IsoDateTime;
+  created_at: IsoDateTime;
+  decided_at: IsoDateTime | null;
+};
+
+/** The payload for one push / Telegram DM about a swap (swap_notice, tg_respond_swap). */
+export type DutyNotice = {
+  request_id: Uuid;
+  target_user: Uuid;
+  subscriptions: PushSubscriptionInput[];
+  telegram_user_id: number | null;
+  from_name: string;
+  to_name: string;
+  from_day: IsoDate;
+  to_day: IsoDate;
+  from_label: string;
+  to_label: string;
+  reason: string | null;
+};
+
+export type DutyNoticeEvent = "requested" | "declined";
+
+export type TgSwapResult = { result: "accepted" | "declined" | "expired" | "stale"; notice: DutyNotice | null };
+
+/** One duty of the 09:00 run (run_duty_morning): today's and tomorrow's cook, today's devices and the group chat. */
+export type DutyMorningItem = {
+  duty_id: Uuid;
+  household_id: Uuid;
+  kind: DutyKind;
+  title: string;
+  telegram_chat_id: number | null;
+  today_user: Uuid;
+  today_name: string;
+  tomorrow_user: Uuid | null;
+  tomorrow_name: string | null;
+  subscriptions: PushSubscriptionInput[];
+};
+
+export type NewDuty = { household_id: Uuid; kind: DutyKind; title: string; start_date?: IsoDate | null; order?: Uuid[] | null };

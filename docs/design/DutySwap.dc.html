@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Обмен днём</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6a3fe0}a:hover{color:#4f2fc0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #d9d6e3; font-family: -apple-system, 'SF Pro Text', Inter, system-ui, sans-serif; color: #16132b; position: relative; overflow: hidden">
+
+<div style="position: absolute; left: 16px; right: 16px; top: 58px; display: flex; flex-direction: column; gap: 14px; opacity: 0.55">
+<div style="height: 38px; width: 160px; border-radius: 12px; background: #c9c5d6"></div>
+<div style="height: 196px; border-radius: 28px; background: #3a2a63"></div>
+<div style="height: 150px; border-radius: 24px; background: #eceaf2"></div>
+</div>
+
+<div role="dialog" aria-label="Поменяться днём" style="position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; border-radius: 32px 32px 0 0; padding: 10px 16px 30px; box-shadow: 0 -10px 40px rgba(22,19,43,0.18); display: flex; flex-direction: column; gap: 14px">
+<div style="width: 40px; height: 5px; border-radius: 3px; background: #dcd9e6; align-self: center"></div>
+<div style="display: flex; align-items: flex-start; justify-content: space-between">
+<div>
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px">Поменяться днём</h1>
+<p style="margin: 4px 0 0; font-size: 14px; color: #6a6684">Твой день — вторник, 18 ноября</p>
+</div>
+<button aria-label="Закрыть" style="width: 32px; height: 32px; border-radius: 16px; border: 0; background: #f1eff7; color: #6a6684; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<button style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 20px; border: 2px solid #6a3fe0; background: #f7f4ff; text-align: left; font: inherit; color: inherit">
+<span style="width: 44px; height: 44px; border-radius: 22px; background: #3b82f6; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700">N</span>
+<span style="flex: 1"><span style="display: block; font-size: 16px; font-weight: 600">Nurdaulet</span><span style="display: block; font-size: 13px; color: #6a6684; margin-top: 2px">пн, 17 ноября · перед тобой</span></span>
+<span style="width: 24px; height: 24px; border-radius: 12px; background: #6a3fe0; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+</button>
+<button style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 20px; border: 1px solid #ebe9f2; background: #ffffff; text-align: left; font: inherit; color: inherit">
+<span style="width: 44px; height: 44px; border-radius: 22px; background: #ff8a3d; color: #2a1300; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700">А</span>
+<span style="flex: 1"><span style="display: block; font-size: 16px; font-weight: 600">Айдос</span><span style="display: block; font-size: 13px; color: #6a6684; margin-top: 2px">ср, 19 ноября · после тебя</span></span>
+<span style="width: 24px; height: 24px; border-radius: 12px; border: 2px solid #dcd9e6"></span>
+</button>
+<a href="Calendar.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 20px; border: 1px solid #ebe9f2; background: #ffffff; text-decoration: none; color: #16132b">
+<span style="width: 44px; height: 44px; border-radius: 22px; background: #f1eff7; color: #6a3fe0; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span>
+<span style="flex: 1"><span style="display: block; font-size: 16px; font-weight: 600">Другой день</span><span style="display: block; font-size: 13px; color: #6a6684; margin-top: 2px">с любым соседом, в календаре</span></span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a19db5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+</a>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: 20px; background: #f6f6f9">
+<div style="flex: 1; text-align: center">
+<div style="font-size: 12px; color: #6a6684">пн, 17</div>
+<div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #3b82f6; color: #ffffff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0.4">N</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6a6684" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span style="width: 28px; height: 28px; border-radius: 14px; background: #c8f25a; color: #1a2300; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center">Е</span></div>
+</div>
+<span style="width: 36px; height: 36px; border-radius: 18px; background: #6a3fe0; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h12l-3-3M17 17H5l3 3"/></svg></span>
+<div style="flex: 1; text-align: center">
+<div style="font-size: 12px; color: #6a6684">вт, 18</div>
+<div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #c8f25a; color: #1a2300; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0.4">Е</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6a6684" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span style="width: 28px; height: 28px; border-radius: 14px; background: #3b82f6; color: #ffffff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center">N</span></div>
+</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #6a6684">Причина, необязательно
+<input type="text" value="В понедельник пары до вечера" style="height: 48px; border-radius: 16px; border: 1px solid #e3e1ec; background: #ffffff; padding: 0 14px; font: 500 15px/1 inherit; color: #16132b; outline: none"></label>
+<p style="margin: -4px 4px 0; font-size: 13px; color: #6a6684; line-height: 1.45">Запрос придёт Nurdaulet. Если не ответит до пн 10:00 — сгорит.</p>
+
+<button style="height: 54px; border-radius: 27px; border: 0; background: #6a3fe0; color: #ffffff; font: 600 17px/1 inherit; box-shadow: 0 8px 22px rgba(106,63,224,0.3)">Отправить запрос</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

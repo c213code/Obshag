@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Календарь готовки</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6a3fe0}a:hover{color:#4f2fc0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #f6f6f9; font-family: -apple-system, 'SF Pro Text', Inter, system-ui, sans-serif; color: #16132b; display: flex; flex-direction: column; padding: 58px 16px 18px; gap: 14px; overflow: hidden">
+
+<div style="display: flex; align-items: center; gap: 10px">
+<a href="Main.dc.html" aria-label="Назад" style="width: 40px; height: 40px; border-radius: 20px; background: #ffffff; color: #16132b; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+<div style="flex: 1">
+<div style="font-size: 13px; color: #6a6684; font-weight: 500">Готовка</div>
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px">Ноябрь 2026</h1>
+</div>
+<button aria-label="Предыдущий месяц" style="width: 36px; height: 36px; border-radius: 18px; border: 0; background: #ffffff; color: #16132b; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+<button aria-label="Следующий месяц" style="width: 36px; height: 36px; border-radius: 18px; border: 0; background: #ffffff; color: #16132b; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+</div>
+
+<div style="background: #ffffff; border-radius: 24px; padding: 12px 10px 10px">
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; font-size: 11px; font-weight: 600; color: #6a6684; padding-bottom: 6px">
+<span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span style="color: #7b5cf0">Сб</span><span style="color: #7b5cf0">Вс</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 4px">
+<sc-for list="{{days}}" as="d" hint-placeholder-count="35">
+<div style="height: 62px; border-radius: 14px; background: {{d.cellBg}}; box-shadow: {{d.ring}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+<span style="font-size: 13px; font-weight: {{d.dateWeight}}; color: {{d.dateColor}}">{{d.n}}</span>
+<sc-if value="{{d.has}}" hint-placeholder-val="{{true}}">
+<span style="position: relative; width: 26px; height: 26px; border-radius: 13px; background: {{d.bg}}; color: {{d.fg}}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700">
+<span style="opacity: {{d.letterOpacity}}">{{d.who}}</span>
+<sc-if value="{{d.done}}" hint-placeholder-val="{{false}}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16132b" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="position: absolute" role="img" aria-label="приготовлено"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+</sc-if>
+<sc-if value="{{d.away}}" hint-placeholder-val="{{false}}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6a6684" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute" role="img" aria-label="в отъезде"><path d="M3 13l18-7-5 14-3-6-6-1z"/></svg>
+</sc-if>
+<sc-if value="{{d.swapped}}" hint-placeholder-val="{{false}}">
+<span style="position: absolute; right: -5px; top: -5px; width: 14px; height: 14px; border-radius: 7px; background: #6a3fe0; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="обмен"><path d="M7 7h12l-3-3M17 17H5l3 3"/></svg></span>
+</sc-if>
+</span>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #6a6684; padding: 0 4px">
+<span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #c8f25a"></span>Ты</span>
+<span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #ff8a3d"></span>Айдос</span>
+<span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #9b7bff"></span>Парасат</span>
+<span style="display: flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #3b82f6"></span>Nurdaulet</span>
+<span>✓ приготовил · ⇄ обмен</span>
+</div>
+
+<div style="background: #ffffff; border-radius: 24px; padding: 14px 16px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 6px">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700">Счёт за ноябрь</h2>
+<span style="font-size: 13px; color: #6a6684">приготовил / дни</span>
+</div>
+<sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid {{s.line}}">
+<span style="width: 28px; height: 28px; border-radius: 14px; background: {{s.bg}}; color: {{s.fg}}; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">{{s.letter}}</span>
+<span style="flex: 1; font-size: 15px; font-weight: 500">{{s.name}}</span>
+<span style="width: 84px; height: 6px; border-radius: 3px; background: #efedf5; overflow: hidden; display: flex"><span style="width: {{s.pct}}; background: #6a3fe0; border-radius: 3px"></span></span>
+<span style="font-size: 14px; font-weight: 600; width: 44px; text-align: right">{{s.done}}/{{s.total}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var C = { E: '#c8f25a', A: '#ff8a3d', P: '#9b7bff', N: '#3b82f6' };
+    var FG = { E: '#1a2300', A: '#2a1300', P: '#ffffff', N: '#ffffff' };
+    var L = { E: 'Е', A: 'А', P: 'П', N: 'N' };
+    var order = ['E', 'A', 'P', 'N'];
+    var days = [];
+    for (var b = 0; b < 5; b++) days.push({ n: '', has: false, cellBg: 'transparent', ring: 'none', dateWeight: 500, dateColor: '#16132b' });
+    for (var n = 1; n <= 30; n++) {
+      var k = order[(n + 2) % 4];
+      if (n === 17) k = 'N';
+      if (n === 18) k = 'E';
+      var swapped = n === 17 || n === 18;
+      var away = (n >= 25 && n <= 27) && k === 'N';
+      var past = n < 18, today = n === 18;
+      days.push({
+        n: String(n), has: true, who: away ? '' : L[k], done: past, away: away, swapped: swapped,
+        bg: away ? '#efedf5' : (past ? '#f1eff7' : C[k]), fg: past ? '#16132b' : FG[k],
+        letterOpacity: past ? 0.28 : 1,
+        cellBg: today ? '#efe9ff' : 'transparent',
+        ring: today ? 'inset 0 0 0 2px #6a3fe0' : 'none',
+        dateWeight: today ? 700 : 500,
+        dateColor: today ? '#4f2fc0' : (past ? '#8c88a3' : '#16132b')
+      });
+    }
+    var stats = [
+      { letter: 'Е', name: 'Ты', bg: C.E, fg: FG.E, done: 4, total: 8 },
+      { letter: 'А', name: 'Айдос', bg: C.A, fg: FG.A, done: 4, total: 8 },
+      { letter: 'П', name: 'Парасат', bg: C.P, fg: FG.P, done: 4, total: 7 },
+      { letter: 'N', name: 'Nurdaulet', bg: C.N, fg: FG.N, done: 5, total: 7 }
+    ].map(function (s, i) { s.pct = Math.round(s.done / s.total * 100) + '%'; s.line = i ? '#f1eff7' : 'transparent'; return s; });
+    return { days: days, stats: stats };
+  }
+}
+</script>
+</body>
+</html>

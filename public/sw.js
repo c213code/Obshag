@@ -125,7 +125,41 @@ function showDigest(data) {
   });
 }
 
+function str(v, fallback) {
+  return typeof v === "string" && v ? v : fallback;
+}
+
+function showDutyToday(data) {
+  // 09:00: «Сегодня готовишь ты 🍳»; tapping opens the queue
+  const cooking = data.kind === "cooking";
+  return self.registration.showNotification(cooking ? "Сегодня готовишь ты 🍳" : str(data.title, "Очередь") + ": сегодня твоя очередь", {
+    body: "Открыть очередь",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "duty-today",
+    renotify: false,
+    data: { url: "/duty" },
+  });
+}
+
+function showSwap(data) {
+  // a swap request for the counterparty, a decline for the requester; tapping opens the request
+  const asked = data.type === "swap-request";
+  const name = str(data.name, "Сосед");
+  const days = str(data.fromLabel, "") + " ⇄ " + str(data.toLabel, "");
+  return self.registration.showNotification(asked ? name + " просит поменяться" : name + " не может поменяться", {
+    body: asked ? days + " · ответь до 10:00" : days,
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "swap-" + str(data.requestId, "x"),
+    renotify: true,
+    data: { url: typeof data.requestId === "string" ? "/duty/request/" + encodeURIComponent(data.requestId) : "/duty" },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "duty-today") return showDutyToday(data);
+  if (data && (data.type === "swap-request" || data.type === "swap-declined")) return showSwap(data);
   if (data && data.type === "digest") return showDigest(data);
   if (data && data.type === "bill") return showBill(data);
   if (data && data.type === "reminder" && typeof data.fromUserId === "string") return showReminder(data);

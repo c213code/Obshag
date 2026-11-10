@@ -57,6 +57,31 @@
   --color-on-tile-rose: #ff9aa8;
   --color-tile-violet: #2a2540;
   --color-on-tile-violet: #b8a7ff;
+  /* «Очередь»: the stove (конфорка) hero card is dark violet in both themes (DutyMain.dc.html) */
+  --color-stove: #23124f;
+  --color-stove-ring: #3a2470;
+  --color-stove-disc: #2c1860;
+  --color-stove-core: #1a0d3d;
+  --color-stove-flame: #ff8a3d;
+  --color-stove-flame-2: #ffc85a;
+  --color-stove-text: #ffffff;
+  --color-stove-muted: #c9b8ff;
+  /* people on the queue: lime is always «ты», the rest take the others in order (identical in both themes) */
+  --color-duty-lime: #c8f25a;
+  --color-on-duty-lime: #1a2300;
+  --color-duty-orange: #ff8a3d;
+  --color-on-duty-orange: #2a1300;
+  --color-duty-violet: #9b7bff;
+  --color-on-duty-violet: #ffffff;
+  --color-duty-blue: #3b82f6;
+  --color-on-duty-blue: #ffffff;
+  --color-duty-rose: #e8588f;
+  --color-on-duty-rose: #ffffff;
+  --color-duty-teal: #14b8a6;
+  --color-on-duty-teal: #04201c;
+  /* faded labels of past days; the ink of «today» labels */
+  --color-faint: #5d6068;
+  --color-lime-ink: #c8f25a;
   --color-transparent: transparent;
   --color-current: currentColor;
 
@@ -176,6 +201,8 @@
     --color-on-tile-rose: #b3263f;
     --color-tile-violet: #efe9ff;
     --color-on-tile-violet: #6a3fe0;
+    --color-faint: #8c88a3;
+    --color-lime-ink: #4f2fc0;
   }
 }
 

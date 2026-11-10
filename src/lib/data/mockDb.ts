@@ -79,6 +79,29 @@ const settlement = z.object({
   covered: z.array(z.object({ purchase_id: uuid, debtor_id: uuid, amount: z.number().int() })).max(2000),
 });
 
+const duty = z.object({
+  id: uuid,
+  household_id: uuid,
+  kind: z.enum(["cooking", "trash", "water", "custom"]),
+  title: z.string().max(40),
+  start_date: z.string().max(10),
+  active: z.boolean(),
+  order: z.array(uuid).max(20),
+});
+const swapRequest = z.object({
+  id: uuid,
+  duty_id: uuid,
+  from_user: uuid,
+  from_day: z.string().max(10),
+  to_user: uuid,
+  to_day: z.string().max(10),
+  reason: z.string().max(140).nullable(),
+  status: z.enum(["pending", "accepted", "declined", "cancelled", "expired"]),
+  expires_at: iso,
+  created_at: iso,
+  decided_at: iso.nullable(),
+});
+
 export const mockDbSchema = z.object({
   users: z.array(z.object({ id: uuid, email: z.string().max(200), password: z.string().max(200) })).max(500),
   profiles: z.array(profile).max(500),
@@ -100,6 +123,14 @@ export const mockDbSchema = z.object({
   reminderLog: z.array(z.object({ from_id: uuid, to_id: uuid, at: iso })).max(5000),
   telegramCodes: z.array(z.object({ code_hash: z.string().max(100), user_id: uuid, expires_at: iso })).max(500).optional(),
   digestLog: z.array(z.object({ purchase_id: uuid, sent_on: z.string().max(10) })).max(5000).optional(),
+  duties: z.array(duty).max(100).optional(),
+  dutyOverrides: z
+    .array(z.object({ duty_id: uuid, day: z.string().max(10), user_id: uuid, source: z.enum(["swap", "admin"]), reason: z.string().max(140).nullable() }))
+    .max(5000)
+    .optional(),
+  dutyDone: z.array(z.object({ duty_id: uuid, day: z.string().max(10), user_id: uuid, done_at: iso })).max(5000).optional(),
+  swapRequests: z.array(swapRequest).max(5000).optional(),
+  dutyMorningLog: z.array(z.object({ duty_id: uuid, day: z.string().max(10) })).max(5000).optional(),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

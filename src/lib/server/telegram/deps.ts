@@ -1,4 +1,5 @@
 import "server-only";
+import { getPushSender } from "../captureDeps";
 import { getServerRepo } from "../reminderDeps";
 import { getTelegramApi, readWebhookSecret } from "./env";
 import type { WebhookDeps } from "./webhookHandler";
@@ -8,5 +9,5 @@ export function getWebhookDeps(): WebhookDeps | null {
   const server = getServerRepo();
   const webhookSecret = readWebhookSecret();
   if (!server || !webhookSecret) return null;
-  return { repo: server.repo, api: getTelegramApi(), serverSecret: server.secret, webhookSecret };
+  return { repo: server.repo, api: getTelegramApi(), push: getPushSender(), serverSecret: server.secret, webhookSecret };
 }

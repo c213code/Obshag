@@ -95,6 +95,24 @@ describe("sw.js", () => {
     expect(sw.opened).toEqual(["/settle/u1"]);
   });
 
+  it("push: «Сегодня готовишь ты 🍳» at 09:00 opens /duty", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "duty-today", kind: "cooking", title: "Готовка" }));
+    expect(sw.shown[0].title).toBe("Сегодня готовишь ты 🍳");
+    expect(sw.shown[0].options).toMatchObject({ tag: "duty-today", data: { url: "/duty" } });
+    await sw.wait(sw.handlers.push, pushEvent({ type: "duty-today", kind: "trash", title: "Мусор" }));
+    expect(sw.shown[1].title).toBe("Мусор: сегодня твоя очередь");
+  });
+
+  it("push: a swap request and a decline open the request screen", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "swap-request", requestId: "r1", name: "Ерасыл", fromLabel: "пн 17", toLabel: "вт 18" }));
+    expect(sw.shown[0].title).toBe("Ерасыл просит поменяться");
+    expect(sw.shown[0].options).toMatchObject({ body: "пн 17 ⇄ вт 18 · ответь до 10:00", tag: "swap-r1", data: { url: "/duty/request/r1" } });
+    await sw.wait(sw.handlers.push, pushEvent({ type: "swap-declined", requestId: "r1", name: "Айдос", fromLabel: "пн 17", toLabel: "вт 18" }));
+    expect(sw.shown[1].title).toBe("Айдос не может поменяться");
+  });
+
   it("push: no merchant falls back to «Покупка Apple Pay»", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "pending", purchaseId: "x", merchant: null, amount: 250 }));

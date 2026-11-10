@@ -4,9 +4,15 @@ import type {
   CaptureChoice,
   CaptureResult,
   CaptureTokenInfo,
+  Duty,
+  DutyDay,
+  DutyMorningItem,
+  DutyNotice,
+  DutyNoticeEvent,
   Household,
   Member,
   MonthlyRun,
+  NewDuty,
   Profile,
   Purchase,
   PendingDigestUser,
@@ -14,7 +20,9 @@ import type {
   ReminderTarget,
   Settlement,
   Share,
+  SwapRequest,
   TgResolveResult,
+  TgSwapResult,
   Uuid,
 } from "./types";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
@@ -191,6 +199,36 @@ export interface Repo {
   rotateInviteCode(householdId: Uuid): Promise<Household>;
   /** Myself: away until a date ('YYYY-MM-DD', today or later) or null = at home. */
   setAway(householdId: Uuid, until: string | null): Promise<void>;
+
+  // ---- «Очередь»
+  /** The household's active duties with their rotation (members read). */
+  listDuties(householdId: Uuid): Promise<Duty[]>;
+  /** The plan for from..to inclusive (at most 63 days): who has each day, how, done, the pending request touching it. */
+  dutySchedule(dutyId: Uuid, from: string, to: string): Promise<DutyDay[]>;
+  /** The latest swap requests of a duty (newest first); a pending one past its deadline shows as pending until it is read through effectiveStatus. */
+  listSwapRequests(dutyId: Uuid): Promise<SwapRequest[]>;
+  /** One request (members of its household); not_found otherwise. */
+  getSwapRequest(requestId: Uuid): Promise<SwapRequest>;
+  /** Admin only. Default order = join order, start = today. invalid = a second active duty of the kind, a bad order or title. */
+  createDuty(input: NewDuty): Promise<Duty>;
+  /** Admin only: a new rotation (distinct active members) and optionally a new start date. */
+  setDutyOrder(dutyId: Uuid, order: Uuid[], startDate?: string | null): Promise<Duty>;
+  /** Admin only, today or later: «Не могу сегодня» fallback. userId null clears the admin override. past_day / locked. */
+  adminAssignDay(dutyId: Uuid, day: string, userId: Uuid | null): Promise<void>;
+  /** The assignee marks today (or yesterday before 09:00). not_assignee, future_day, locked. Idempotent. */
+  markDutyDone(dutyId: Uuid, day: string): Promise<void>;
+  /** A swap: my day (I am the assignee) for another member's day. busy, not_assignee, past_day, expired, invalid. */
+  requestSwap(dutyId: Uuid, myDay: string, otherDay: string, reason?: string | null): Promise<SwapRequest>;
+  /** The counterparty answers. Accepting re-checks both days (stale) and writes both overrides at once. An expired request comes back as expired. */
+  respondSwap(requestId: Uuid, accept: boolean): Promise<SwapRequest>;
+  /** The requester withdraws a pending request (twice is a no-op; an accepted one is stale). */
+  cancelSwap(requestId: Uuid): Promise<SwapRequest>;
+  /** SERVER ONLY (CRON_SECRET + session): who to push / DM about a swap; the other side's devices never reach a browser. */
+  swapNotice(secret: string, requestId: Uuid, event: DutyNoticeEvent): Promise<DutyNotice>;
+  /** SERVER ONLY: the 09:00 run, once per duty and day; expires stale requests. */
+  runDutyMorning(secret: string): Promise<DutyMorningItem[]>;
+  /** SERVER ONLY: a Telegram button on a swap DM. forbidden = that Telegram user is not the counterparty. */
+  tgRespondSwap(secret: string, tgUserId: number, requestId: Uuid, accept: boolean): Promise<TgSwapResult>;
 }
 
 export type RepoErrorCode =
@@ -209,6 +247,12 @@ export type RepoErrorCode =
   | "not_small" // write-off of a debt that is at or above the minimum
   | "not_settled" // removing or leaving while a net with someone is non-zero
   | "stale"
+  | "busy" // a day of the swap is already in a pending request
+  | "not_assignee"
+  | "past_day"
+  | "future_day"
+  | "locked" // the day is closed (done, or past the 09:00 lock)
+  | "expired"
   | "invalid_link" // the password reset link is expired, used or malformed
   | "signup_unavailable" // sign-up failed on the server (5xx / unexpected_failure, e.g. SMTP with «Confirm email» ON)
   | "unknown";
