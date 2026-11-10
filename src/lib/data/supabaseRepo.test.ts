@@ -12,7 +12,7 @@ function fakeClient(opts: { rpc?: Record<string, Result>; tables?: Record<string
   const queries: string[] = [];
   const chain = (table: string, result: Result) => {
     const q: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "order"]) {
+    for (const m of ["select", "eq", "order", "gte", "lt", "is", "in", "or"]) {
       q[m] = (...args: unknown[]) => {
         queries.push(`${table}.${m}(${args.map((a) => JSON.stringify(a)).join(",")})`);
         return q;
@@ -188,10 +188,22 @@ describe("supabaseRepo", () => {
       'members.eq("active",true)',
       'members.order("joined_at",{"ascending":true})',
       'members.order("user_id",{"ascending":true})',
+      // recent window
       'purchases.select("*, shares(*)")',
       'purchases.eq("household_id","h1")',
+      expect.stringMatching(/^purchases\.gte\("created_at","\d{4}-/),
       'purchases.order("created_at",{"ascending":false})',
       'purchases.order("id",{"ascending":false})',
+      // older but pending
+      'purchases.select("*, shares(*)")',
+      'purchases.eq("household_id","h1")',
+      expect.stringMatching(/^purchases\.lt\("created_at"/),
+      'purchases.eq("status","pending")',
+      // older with an unsettled share (ids only)
+      'purchases.select("id, shares!inner(settled_at)")',
+      'purchases.eq("household_id","h1")',
+      expect.stringMatching(/^purchases\.lt\("created_at"/),
+      'purchases.is("shares.settled_at",null)',
     ]);
   });
 
@@ -260,6 +272,7 @@ describe("supabaseRepo", () => {
     expect(queries).toEqual([
       'settlements.select("*, covered:settlement_shares(purchase_id, debtor_id, amount)")',
       'settlements.eq("household_id","h1")',
+      expect.stringMatching(/^settlements\.or\("marked_at\.gte\.\d{4}-.*,status\.eq\.marked"\)$/),
       'settlements.order("marked_at",{"ascending":false})',
       'settlements.order("id",{"ascending":true})',
     ]);

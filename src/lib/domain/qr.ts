@@ -1,7 +1,7 @@
-import QRCode from "qrcode";
-
 /** A QR code as one SVG path (`d`, one 1x1 square per dark module) plus its side length in modules. */
-export function qrPath(text: string): { size: number; d: string } {
+export async function qrPath(text: string): Promise<{ size: number; d: string }> {
+  // loaded only when a code is actually drawn: the library is not part of the Квартира page's own bundle
+  const { default: QRCode } = await import("qrcode");
   const { modules } = QRCode.create(text, { errorCorrectionLevel: "M" });
   const size = modules.size;
   let d = "";

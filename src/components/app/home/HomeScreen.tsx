@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { CardStack } from "@/components/ui/CardStack";
-import { householdSummary } from "@/lib/domain/summary";
-import { useHouseholdCards } from "./useHouseholdCards";
 import { ru } from "@/lib/i18n/ru";
-import { useAppActions, useAppData } from "../AppDataProvider";
+import { useAppActions, useAppData, useAppDerived } from "../AppDataProvider";
 import { Screen } from "../Screen";
 import { DebtsCard } from "./DebtsCard";
 import { GreetingHeader } from "./GreetingHeader";
@@ -17,22 +15,23 @@ import { WaitingSection } from "./WaitingSection";
 
 /** Главная, per Main.dc.html: greeting, card stack, quick actions, Долги, Последние покупки. */
 export function HomeScreen() {
-  const { me, households, members, purchases, activeId } = useAppData();
+  const { me, members, purchases, activeId } = useAppData();
   const { switchHousehold } = useAppActions();
-  const cards = useHouseholdCards(me, households, members, purchases);
+  const { cards, active } = useAppDerived();
+
+  const onFrontChange = useCallback((id: string) => id !== activeId && void switchHousehold(id), [activeId, switchHousehold]);
 
   const data = useMemo(() => {
     if (!me) return null;
     const ps = (activeId && purchases[activeId]) || [];
     const activeMembers = (activeId && members[activeId]) || [];
-    const active = householdSummary(me.id, activeMembers, ps.flatMap((p) => p.shares), ps);
     const names = new Map(activeMembers.map((m) => [m.user_id, m.user_id === me.id ? ru.main.you : m.profile.display_name]));
-    return { active, ps, names };
+    return { ps, names };
   }, [me, members, purchases, activeId]);
 
   const recent = useMemo(() => (data ? data.ps.filter((p) => p.status !== "pending") : []), [data]);
 
-  if (!me || !data) return null;
+  if (!me || !data || !active) return null;
 
   return (
     <Screen>
@@ -40,10 +39,10 @@ export function HomeScreen() {
       <GreetingHeader name={me.display_name} initial={me.display_name} unread={0} />
       <PendingSection purchases={data.ps} />
       <div className="-mt-2">
-        <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={(id) => id !== activeId && void switchHousehold(id)} />
+        <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} />
       </div>
       <QuickActions />
-      <DebtsCard owe={data.active.balance.owe} owed={data.active.balance.owed} />
+      <DebtsCard owe={active.balance.owe} owed={active.balance.owed} />
       <IncomingSection />
       <WaitingSection />
       <RecentPurchases purchases={recent} payerNames={data.names} />

@@ -406,6 +406,7 @@ export const ru = {
   },
   purchases: {
     title: "Покупки",
+    showMore: "Показать ещё",
     swipeDelete: "Удалить",
     swipeAsk: (what: string, amount: string) => `Удалить «${what}» · ${amount}?`,
     swipeAskHint: "Доли у всех исчезнут.",

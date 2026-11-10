@@ -16,9 +16,24 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/** The Supabase origin (absent in mock mode): the first request of every session goes there, so the connection is opened early. */
+function supabaseOrigin(): string | null {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return url ? new URL(url).origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const origin = supabaseOrigin();
   return (
     <html lang="ru">
+      <head>
+        {origin && <link rel="preconnect" href={origin} crossOrigin="" />}
+        {origin && <link rel="dns-prefetch" href={origin} />}
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

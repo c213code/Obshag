@@ -42,6 +42,7 @@ export function WaitingSection() {
             >
               <Link
                 href={`/settle/${to.user_id}`}
+                prefetch={false}
                 data-testid="waiting-row"
                 className="flex items-center gap-[10px] rounded-pill border border-card-2 bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
               >

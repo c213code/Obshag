@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type HTMLAttributes } from "react";
+import { useLayoutEffect, useRef, type HTMLAttributes } from "react";
 import { animate } from "motion/react";
 import { ease, useReducedMotionSafe } from "@/lib/motion";
 import { formatTenge } from "@/lib/format/money";
@@ -13,36 +13,45 @@ type MoneyProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
   duration?: number;
 };
 
-/** Integer tenge that rolls to its new value (easeOut). The final value is always exact. */
+/**
+ * Integer tenge that rolls to its new value (easeOut). The final value is always exact.
+ * The roll writes the text straight into the DOM node: no React state per frame, so a roll never re-renders anything.
+ * JSX always renders the final value; an unchanged value (a silent refresh) does nothing at all.
+ */
 export function Money({ value, sign, duration = 0.7, className, ...rest }: MoneyProps) {
   const { reduced } = useReducedMotionSafe();
-  const [shown, setShown] = useState(value);
+  const ref = useRef<HTMLSpanElement>(null);
   const current = useRef(value);
 
-  useEffect(() => {
-    if (reduced || current.current === value) {
+  // layout effect: the old number goes back on screen before the browser paints the new one, so the roll starts without a flash
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || reduced || current.current === value) {
       current.current = value;
-      setShown(value);
       return;
     }
+    const write = (n: number) => {
+      el.textContent = formatTenge(n, { sign });
+    };
+    write(Math.round(current.current));
     const controls = animate(current.current, value, {
       duration,
       ease: ease.smooth,
       onUpdate: (v) => {
         current.current = v;
-        setShown(Math.round(v));
+        write(Math.round(v));
       },
       onComplete: () => {
         current.current = value;
-        setShown(value);
+        write(value);
       },
     });
     return () => controls.stop();
-  }, [value, duration, reduced]);
+  }, [value, sign, duration, reduced]);
 
   return (
-    <span className={cx("money tabular-nums", className)} {...rest}>
-      {formatTenge(shown, { sign })}
+    <span ref={ref} className={cx("money tabular-nums", className)} {...rest}>
+      {formatTenge(value, { sign })}
     </span>
   );
 }

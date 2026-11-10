@@ -47,7 +47,7 @@ export const BillCard = memo(function BillCard({
     >
       <div className="flex items-center gap-3">
         {editHref ? (
-          <Link href={editHref} className={cx(rowClass, "transition-transform duration-200 ease-smooth active:scale-[0.98]")}>
+          <Link href={editHref} prefetch={false} className={cx(rowClass, "transition-transform duration-200 ease-smooth active:scale-[0.98]")}>
             {head}
           </Link>
         ) : (

@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { memo, useRef, useState, type ReactNode } from "react";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { spring } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 
 const REVEAL = 112; // how far the row can be pulled (px)
 const THRESHOLD = 84; // released past this (or flicked) asks for confirmation
+const DRAG_CONSTRAINTS = { left: -REVEAL, right: 0 } as const;
+const DRAG_ELASTIC = { left: 0.12, right: 0 } as const;
 
 /**
  * Swipe a row to the left to delete it. The row slides on `x` (transform), a «Удалить» capsule fades in behind it.
@@ -14,38 +16,47 @@ const THRESHOLD = 84; // released past this (or flicked) asks for confirmation
  * `dragDirectionLock` keeps vertical scrolling working. When `enabled` is false the row is a plain wrapper
  * (no permission, or reduced motion: the detail screen has its own delete).
  */
-export function SwipeDeleteRow({ enabled, onRequest, children }: { enabled: boolean; onRequest: () => void; children: ReactNode }) {
+export const SwipeDeleteRow = memo(function SwipeDeleteRow({ enabled, onRequest, children }: { enabled: boolean; onRequest: () => void; children: ReactNode }) {
   const x = useMotionValue(0);
   const hintOpacity = useTransform(x, [-REVEAL, -24, 0], [1, 0.6, 0]);
   const dragged = useRef(false);
+  /** The red capsule exists only while the row is being dragged (it is invisible at rest, so 100 rows carry no extra layers). */
+  const [revealed, setRevealed] = useState(false);
   if (!enabled) return <>{children}</>;
 
-  const snapBack = () => void animate(x, 0, spring.snap);
+  const snapBack = () => {
+    void animate(x, 0, spring.snap).then(() => {
+      if (x.get() === 0) setRevealed(false);
+    });
+  };
   return (
     <div className="relative" data-swipeable="true">
-      <motion.button
-        type="button"
-        data-testid="swipe-delete"
-        aria-label={ru.purchases.swipeDelete}
-        tabIndex={-1}
-        onClick={() => {
-          snapBack();
-          onRequest();
-        }}
-        style={{ opacity: hintOpacity }}
-        className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center rounded-pill bg-danger text-headline !text-bg"
-      >
-        {ru.purchases.swipeDelete}
-      </motion.button>
+      {revealed ? (
+        <motion.button
+          type="button"
+          data-testid="swipe-delete"
+          aria-label={ru.purchases.swipeDelete}
+          tabIndex={-1}
+          onClick={() => {
+            snapBack();
+            onRequest();
+          }}
+          style={{ opacity: hintOpacity }}
+          className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center rounded-pill bg-danger text-headline !text-bg"
+        >
+          {ru.purchases.swipeDelete}
+        </motion.button>
+      ) : null}
       <motion.div
         style={{ x }}
         drag="x"
         dragDirectionLock
-        dragConstraints={{ left: -REVEAL, right: 0 }}
-        dragElastic={{ left: 0.12, right: 0 }}
+        dragConstraints={DRAG_CONSTRAINTS}
+        dragElastic={DRAG_ELASTIC}
         dragMomentum={false}
         onDragStart={() => {
           dragged.current = true;
+          setRevealed(true);
         }}
         onDragEnd={(_, info) => {
           const past = info.offset.x < -THRESHOLD || info.velocity.x < -600;
@@ -68,4 +79,4 @@ export function SwipeDeleteRow({ enabled, onRequest, children }: { enabled: bool
       </motion.div>
     </div>
   );
-}
+});

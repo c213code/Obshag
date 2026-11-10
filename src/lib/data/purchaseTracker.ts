@@ -33,6 +33,17 @@ export class PurchaseTracker {
   /** Descriptions this device is changing: shown until a server list carries the same text (or the TTL ends). */
   private readonly renamed = new Map<string, { text: string; at: number }>();
 
+  /** Output objects by id: a row whose source object and decoration did not change keeps its identity between views. */
+  private readonly derived = new Map<string, { src: object; tag: string; out: UiPurchase }>();
+
+  private reuse(id: string, tag: string, src: object, make: () => UiPurchase): UiPurchase {
+    const hit = this.derived.get(id);
+    if (hit && hit.src === src && hit.tag === tag) return hit.out;
+    const out = make();
+    this.derived.set(id, { src, tag, out });
+    return out;
+  }
+
   /** Optimistic delete: the row disappears from every view at once. */
   remove(id: string, now = Date.now()): void {
     this.removed.set(id, now);
@@ -62,6 +73,7 @@ export class PurchaseTracker {
     this.created.clear();
     this.retired.clear();
     this.overrides.clear();
+    this.derived.clear();
   }
 
   /** Shows `row` (the resolved version of a pending purchase) in every list until the server's own list has caught up. */
@@ -103,7 +115,8 @@ export class PurchaseTracker {
     const rows = new Map<string, UiPurchase>();
     for (const p of list) {
       if (this.inflight.has(p.id) || this.retired.has(p.id)) continue; // re-added below, from the single source of truth
-      rows.set(p.id, { ...p, clientKey: this.keys.get(p.id) ?? p.id });
+      const clientKey = this.keys.get(p.id) ?? p.id;
+      rows.set(p.id, this.reuse(p.id, `s:${clientKey}`, p, () => ({ ...p, clientKey })));
     }
     for (const [id, o] of [...this.overrides]) {
       const server = rows.get(id);
@@ -111,7 +124,7 @@ export class PurchaseTracker {
       if ((server && server.status !== "pending") || Date.now() - o.at > OVERRIDE_TTL_MS) {
         this.overrides.delete(id);
       } else if (server) {
-        rows.set(id, { ...o.row, clientKey: server.clientKey });
+        rows.set(id, this.reuse(id, `o:${server.clientKey}`, o.row, () => ({ ...o.row, clientKey: server.clientKey })));
       }
     }
     for (const r of this.created.values()) if (r.household_id === householdId && !rows.has(r.id)) rows.set(r.id, r);
@@ -126,8 +139,9 @@ export class PurchaseTracker {
     for (const [id, r] of [...this.renamed]) {
       const row = rows.get(id);
       if (now - r.at > OVERRIDE_TTL_MS || (row && row.description === r.text)) this.renamed.delete(id);
-      else if (row) rows.set(id, { ...row, description: r.text });
+      else if (row) rows.set(id, this.reuse(id, `r:${r.text}:${row.clientKey}`, row, () => ({ ...row, description: r.text })));
     }
+    for (const [id, d] of [...this.derived]) if (d.out.household_id === householdId && !rows.has(id)) this.derived.delete(id);
     return [...rows.values()].sort(newestFirst);
   }
 }

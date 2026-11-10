@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { ease, useReducedMotionSafe, useTapLock } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
@@ -14,6 +14,8 @@ const MAX_DEPTH = 2;
 /** The front card slides down and back this long before the order rotates. */
 const SLIDE_MS = 220;
 const LOCK_MS = 700;
+/** The page follows the front card after the cards have settled. */
+const FOLLOW_MS = 650;
 
 /**
  * 2-3 BalanceCards (approved reference #5, static look from Main.dc.html). The front card slides
@@ -24,7 +26,7 @@ const LOCK_MS = 700;
  * The order is derived from `cards` plus a rotation offset, so the `cards` prop stays the source of truth.
  * With a single card nothing is interactive.
  */
-export function CardStack({
+export const CardStack = memo(function CardStack({
   cards,
   frontId,
   onFrontChange,
@@ -51,9 +53,15 @@ export function CardStack({
   useEffect(() => {
     onFrontChangeRef.current = onFrontChange;
   });
+  // The page below follows the front card only once the card animation has finished (0.6 s + a beat): switching the
+  // household re-renders the whole screen, and that must not land in the middle of the slide.
+  const announced = useRef(false);
   useEffect(() => {
-    if (frontCardId) onFrontChangeRef.current?.(frontCardId);
-  }, [frontCardId]);
+    if (!frontCardId) return;
+    const t = setTimeout(() => onFrontChangeRef.current?.(frontCardId), announced.current && !reduced ? FOLLOW_MS : 0);
+    announced.current = true;
+    return () => clearTimeout(t);
+  }, [frontCardId, reduced]);
   const interactive = n >= 2;
 
   const advance = () => {
@@ -153,4 +161,4 @@ export function CardStack({
       })}
     </div>
   );
-}
+});

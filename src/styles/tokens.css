@@ -4,6 +4,8 @@
   --color-bg: #0e0f13;
   --color-card: #1a1c22;
   --color-card-2: #2c2f37;
+  /* Bar capsule: card at 94% over bg, precomputed so it is opaque (no per-frame blending under scrolling content) */
+  --color-bar: #191b21;
   --color-text: #f2f3f5;
   --color-muted: #8b8f98;
   --color-lime: #c8f25a;

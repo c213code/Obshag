@@ -50,3 +50,42 @@ a,
     outline-offset: 2px;
   }
 }
+
+/* Skeleton shimmer: opacity only, same values and timing as the former motion animation (0.45 -> 0.9 -> 0.45, 1.4 s, smooth curve). */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.skeleton-pulse {
+  opacity: 0.45;
+  animation: skeleton-pulse 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-pulse {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* Покупки: the list fades in after a filter change (opacity only, same curve as the rest of the app). */
+@keyframes list-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.list-fade-in {
+  animation: list-fade-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Long lists: rows far off screen are not laid out or painted until they get close. */
+.row-cv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}

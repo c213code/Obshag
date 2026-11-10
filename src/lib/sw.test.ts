@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 type Handler = (event: unknown) => void;
 
 /** Runs public/sw.js against a fake service-worker scope and returns what it did. */
-function load() {
+function load(extra: Record<string, unknown> = {}) {
   const handlers: Record<string, Handler> = {};
   const shown: Array<{ title: string; options: Record<string, unknown> }> = [];
   const opened: string[] = [];
@@ -34,7 +34,7 @@ function load() {
   };
   const rules = readFileSync(join(process.cwd(), "public/sw-rules.js"), "utf8");
   const importScripts = () => vm.runInContext(rules, ctx);
-  const ctx = vm.createContext({ self, URL, Number, String, Math, encodeURIComponent, importScripts, Object, Promise, Set, Headers, setTimeout });
+  const ctx = vm.createContext({ self, URL, Number, String, Math, encodeURIComponent, importScripts, Object, Promise, Set, Headers, setTimeout, ...extra });
   vm.runInContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), ctx);
   const wait = async (fn: Handler, event: Record<string, unknown>) => {
     let p: Promise<unknown> = Promise.resolve();
@@ -167,5 +167,36 @@ describe("sw.js", () => {
     await sw.wait(sw.handlers.notificationclick, click("shared", {}));
     expect(sw.opened).toEqual(["/"]);
     expect(typeof sw.handlers.fetch).toBe("function");
+  });
+
+  describe("navigations", () => {
+    const nav = { url: "https://obshak.test/flat", method: "GET", mode: "navigate", headers: new Headers() };
+    const respond = async (sw: ReturnType<typeof load>) => {
+      let answer: Promise<unknown> | undefined;
+      sw.handlers.fetch({ request: nav, respondWith: (p: Promise<unknown>) => (answer = p) });
+      return answer;
+    };
+
+    it("passes a slow navigation through fetch: no timer, never swapped for /offline", async () => {
+      const timers: number[] = [];
+      const page = { ok: true, tag: "the page" };
+      let release: (v: unknown) => void = () => undefined;
+      const slow = new Promise((res) => (release = res));
+      const sw = load({ fetch: () => slow, setTimeout: () => timers.push(1), caches: { open: async () => ({ match: async () => ({ tag: "offline" }) }) } });
+      const answer = respond(sw);
+      await Promise.resolve();
+      release(page); // however late it arrives, it is the answer
+      expect(await answer).toBe(page);
+      expect(timers).toEqual([]);
+    });
+
+    it("falls back to the cached offline page only when fetch rejects", async () => {
+      const offline = { tag: "offline" };
+      const sw = load({
+        fetch: () => Promise.reject(new TypeError("network down")),
+        caches: { open: async () => ({ match: async (u: string) => (u === "/offline" ? offline : undefined) }) },
+      });
+      expect(await respond(sw)).toBe(offline);
+    });
   });
 });

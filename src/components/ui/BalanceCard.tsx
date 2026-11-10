@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Avatar, type AvatarColor } from "./Avatar";
 import { Money } from "./Money";
 import { cx } from "./cx";
@@ -32,7 +33,7 @@ const toneClass: Record<CardTone, { card: string; ring: string; me: string }> = 
 };
 
 /** Main.dc.html front card: 28px radius, 20px padding, two soft rings, big rounded balance. */
-export function BalanceCard({
+export const BalanceCard = memo(function BalanceCard({
   data,
   className,
   balanceId,
@@ -88,4 +89,4 @@ export function BalanceCard({
       </div>
     </div>
   );
-}
+});

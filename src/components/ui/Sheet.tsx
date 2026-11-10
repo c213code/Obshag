@@ -19,7 +19,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
  * corrected by motion so it never distorts), NOT a width/height transition. The content is
  * hidden while the size changes, so the layout scale is never visible on it.
  *
- * Also: focus trap, focus restore, body scroll lock, Esc and backdrop close.
+ * Also: focus trap, focus restore, Esc and backdrop close.
  * Under reduced motion the card simply fades.
  */
 export function Sheet({
@@ -94,14 +94,12 @@ export function Sheet({
     return () => timers.forEach(clearTimeout);
   }, [open, reduced]);
 
-  // Body scroll lock + focus restore, tied to `open`.
+  // Focus restore, tied to `open`. The page behind cannot scroll: the overlay is fixed over everything and takes the touches
+  // (touch-action: none, overscroll contained), so no `body { overflow }` toggle (which forces a full relayout) is needed.
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const target = returnFocus.current;
     return () => {
-      document.body.style.overflow = prev;
       target?.focus({ preventScroll: true });
     };
   }, [open]);
@@ -146,7 +144,7 @@ export function Sheet({
   const visible = open || phase === "fading" || phase === "collapsed";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center px-[11px] pt-[max(env(safe-area-inset-top),11px)]">
+    <div className="fixed inset-0 z-50 flex touch-none items-start justify-center overscroll-contain px-[11px] pt-[max(env(safe-area-inset-top),11px)]">
       <motion.div
         aria-hidden="true"
         data-testid="sheet-backdrop"

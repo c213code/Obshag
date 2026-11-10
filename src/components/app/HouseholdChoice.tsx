@@ -8,7 +8,7 @@ import { cx } from "@/components/ui/cx";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { ru } from "@/lib/i18n/ru";
 import { AuthFrame } from "./AuthFrame";
-import { useAppData } from "./AppDataProvider";
+import { useAppStatus } from "./AppDataProvider";
 import { Guard } from "./Guard";
 
 function Choice({ href, icon, title, caption, primary }: { href: string; icon: ReactNode; title: string; caption: string; primary?: boolean }) {
@@ -36,7 +36,7 @@ function Choice({ href, icon, title, caption, primary }: { href: string; icon: R
 /** «Создать квартиру» / «У меня есть код»: two big capsule choices. */
 export function HouseholdChoice() {
   const router = useRouter();
-  const { status, stage } = useAppData();
+  const { status, stage } = useAppStatus();
 
   // A deep link opened before onboarding: continue with it, but only for a user who is exactly at this step
   // (profile done, no household yet). Everyone else just sees the choice.

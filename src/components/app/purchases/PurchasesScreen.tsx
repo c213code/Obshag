@@ -1,19 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { memo, useMemo, useState } from "react";
 import { Bar } from "@/components/ui/Bar";
 import { BasketIcon, ChevronRightIcon } from "@/components/ui/icons";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Money } from "@/components/ui/Money";
-import { PillLink } from "@/components/ui/Pill";
+import { Pill, PillLink } from "@/components/ui/Pill";
 import { Segmented } from "@/components/ui/Segmented";
 import { filterPurchases, groupByDay, type PurchaseFilter } from "@/lib/domain/purchaseList";
 import { purchaseProgress } from "@/lib/domain/summary";
 import { formatDayMonth, formatTime } from "@/lib/format/date";
 import { formatTenge } from "@/lib/format/money";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { useAppData } from "../AppDataProvider";
@@ -26,7 +24,7 @@ const EMPTY: Record<PurchaseFilter, { title: string; text: string }> = {
   owe: { title: ru.purchases.emptyOweTitle, text: ru.purchases.emptyOweText },
 };
 
-function Row({ purchase, payerName, meId }: { purchase: UiPurchase; payerName: string; meId: string }) {
+const Row = memo(function Row({ purchase, payerName, meId }: { purchase: UiPurchase; payerName: string; meId: string }) {
   const { paid, total } = purchaseProgress(purchase.payer_id, purchase.shares);
   const mine = purchase.payer_id === meId;
   const caption = purchase.status === "personal" ? ru.main.personal : total === 0 ? ru.main.everyonePaid : ru.main.progress(paid, total);
@@ -56,6 +54,7 @@ function Row({ purchase, payerName, meId }: { purchase: UiPurchase; payerName: s
   return (
     <Link
       href={`/purchases/${purchase.id}`}
+      prefetch={false}
       aria-label={ru.purchases.open(purchase.description, formatTenge(purchase.amount))}
       draggable={false}
       className="block transition-transform duration-200 ease-smooth active:scale-[0.98]"
@@ -63,18 +62,50 @@ function Row({ purchase, payerName, meId }: { purchase: UiPurchase; payerName: s
       {inner}
     </Link>
   );
-}
+});
+
+type Wrap = ReturnType<typeof useSwipeDelete>["wrap"];
+
+/** One list row. Re-renders only when its own purchase (structurally shared, so the same object across refreshes) changes. */
+const Item = memo(function Item({ purchase, payerName, meId, wrap }: { purchase: UiPurchase; payerName: string; meId: string; wrap: Wrap }) {
+  return (
+    <li data-testid="purchase-list-row" className="row-cv">
+      {wrap(purchase, <Row purchase={purchase} payerName={payerName} meId={meId} />)}
+    </li>
+  );
+});
+
+/** Rows rendered before «Показать ещё». */
+const PAGE = 40;
 
 /** Покупки tab: every visible purchase, grouped by day, with the filters «Все / Мои / Должен я». */
 export function PurchasesScreen() {
   const { me, members, purchases, activeId } = useAppData();
-  const { reduced } = useReducedMotionSafe();
-  const [filter, setFilter] = useState<PurchaseFilter>("all");
+  const [filter, setFilterState] = useState<PurchaseFilter>("all");
+  const [limit, setLimit] = useState(PAGE);
+  // the fade plays after a filter change only, never on the first paint
+  const [fade, setFade] = useState(false);
+  const setFilter = (f: PurchaseFilter) => {
+    setFilterState(f);
+    setLimit(PAGE);
+    setFade(true);
+  };
   const { wrap, sheet } = useSwipeDelete();
 
   const list = useMemo(() => (activeId ? (purchases[activeId] ?? []) : []), [purchases, activeId]);
   const names = useMemo(() => new Map((activeId ? (members[activeId] ?? []) : []).map((m) => [m.user_id, m.profile.display_name])), [members, activeId]);
   const groups = useMemo(() => (me ? groupByDay(filterPurchases(list, filter, me.id)) : []), [list, filter, me]);
+  const visible = useMemo(() => {
+    let left = limit;
+    const out: typeof groups = [];
+    for (const g of groups) {
+      if (left <= 0) break;
+      out.push(left >= g.items.length ? g : { ...g, items: g.items.slice(0, left) });
+      left -= g.items.length;
+    }
+    return out;
+  }, [groups, limit]);
+  const total = useMemo(() => groups.reduce((n, g) => n + g.items.length, 0), [groups]);
   if (!me || !activeId) return null;
 
   const empty = EMPTY[filter];
@@ -108,31 +139,25 @@ export function PurchasesScreen() {
           }
         />
       ) : (
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.div
-            key={filter}
-            className="flex flex-col gap-4"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: ease.smooth }}
-          >
-            {groups.map((g) => (
-              <section key={g.key} aria-label={g.kind === "today" ? ru.purchases.today : g.kind === "yesterday" ? ru.purchases.yesterday : formatDayMonth(g.iso)} className="flex flex-col gap-2">
-                <h2 className="px-[6px] text-caption">
-                  {g.kind === "today" ? ru.purchases.today : g.kind === "yesterday" ? ru.purchases.yesterday : formatDayMonth(g.iso)}
-                </h2>
-                <ul className="flex flex-col gap-2">
-                  {g.items.map((p) => (
-                    <li key={p.clientKey} data-testid="purchase-list-row">
-                      {wrap(p, <Row purchase={p} payerName={names.get(p.payer_id) ?? ru.main.formerMember} meId={me.id} />)}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </motion.div>
-        </AnimatePresence>
+        <div key={filter} className={fade ? "list-fade-in flex flex-col gap-4" : "flex flex-col gap-4"}>
+          {visible.map((g) => (
+            <section key={g.key} aria-label={g.kind === "today" ? ru.purchases.today : g.kind === "yesterday" ? ru.purchases.yesterday : formatDayMonth(g.iso)} className="flex flex-col gap-2">
+              <h2 className="px-[6px] text-caption">
+                {g.kind === "today" ? ru.purchases.today : g.kind === "yesterday" ? ru.purchases.yesterday : formatDayMonth(g.iso)}
+              </h2>
+              <ul className="flex flex-col gap-2">
+                {g.items.map((p) => (
+                  <Item key={p.clientKey} purchase={p} payerName={names.get(p.payer_id) ?? ru.main.formerMember} meId={me.id} wrap={wrap} />
+                ))}
+              </ul>
+            </section>
+          ))}
+          {total > limit ? (
+            <Pill variant="on" size="lg" onClick={() => setLimit((n) => n + PAGE)} data-testid="purchases-more" className="self-center">
+              {ru.purchases.showMore}
+            </Pill>
+          ) : null}
+        </div>
       )}
       {sheet}
     </Screen>

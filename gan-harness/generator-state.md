@@ -335,3 +335,37 @@ Nothing committed. Servers stopped. 0001-0009 and `.env.local` untouched; nothin
 - Env (README + .env.example, no values): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` (16+), `NEXT_PUBLIC_TELEGRAM_BOT` (default obshagk_bot).
 - Tests: verify green (63 files, 647 tests); e2e slice4/8/52/67 green (new: slice67 «Подключить Telegram»). Under load slice52 «delete is blocked» and slice67 «away» flaked once in a combined run and passed on rerun.
 - Gaps: `profiles.telegram_user_id` is readable by housemates like other profile columns (profile select is table-wide). The webhook/digest DM path is unit-tested with a recording Telegram client only. Mock mode never calls the bot. The digest runs once a day at 19:00 Almaty; a purchase captured after the run waits for the next day.
+
+---
+
+# Perf pass (spec-perf.md, one pass)
+
+Nothing committed. No servers running. No SQL, `.env.local` untouched. Visual design unchanged (see below).
+
+## Results
+- `npm run verify`: green (66 files, 664 tests, build OK; the one lint warning is in untracked scripts/video).
+- `npm run test:e2e`: 65/67 on the full run; the 2 failures (slice11 «plain member cannot swipe», slice3 «reduced motion» sampler) passed when rerun (whole slice3 file 9/9, slice11 test alone). Both are load-sensitive; kit Sheet test updated (body overflow toggle is gone, it now asserts the overlay's `touch-action: none`).
+- Before/after screenshots (mock mode, same seed): `gan-harness/screenshots/perf-{before,after}-{home,home-full,purchases}.png`. Script `gan-harness/shoot-perf.mjs`, compare `gan-harness/compare-perf.mjs`: 0 pixels differ by more than 8/255 (max channel delta 5 on Главная, 1 on Покупки).
+
+## P1 (data layer)
+- Resume: `src/lib/data/resume.ts` (`createResumeRefresher`): visibilitychange only, 30 s gap (counted from provider start), 400 ms delay, in-flight refresh reused, cancelled if hidden again.
+- No-op commits: `src/components/app/snapshot.ts` (`reconcileSnapshot`, `shareList`): `commit` keeps unchanged rows by identity and skips `setState` when nothing changed; the same is applied to the last server load (`loadedRef`). `PurchaseTracker.view` reuses row objects (`derived` cache); `settledLocally` touches only purchases covered by confirmed settlements (Set) and returns the same object otherwise.
+- After a successful mutation (add, delete, edit, markPaid, confirm/cancel, resolve) one debounced silent refresh 1.5 s later (`scheduleRefresh`); failure paths still roll back and refresh at once as before.
+- Bounded history in supabaseRepo (`src/lib/data/history.ts`): purchases = last 90 d + older pending + older with an unsettled share (3 parallel queries, then full rows by id for the open ones); settlements = last 90 d OR status marked. Mock repo is not bounded.
+- Stale-while-revalidate: `snapshotCache.ts` (localStorage `obshak:snapshot:<userId>`, version 1, try/catch); painted from cache as soon as `getSession()` answers (if the real load has not landed), then replaced; cleared on sign-out; written when idle and only if the load changed.
+- Settle data / cards / active summary computed once in the provider (`useAppDerived`; `useSettleData` and `useHouseholdCards` just read it). `Intl.DateTimeFormat` hoisted. `cards` array is kept stable when equal.
+- Context split: `useAppStatus()` (status, stage) used by Guard, HouseholdChoice, JoinScreen.
+- `<link rel=preconnect>` + dns-prefetch to the Supabase origin (only when the URL is set).
+
+## P2 / P3
+- 9 PurchasesScreen: no AnimatePresence, CSS `.list-fade-in` (200 ms, only after a filter change), memo(Row) + memo(Item), 40 rows + «Показать ещё» (`ru.purchases.showMore`, Pill on/lg), `.row-cv` content-visibility.
+- 10 SwipeDeleteRow memo, hoisted constants, capsule mounted only while dragging, `wrap` is a useCallback, confirm sheet mounted only while a delete is being asked about (cleared in `onClosed`).
+- 11 `layout="position"` removed from RecentPurchases, PendingSection, IncomingSection (enter animation kept; the shift of the rows below a new one is no longer animated).
+- 12 Money writes `textContent` through a ref (layout effect + onUpdate), no state per frame. 13 Skeleton is a CSS keyframe (`.skeleton-pulse`).
+- 14 memo CardStack and BalanceCard; `onFrontChange` follows the card after 650 ms (immediately on mount / reduced motion). 15 island opens after a double rAF; Sheet no longer touches `body.style.overflow` (overlay is `touch-none overscroll-contain`). 16 `prefetch={false}` on per-row links; TabBar `prefetch` prop removed. 17 `--color-bar: #191b21` (card 94% over bg) replaces the color-mix.
+- 18 proxy skips Supabase auth for `next-router-prefetch` / `purpose` / `sec-purpose` prefetch headers (tests with a mocked `updateSession`). 19 sw.js navigations: plain `fetch`, offline page only when fetch rejects (tests added in sw.test.ts). 20 QrSheet via `next/dynamic` (mounted on first tap), `qrcode` imported inside the now-async `qrPath`.
+
+## Known risks
+- Cached snapshot can show data up to one session old for a moment before the real load replaces it.
+- `.is("shares.settled_at", null)` on an embedded `shares!inner` and `.or(marked_at.gte...,status.eq.marked)` are PostgREST filters verified only against the fake client, not a live project.
+- A prefetch header can be forged, but it only returns the data-less page shell (data stays behind RLS).

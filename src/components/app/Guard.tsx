@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Pill } from "@/components/ui/Pill";
 import { guardRedirect, type PageKind } from "@/lib/domain/guard";
 import { ru } from "@/lib/i18n/ru";
-import { useAppActions, useAppData } from "./AppDataProvider";
+import { useAppActions, useAppStatus } from "./AppDataProvider";
 import { ScreenSkeleton } from "./ScreenSkeleton";
 
 /**
@@ -14,7 +14,7 @@ import { ScreenSkeleton } from "./ScreenSkeleton";
  * Renders a skeleton while loading or redirecting, so protected content never flashes.
  */
 export function Guard({ page, children }: { page: PageKind; children: ReactNode }) {
-  const { status, stage } = useAppData();
+  const { status, stage } = useAppStatus();
   const { refresh } = useAppActions();
   const router = useRouter();
   const target = status === "ready" ? guardRedirect(stage, page) : null;

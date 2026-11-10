@@ -173,7 +173,6 @@ export function TabBar({
                     <Link
                       key={tab.id}
                       href={tab.href}
-                      prefetch
                       aria-label={tab.label}
                       aria-current={active ? "page" : undefined}
                       className={cls}

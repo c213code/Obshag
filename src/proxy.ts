@@ -2,6 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicEnv } from "@/lib/env/public";
 import { updateSession } from "@/lib/supabase/proxy";
 
+/**
+ * Router and browser prefetches only warm the (static, data-less) page shell: all data is read client-side under RLS.
+ * They skip the auth round trip, so the many prefetches a screen fires do not each wait on Supabase.
+ */
+function isPrefetch(request: NextRequest): boolean {
+  const h = request.headers;
+  return h.has("next-router-prefetch") || h.get("purpose") === "prefetch" || h.get("sec-purpose")?.startsWith("prefetch") === true;
+}
+
 /** Session refresh + anonymous redirect. Mock mode has no server session, so it passes through. */
 export async function proxy(request: NextRequest) {
   // A malformed %-escape (/join/%E0%A4%A) would make Next's own route matching answer with a bare 500: say 400 instead.
@@ -14,6 +23,7 @@ export async function proxy(request: NextRequest) {
   if (env.NEXT_PUBLIC_DATA_MODE === "mock" || !env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next();
   }
+  if (isPrefetch(request)) return NextResponse.next(); // real navigations below stay protected
   return updateSession(request, env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 

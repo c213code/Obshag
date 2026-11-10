@@ -51,7 +51,6 @@ export function RecentPurchases({
               <motion.li
                 key={p.clientKey}
                 data-testid="purchase-row"
-                layout={reduced ? false : "position"}
                 initial={reduced ? { opacity: 0 } : { opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -62,7 +61,7 @@ export function RecentPurchases({
                   p.id.startsWith("optimistic-") ? (
                     <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
                   ) : (
-                    <Link href={`/purchases/${p.id}`} draggable={false} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
+                    <Link href={`/purchases/${p.id}`} prefetch={false} draggable={false} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
                       <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
                     </Link>
                   ),

@@ -72,6 +72,7 @@ export function SettleListScreen() {
                 <li key={c.userId} className="relative" data-testid="settle-owes-me-row">
                   <Link
                     href={`/settle/${c.userId}`}
+                    prefetch={false}
                     aria-label={`${ru.settle.open(name)}, ${caption}`}
                     className="block transition-transform duration-200 ease-smooth active:scale-[0.98]"
                   >
@@ -94,6 +95,7 @@ export function SettleListScreen() {
               <li key={c.userId}>
                 <Link
                   href={`/settle/${c.userId}`}
+                    prefetch={false}
                   aria-label={`${ru.settle.open(name)}, ${caption}`}
                   className="block transition-transform duration-200 ease-smooth active:scale-[0.98]"
                 >

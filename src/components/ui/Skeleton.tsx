@@ -1,23 +1,12 @@
 "use client";
 
-import { motion } from "motion/react";
-import { ease, useReducedMotionSafe } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { CARD_HEIGHT } from "./BalanceCard";
 import { cx } from "./cx";
 
-/** Shimmer by opacity only. Static under reduced motion. */
+/** Shimmer by opacity only: a CSS keyframe animation (see `.skeleton-pulse` in globals.css), so it never runs on the JS thread. Static under reduced motion. */
 export function Skeleton({ className }: { className?: string }) {
-  const { reduced } = useReducedMotionSafe();
-  return (
-    <motion.div
-      aria-hidden="true"
-      className={cx("rounded-md bg-card-2", className)}
-      initial={{ opacity: 0.45 }}
-      animate={{ opacity: reduced ? 0.7 : [0.45, 0.9, 0.45] }}
-      transition={{ duration: 1.4, ease: ease.smooth, repeat: Infinity }}
-    />
-  );
+  return <div aria-hidden="true" className={cx("skeleton-pulse rounded-md bg-card-2", className)} />;
 }
 
 function Busy({ children, className }: { children: React.ReactNode; className?: string }) {

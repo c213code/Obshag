@@ -27,6 +27,7 @@ import {
   type RepoErrorCode,
 } from "./repo";
 import type { Bill, CaptureResult, MonthlyRun, CaptureTokenInfo, Household, Member, PendingDigestUser, Profile, ReminderTarget, Settlement, SettlementShare, Share, TgResolveResult } from "./types";
+import { historyCutoff } from "./history";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 
@@ -274,13 +275,46 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
     },
 
     async listPurchases(householdId) {
-      const res = await client
+      // Bounded history: the last 90 days, plus anything older that still matters (pending, or an unsettled share).
+      // Netting only reads open shares, so balances equal the full-history ones.
+      const cutoff = historyCutoff();
+      const recent = client
         .from("purchases")
         .select("*, shares(*)")
         .eq("household_id", householdId)
+        .gte("created_at", cutoff)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false });
-      return ok<PurchaseRow[]>(res).map(toPurchase);
+      const olderPending = client
+        .from("purchases")
+        .select("*, shares(*)")
+        .eq("household_id", householdId)
+        .lt("created_at", cutoff)
+        .eq("status", "pending");
+      // ids only; the embedded filter keeps just the unsettled shares, which is why the full rows are read again below
+      const olderOpen = client
+        .from("purchases")
+        .select("id, shares!inner(settled_at)")
+        .eq("household_id", householdId)
+        .lt("created_at", cutoff)
+        .is("shares.settled_at", null);
+      const [recentRes, pendingRes, openRes] = await Promise.all([recent, olderPending, olderOpen]);
+      const byId = new Map<string, PurchaseRow>();
+      for (const row of [...ok<PurchaseRow[]>(recentRes), ...ok<PurchaseRow[]>(pendingRes)]) byId.set(row.id, row);
+      const openIds = ok<Array<{ id: string }>>(openRes)
+        .map((r) => r.id)
+        .filter((id) => !byId.has(id));
+      for (let i = 0; i < openIds.length; i += 100) {
+        const res = await client
+          .from("purchases")
+          .select("*, shares(*)")
+          .eq("household_id", householdId)
+          .in("id", openIds.slice(i, i + 100));
+        for (const row of ok<PurchaseRow[]>(res)) byId.set(row.id, row);
+      }
+      return [...byId.values()]
+        .sort((x, y) => y.created_at.localeCompare(x.created_at) || y.id.localeCompare(x.id))
+        .map(toPurchase);
     },
 
     async createHousehold(name) {
@@ -382,6 +416,7 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
         .from("settlements")
         .select("*, covered:settlement_shares(purchase_id, debtor_id, amount)")
         .eq("household_id", householdId)
+        .or(`marked_at.gte.${historyCutoff()},status.eq.marked`) // last 90 days, plus anything still open
         .order("marked_at", { ascending: false })
         .order("id", { ascending: true });
       return ok<Array<Omit<Settlement, "covered"> & { covered: SettlementShare[] | null }>>(res).map(withCovered);

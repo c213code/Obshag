@@ -4,7 +4,6 @@
 importScripts("/sw-rules.js");
 
 const CACHE = "obshak-static-v1";
-const NAV_TIMEOUT_MS = 4000;
 
 async function precache() {
   const cache = await caches.open(CACHE);
@@ -48,11 +47,10 @@ async function cacheFirst(request) {
 }
 
 async function networkFirstNavigation(request) {
+  // No timer: a slow network is just slow (a race with a timer used to swap a loading page for /offline). Only an actual
+  // network error (fetch rejects) falls back to the cached offline page.
   try {
-    return await Promise.race([
-      fetch(request),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), NAV_TIMEOUT_MS)),
-    ]);
+    return await fetch(request);
   } catch {
     const cache = await caches.open(CACHE);
     return (await cache.match(self.swRules.OFFLINE_URL)) || Response.error();

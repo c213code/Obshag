@@ -1,6 +1,9 @@
-import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { NextRequest, NextResponse } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config, proxy } from "./proxy";
+
+const updateSession = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/supabase/proxy", () => ({ updateSession }));
 
 // Next compiles the matcher as path-to-regexp-ish source with an implicit ^...$ anchor
 const re = new RegExp(`^${config.matcher[0]}$`);
@@ -40,5 +43,34 @@ describe("proxy", () => {
     vi.stubEnv("NEXT_PUBLIC_E2E", "1");
     const res = await proxy(new NextRequest("http://localhost:3000/join/ABC%20D"));
     expect(res.status).toBe(200);
+  });
+});
+
+describe("proxy prefetch", () => {
+  beforeEach(() => updateSession.mockImplementation(async () => NextResponse.redirect("http://localhost:3000/login")));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    updateSession.mockClear();
+  });
+  const live = () => {
+    vi.stubEnv("NEXT_PUBLIC_DATA_MODE", "supabase");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key-for-tests");
+  };
+
+  it("skips the Supabase auth check for prefetch requests", async () => {
+    live();
+    for (const headers of [{ "next-router-prefetch": "1" }, { purpose: "prefetch" }, { "sec-purpose": "prefetch" }] as Array<Record<string, string>>) {
+      const res = await proxy(new NextRequest("http://localhost:3000/purchases", { headers }));
+      expect(res.status, JSON.stringify(headers)).toBe(200);
+    }
+    expect(updateSession).not.toHaveBeenCalled();
+  });
+
+  it("still runs the auth check on a real navigation", async () => {
+    live();
+    const res = await proxy(new NextRequest("http://localhost:3000/purchases"));
+    expect(updateSession).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(307);
   });
 });

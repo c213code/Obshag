@@ -9,7 +9,7 @@ import { useRepo } from "@/components/RepoProvider";
 import { inviteCodeSchema } from "@/lib/domain/schemas";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { ru } from "@/lib/i18n/ru";
-import { useAppActions, useAppData } from "./AppDataProvider";
+import { useAppActions, useAppStatus } from "./AppDataProvider";
 import { AuthFrame } from "./AuthFrame";
 import { Guard } from "./Guard";
 import { errorMessage } from "./messages";
@@ -18,7 +18,7 @@ import { errorMessage } from "./messages";
 export function JoinScreen({ initialCode = "" }: { initialCode?: string }) {
   const repo = useRepo();
   const router = useRouter();
-  const { status, stage } = useAppData();
+  const { status, stage } = useAppStatus();
   const { refresh, setActiveId } = useAppActions();
   const [code, setCode] = useState(initialCode);
   const [error, setError] = useState<string | null>(null);

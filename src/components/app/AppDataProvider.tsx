@@ -2,6 +2,12 @@
 
 import { canDelete } from "@/lib/domain/canDelete";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { BalanceCardData } from "@/components/ui/BalanceCard";
+import { createResumeRefresher } from "@/lib/data/resume";
+import { EMPTY, reconcileSnapshot, sameValue, type Loaded, type Snapshot } from "./snapshot";
+import { clearSnapshots, readSnapshot, saveSnapshot } from "./snapshotCache";
+import { buildSettleData, type SettleData } from "./settle/settleData";
+import { buildCards, buildSummaries, type Summary } from "./home/householdCards";
 import { useRepo } from "@/components/RepoProvider";
 import { PurchaseTracker, type UiPurchase } from "@/lib/data/purchaseTracker";
 import { SettlementTracker } from "@/lib/data/settlementTracker";
@@ -9,26 +15,14 @@ import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
 import type { ResolvePendingInput } from "@/lib/domain/schemas";
-import { RepoError, type AuthSession, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
-import type { Bill, Household, Profile, Settlement } from "@/lib/data/types";
+import { RepoError, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
+import type { Profile } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { removeDevicePush, syncPush } from "@/lib/pushClient";
 import { getPublicEnv } from "@/lib/env/public";
 
 type Status = "loading" | "ready" | "error";
-
-type Snapshot = {
-  session: AuthSession | null;
-  me: Profile | null;
-  households: Household[];
-  members: Record<string, MemberWithProfile[]>;
-  purchases: Record<string, UiPurchase[]>;
-  settlements: Record<string, Settlement[]>;
-  bills: Record<string, Bill[]>;
-};
-
-const EMPTY: Snapshot = { session: null, me: null, households: [], members: {}, purchases: {}, settlements: {}, bills: {} };
 
 /** What screens read. Changes whenever data changes. */
 export type AppData = Snapshot & {
@@ -72,7 +66,19 @@ export type AppActions = {
   dismissNotice(): void;
 };
 
+/** Numbers computed once per data change and shared by every reader (Главная, Settle, Flat, the badge). */
+export type AppDerived = {
+  settle: SettleData | null;
+  cards: BalanceCardData[];
+  /** The active household's summary (Долги on Главная). */
+  active: Summary | null;
+};
+
+export type AppStatus = { status: Status; stage: Stage };
+
 const DataCtx = createContext<AppData | null>(null);
+const StatusCtx = createContext<AppStatus | null>(null);
+const DerivedCtx = createContext<AppDerived | null>(null);
 const ActionsCtx = createContext<AppActions | null>(null);
 const NoticeCtx = createContext<string | null>(null);
 
@@ -82,12 +88,12 @@ function need<T>(v: T | null, hook: string): T {
 }
 export const useAppData = (): AppData => need(useContext(DataCtx), "useAppData");
 export const useAppActions = (): AppActions => need(useContext(ActionsCtx), "useAppActions");
+/** Only the load status and the onboarding stage: a data change does not re-render the reader. */
+export const useAppStatus = (): AppStatus => need(useContext(StatusCtx), "useAppStatus");
+/** Settle data, balance cards and the active summary, computed once in the provider. */
+export const useAppDerived = (): AppDerived => need(useContext(DerivedCtx), "useAppDerived");
 /** The current notice text (null when there is none). Kept apart so a notice does not re-render the data screens. */
 export const useNotice = (): string | null => useContext(NoticeCtx);
-
-type Loaded = Omit<Snapshot, "purchases"> & { purchases: Record<string, Awaited<ReturnType<Repo["listPurchases"]>>> };
-
-
 
 async function loadSnapshot(repo: Repo): Promise<Loaded> {
   const session = await repo.getSession();
@@ -120,7 +126,8 @@ async function loadSnapshot(repo: Repo): Promise<Loaded> {
 const sameRoster = (a: ReadonlyArray<MemberWithProfile> | undefined, b: ReadonlyArray<MemberWithProfile>) =>
   !!a && JSON.stringify(a) === JSON.stringify(b);
 
-const REFOCUS_MIN_GAP_MS = 3000;
+/** After a successful mutation the optimistic state is already right: one quiet refresh, this long after the last one. */
+const SETTLE_REFRESH_MS = 1500;
 
 /**
  * Everything the signed-in screens read: session, profile, households, members and purchases.
@@ -144,11 +151,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const snapRef = useRef<Snapshot>(EMPTY);
   /** The last lists the SERVER sent. Every optimistic view is built from these, never from the previous view, so a rollback cannot keep stale optimistic rows. */
   const serverRef = useRef<Pick<Loaded, "purchases" | "settlements">>({ purchases: {}, settlements: {} });
+  /** The last full server load, kept to see whether a refresh brought anything new (and whether the cache needs a write). */
+  const loadedRef = useRef<Loaded | null>(null);
+  /** True once a real load (not the cache) has been applied. */
+  const loadedOnce = useRef(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meRef = useRef<Profile | null>(null);
   const stageRef = useRef<Stage>(0);
 
   const commit = useCallback((update: (s: Snapshot) => Snapshot) => {
-    const next = update(snapRef.current);
+    // structural sharing: unchanged rows keep their identity, and when nothing changed there is no render at all
+    const next = reconcileSnapshot(snapRef.current, update(snapRef.current));
+    if (next === snapRef.current) return;
     snapRef.current = next;
     setSnap(next);
   }, []);
@@ -160,15 +174,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  /** Shares of every settlement this device confirmed but no load has confirmed yet show as settled. */
+  /** Shares of every settlement this device confirmed but no load has confirmed yet show as settled. Untouched purchases keep their identity. */
   const settledLocally = useCallback(
     (householdId: string, list: ReadonlyArray<UiPurchase>): UiPurchase[] => {
       const confirmed = settlementTracker.locallyConfirmed().filter((c) => c.household_id === householdId);
-      if (confirmed.length === 0) return [...list];
-      return list.map((p) => ({
-        ...p,
-        shares: confirmed.reduce((shares, c) => markCovered(c, shares, [p], c.confirmed_at ?? c.marked_at), p.shares),
-      }));
+      if (confirmed.length === 0) return list as UiPurchase[];
+      const touched = new Set(confirmed.flatMap((c) => c.covered.map((x) => x.purchase_id)));
+      return list.map((p) => {
+        if (!touched.has(p.id)) return p;
+        const shares = confirmed.reduce((acc, c) => markCovered(c, acc, [p], c.confirmed_at ?? c.marked_at), p.shares);
+        return shares.some((sh, i) => sh !== p.shares[i]) ? { ...p, shares } : p;
+      });
     },
     [settlementTracker],
   );
@@ -204,6 +220,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const patchPurchases = rebuild;
   const patchSettlements = rebuild;
 
+  /** Writes the cache when the browser is idle, so it never competes with a tap. */
+  const persist = useCallback((data: Loaded) => {
+    const write = () => {
+      if (alive.current && data.session) saveSnapshot(data.session.user_id, data);
+    };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(write, { timeout: 3000 });
+    else setTimeout(write, 200);
+  }, []);
+
   const refresh = useCallback(
     (opts: { silent?: boolean } = {}): Promise<void> => {
       // a monotonically increasing token: only the newest load may apply its result
@@ -217,11 +242,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             return newer === p ? undefined : newer;
           }
           if (!alive.current) return;
-          meRef.current = next.me;
-          stageRef.current = stageOf({ hasSession: !!next.session, hasProfile: !!next.me, householdCount: next.households.length });
-          serverRef.current = { purchases: next.purchases, settlements: next.settlements };
-          commit(() => withLocalRows(next));
+          loadedOnce.current = true;
+          // unchanged rows keep their identity, so the views built from them do too and nothing re-renders for a no-op refresh
+          const prevLoaded = loadedRef.current;
+          const shared = prevLoaded ? reconcileSnapshot(prevLoaded, next) : next;
+          const changed = shared !== prevLoaded;
+          loadedRef.current = shared;
+          meRef.current = shared.me;
+          stageRef.current = stageOf({ hasSession: !!shared.session, hasProfile: !!shared.me, householdCount: shared.households.length });
+          serverRef.current = { purchases: shared.purchases, settlements: shared.settlements };
+          commit(() => withLocalRows(shared));
           setStatus("ready");
+          if (changed && shared.session && shared.me) persist(shared);
         } catch {
           if (token !== loadSeq.current || !alive.current || opts.silent) return;
           setStatus("error");
@@ -231,7 +263,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       latestLoad.current = p;
       return p;
     },
-    [repo, withLocalRows, commit],
+    [repo, withLocalRows, commit, persist],
   );
 
   const refreshMembers = useCallback(
@@ -248,28 +280,54 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [repo, commit],
   );
 
-  // first load
+  // first load; meanwhile the last snapshot of this user (if any) paints at once and the load replaces it
   useEffect(() => {
     void refresh();
+    void repo
+      .getSession()
+      .then((session) => {
+        if (!session || loadedOnce.current || !alive.current) return;
+        const cached = readSnapshot(session.user_id);
+        if (!cached || loadedOnce.current) return;
+        loadedRef.current = cached;
+        meRef.current = cached.me;
+        stageRef.current = stageOf({ hasSession: true, hasProfile: !!cached.me, householdCount: cached.households.length });
+        serverRef.current = { purchases: cached.purchases, settlements: cached.settlements };
+        commit(() => withLocalRows(cached));
+        setStatus("ready");
+      })
+      .catch(() => undefined);
+  }, [refresh, repo, commit, withLocalRows]);
+
+  // coming back to the app: neighbours may have joined or paid since. visibilitychange only, at most every 30 s,
+  // a moment after the screen is visible, never two refreshes at once
+  useEffect(() => {
+    const resume = createResumeRefresher({
+      run: () => refresh({ silent: true }),
+      enabled: () => stageRef.current === 3,
+    });
+    const onChange = () => resume.onVisibilityChange(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onChange);
+      resume.dispose();
+    };
   }, [refresh]);
 
-  // coming back to the app (tab visible / window focused): neighbours may have joined or paid since
-  useEffect(() => {
-    let last = Date.now();
-    const back = () => {
-      if (document.visibilityState !== "visible" || stageRef.current !== 3) return;
-      const now = Date.now();
-      if (now - last < REFOCUS_MIN_GAP_MS) return;
-      last = now;
-      void refresh({ silent: true });
-    };
-    window.addEventListener("focus", back);
-    document.addEventListener("visibilitychange", back);
-    return () => {
-      window.removeEventListener("focus", back);
-      document.removeEventListener("visibilitychange", back);
-    };
+  /** After a successful mutation: one quiet refresh a little later (bursts of taps share it). */
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      if (alive.current) void refresh({ silent: true });
+    }, SETTLE_REFRESH_MS);
   }, [refresh]);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    },
+    [],
+  );
 
   // the worker re-subscribed after the push service rotated the subscription: save the new one
   useEffect(() => {
@@ -289,6 +347,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setNotice(ru.errors.signOutFailed);
       return false;
     }
+    clearSnapshots(); // the next user must never see this one's cached data
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    loadedRef.current = null;
+    loadedOnce.current = false;
     pendingJoin.clear(); // a deep link remembered for the previous user must not follow the next one
     loadSeq.current++; // any load still in flight belongs to the old session
     tracker.clear();
@@ -347,7 +409,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ("shares" in input ? repo.createPurchaseCustom(input) : repo.createPurchase(input))
         .then((real) => {
           tracker.resolve(id, real); // the real row inherits the optimistic row's key: no second row appears
-          if (alive.current) patchPurchases(input.household_id);
+          if (alive.current) {
+            patchPurchases(input.household_id);
+            scheduleRefresh();
+          }
         })
         .catch((e: unknown) => {
           tracker.fail(id);
@@ -356,7 +421,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           setNotice(e instanceof RepoError && e.code === "forbidden" ? ru.errors.generic : ru.errors.purchaseFailed);
         });
     },
-    [repo, tracker, patchPurchases],
+    [repo, tracker, patchPurchases, scheduleRefresh],
   );
 
   const findPurchase = useCallback(
@@ -376,7 +441,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       patchPurchases(current.household_id);
       try {
         await repo.deletePurchase(purchaseId);
-        if (alive.current) void refresh({ silent: true });
+        if (alive.current) scheduleRefresh();
         return true;
       } catch (e) {
         tracker.restore(purchaseId);
@@ -388,7 +453,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [repo, tracker, patchPurchases, refresh, findPurchase],
+    [repo, tracker, patchPurchases, refresh, scheduleRefresh, findPurchase],
   );
 
   const editDescription = useCallback(
@@ -402,7 +467,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       patchPurchases(current.household_id);
       try {
         await repo.updatePurchaseDescription(purchaseId, text);
-        if (alive.current) void refresh({ silent: true });
+        if (alive.current) scheduleRefresh();
         return true;
       } catch {
         tracker.unrename(purchaseId);
@@ -414,7 +479,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [repo, tracker, patchPurchases, refresh, findPurchase],
+    [repo, tracker, patchPurchases, refresh, scheduleRefresh, findPurchase],
   );
 
   const setRemindersEnabled = useCallback(
@@ -472,7 +537,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         const real = await repo.markSettlement(householdId, toUserId);
         settlementTracker.resolve(optimisticId, real);
-        if (alive.current) patchSettlements(householdId);
+        if (alive.current) {
+          patchSettlements(householdId);
+          scheduleRefresh();
+        }
         return true;
       } catch (e) {
         settlementTracker.release(optimisticId);
@@ -487,7 +555,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [repo, settlementTracker, patchSettlements, refresh],
+    [repo, settlementTracker, patchSettlements, refresh, scheduleRefresh],
   );
 
   const changeSettlement = useCallback(
@@ -503,8 +571,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const real = status === "confirmed" ? await repo.confirmSettlement(settlementId, current.amount) : await repo.cancelSettlement(settlementId);
         settlementTracker.patch({ ...real, covered: real.covered.length > 0 ? real.covered : current.covered });
         patchSettlements(current.household_id);
-        // the covered shares are now settled on the server: pull the truth (balances, progress)
-        if (alive.current) await refresh({ silent: true });
+        // the covered shares are settled here already (locallyConfirmed); the server's truth follows quietly
+        if (alive.current) scheduleRefresh();
         return true;
       } catch (e) {
         // roll back to the last server lists straight away: this must not wait for (or depend on) a refresh that may fail too
@@ -521,7 +589,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [repo, settlementTracker, patchSettlements, refresh],
+    [repo, settlementTracker, patchSettlements, refresh, scheduleRefresh],
   );
   const confirmReceived = useCallback((id: string) => changeSettlement(id, "confirmed"), [changeSettlement]);
   const cancelSettlement = useCallback((id: string) => changeSettlement(id, "cancelled"), [changeSettlement]);
@@ -556,7 +624,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       try {
         const real = await repo.resolvePending(purchaseId, input);
         tracker.override(real);
-        if (alive.current) patchPurchases(current.household_id);
+        if (alive.current) {
+          patchPurchases(current.household_id);
+          scheduleRefresh();
+        }
         return true;
       } catch (e) {
         tracker.dropOverride(purchaseId);
@@ -568,7 +639,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [repo, tracker, patchPurchases, refresh],
+    [repo, tracker, patchPurchases, refresh, scheduleRefresh],
   );
 
   const switchHousehold = useCallback(
@@ -592,18 +663,43 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
-  const data = useMemo<AppData>(() => {
-    const stage = stageOf({ hasSession: !!snap.session, hasProfile: !!snap.me, householdCount: snap.households.length });
+  const stage = useMemo(
+    () => stageOf({ hasSession: !!snap.session, hasProfile: !!snap.me, householdCount: snap.households.length }),
+    [snap.session, snap.me, snap.households.length],
+  );
+  const resolvedActive = useMemo(() => {
     const has = (id: string | null | undefined): id is string => !!id && snap.households.some((h) => h.id === id);
-    const active = has(activeId) ? activeId : has(snap.me?.default_household_id) ? snap.me.default_household_id : (snap.households[0]?.id ?? null);
-    return { ...snap, status, stage, activeId: active };
-  }, [snap, status, activeId]);
+    return has(activeId) ? activeId : has(snap.me?.default_household_id) ? snap.me.default_household_id : (snap.households[0]?.id ?? null);
+  }, [snap.households, snap.me, activeId]);
+
+  const data = useMemo<AppData>(() => ({ ...snap, status, stage, activeId: resolvedActive }), [snap, status, stage, resolvedActive]);
+  const statusValue = useMemo<AppStatus>(() => ({ status, stage }), [status, stage]);
+
+  // computed once per change, read by Главная, Settle, Квартира and the badge
+  const [stableCards] = useState(() => {
+    let prev: BalanceCardData[] = [];
+    return (next: BalanceCardData[]) => (sameValue(prev, next) ? prev : (prev = next));
+  });
+  const derived = useMemo<AppDerived>(() => {
+    const summaries = buildSummaries(snap);
+    // equal cards keep the same array, so the memoised CardStack does not re-render for a purchase it does not show
+    const cards = stableCards(buildCards(snap, summaries));
+    return {
+      settle: buildSettleData(snap, resolvedActive),
+      cards,
+      active: resolvedActive ? (summaries[resolvedActive] ?? null) : null,
+    };
+  }, [snap, resolvedActive, stableCards]);
 
   return (
     <ActionsCtx.Provider value={actions}>
-      <DataCtx.Provider value={data}>
-        <NoticeCtx.Provider value={notice}>{children}</NoticeCtx.Provider>
-      </DataCtx.Provider>
+      <StatusCtx.Provider value={statusValue}>
+        <DataCtx.Provider value={data}>
+          <DerivedCtx.Provider value={derived}>
+            <NoticeCtx.Provider value={notice}>{children}</NoticeCtx.Provider>
+          </DerivedCtx.Provider>
+        </DataCtx.Provider>
+      </StatusCtx.Provider>
     </ActionsCtx.Provider>
   );
 }

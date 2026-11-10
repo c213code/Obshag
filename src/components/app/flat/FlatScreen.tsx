@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRepo } from "@/components/RepoProvider";
 import { Bar } from "@/components/ui/Bar";
 import { CardStack } from "@/components/ui/CardStack";
@@ -34,9 +34,9 @@ const writeError = (e: unknown, fallback: string): string => {
 /** Квартира tab, per Invite.dc.html: invite card, neighbours, away, profile, reminders, automation, leaving. */
 export function FlatScreen() {
   const repo = useRepo();
-  const { me, households, members, purchases, activeId } = useAppData();
+  const { me, households, members, activeId } = useAppData();
   const { signOut, setRemindersEnabled, refresh, refreshMembers, switchHousehold, showNotice } = useAppActions();
-  const cards = useHouseholdCards(me, households, members, purchases);
+  const cards = useHouseholdCards();
   const today = useMemo(() => almatyDay(new Date()).date, []);
 
   const [leaving, setLeaving] = useState(false);
@@ -51,6 +51,8 @@ export function FlatScreen() {
   const [busy, setBusy] = useState(false);
   const [awayError, setAwayError] = useState<string | null>(null);
   const [rotateAsk, setRotateAsk] = useState(false);
+
+  const onFrontChange = useCallback((id: string) => id !== activeId && void switchHousehold(id), [activeId, switchHousehold]);
 
   const household = households.find((h) => h.id === activeId);
   if (!me || !household) return null;
@@ -158,7 +160,7 @@ export function FlatScreen() {
 
       {cards.length >= 2 ? (
         <div aria-label={ru.flat.households} className="-mt-1">
-          <CardStack cards={cards} frontId={household.id} onFrontChange={(id) => id !== activeId && void switchHousehold(id)} />
+          <CardStack cards={cards} frontId={household.id} onFrontChange={onFrontChange} />
         </div>
       ) : null}
 

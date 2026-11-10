@@ -10,16 +10,18 @@ export function DeleteConfirmSheet({
   what,
   amount,
   onClose,
+  onClosed,
   onConfirm,
 }: {
   open: boolean;
   what: string;
   amount: string;
   onClose: () => void;
+  onClosed?: () => void;
   onConfirm: () => void;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} label={ru.purchases.swipeAsk(what, amount)} expandedClassName="max-w-[358px] p-4" focusFirst={false}>
+    <Sheet open={open} onClose={onClose} onClosed={onClosed} label={ru.purchases.swipeAsk(what, amount)} expandedClassName="max-w-[358px] p-4" focusFirst={false}>
       <div className="flex flex-col gap-3" data-testid="swipe-confirm-sheet">
         <h2 className="px-1 text-headline">{ru.purchases.swipeAsk(what, amount)}</h2>
         <p className="px-1 text-caption">{ru.purchases.swipeAskHint}</p>

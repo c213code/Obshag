@@ -176,7 +176,8 @@ test.describe("/kit gallery", () => {
       const dialog = page.getByRole("dialog", { name: "Новая покупка" });
       await expect(dialog.getByText("Magnum")).toBeVisible();
       await expect(dialog.getByRole("button", { name: /Общее/ })).toBeFocused();
-      expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+      // the page behind is held by the fixed overlay (no body overflow toggle): it takes the touches
+      expect(await dialog.evaluate((el) => getComputedStyle(el.parentElement as HTMLElement).touchAction)).toBe("none");
       await page.keyboard.press("Escape");
       await expect(dialog).toHaveCount(0, { timeout: 3000 });
       await expect(trigger).toBeFocused();

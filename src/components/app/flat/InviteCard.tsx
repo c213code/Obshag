@@ -4,12 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { formatInviteCode } from "@/lib/domain/inviteCode";
 import { ru } from "@/lib/i18n/ru";
 import { SHORTCUT_ICLOUD_URL } from "@/lib/shortcutLink";
-import { QrSheet } from "./QrSheet";
+import dynamic from "next/dynamic";
+
+// the QR sheet (and the qrcode library behind it) is fetched on the first tap on «QR», not with the page
+const QrSheet = dynamic(() => import("./QrSheet").then((m) => m.QrSheet), { ssr: false });
 
 /** The lime invite card of Invite.dc.html: code, «Поделиться» (Web Share, copy as the fallback) and «QR». */
 export function InviteCard({ code, householdName }: { code: string; householdName: string }) {
   const [copied, setCopied] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [qrUsed, setQrUsed] = useState(false); // once opened it stays mounted, so the closing animation can finish
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -66,7 +70,10 @@ export function InviteCard({ code, householdName }: { code: string; householdNam
           </button>
           <button
             type="button"
-            onClick={() => setQrOpen(true)}
+            onClick={() => {
+              setQrUsed(true);
+              setQrOpen(true);
+            }}
             data-testid="invite-qr-open"
             className="rounded-pill px-5 py-3 text-[15px] font-semibold text-on-lime transition-transform duration-200 ease-smooth active:scale-[0.97]"
           >
@@ -74,7 +81,7 @@ export function InviteCard({ code, householdName }: { code: string; householdNam
           </button>
         </div>
       </section>
-      <QrSheet open={qrOpen} onClose={() => setQrOpen(false)} url={qrOpen ? link() : ""} code={code} />
+      {qrUsed ? <QrSheet open={qrOpen} onClose={() => setQrOpen(false)} url={qrOpen ? link() : ""} code={code} /> : null}
     </>
   );
 }

@@ -17,6 +17,7 @@ const Row = memo(function Row({ purchase }: { purchase: UiPurchase }) {
   return (
     <Link
       href={`/pending/${purchase.id}`}
+      prefetch={false}
       data-testid="pending-row"
       aria-label={`${ru.pending.rowLabel(merchant, formatTenge(purchase.amount))}, ${ru.pending.decide}`}
       className="flex items-center gap-[10px] rounded-pill border border-card-2 bg-card p-[6px] transition-transform duration-200 ease-smooth active:scale-[0.98]"
@@ -54,7 +55,6 @@ export function PendingSection({ purchases }: { purchases: ReadonlyArray<UiPurch
           {rows.map((p) => (
             <motion.li
               key={p.clientKey}
-              layout={reduced ? false : "position"}
               initial={reduced ? { opacity: 0 } : { opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}

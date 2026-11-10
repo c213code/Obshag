@@ -33,6 +33,19 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
   const [held, setHeld] = useState<UiPurchase | null>(null);
   if (!held && found && found.status === "pending") setHeld(found);
 
+  // the island opens a frame or two after Главная has painted, so its first frame is not competing with the page's own
+  const [homePainted, setHomePainted] = useState(false);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setHomePainted(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, []);
+
   const [open, setOpen] = useState(true);
   const [outcome, setOutcome] = useState<{ shared: boolean } | null>(null);
   const [category, setCategory] = useState<string | null>(ru.pending.categories[0]);
@@ -113,7 +126,7 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
   return (
     <>
       <HomeScreen />
-      {held ? (
+      {held && homePainted ? (
         <Sheet
           open={open}
           onClose={dismiss}
