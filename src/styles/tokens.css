@@ -37,6 +37,26 @@
   --color-night-ink: #0b0b1e;
   --color-night-text: #eef0ff;
   --color-night-muted: #a9aedb;
+  /* text that sits on the near hill (bottom row of the card): same as night-muted in dark, light on the dark violet hill in light */
+  --color-night-on-hill: #a9aedb;
+  /* sun and lit windows per flat tone; light theme swaps them for violet sun and warm windows */
+  --color-card-sun: #c8f25a;
+  --color-card-sun-orange: #ff8a5b;
+  --color-card-sun-periwinkle: #b8c4ff;
+  --color-card-window: #c8f25a;
+  --color-card-window-orange: #ff8a5b;
+  --color-card-window-periwinkle: #b8c4ff;
+  /* text on a person-coloured avatar */
+  --color-on-person: #f2f3f5;
+  /* chart bars / chips on bento tiles */
+  --color-tile-green: #1f2e1a;
+  --color-on-tile-green: #9bd66b;
+  --color-tile-sand: #33291a;
+  --color-on-tile-sand: #e6b567;
+  --color-tile-rose: #3a2328;
+  --color-on-tile-rose: #ff9aa8;
+  --color-tile-violet: #2a2540;
+  --color-on-tile-violet: #b8a7ff;
   --color-transparent: transparent;
   --color-current: currentColor;
 
@@ -99,4 +119,88 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
+}
+
+/*
+ * Light theme «Белый + фиолет»: follows the phone's appearance. The accent keeps the "lime" token family so every
+ * component picks it up; here lime is violet (#6a3fe0, 6.6:1 on white). Island sheets stay black through .theme-dark.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f6f6f9;
+    --color-card: #ffffff;
+    --color-card-2: #eeecf6;
+    --color-bar: #ffffff;
+    --color-text: #16132b;
+    /* spec #7c7894 is 4.4:1 on white and 3.9:1 on card-2; darkened a notch to pass AA on both */
+    --color-muted: #6a6684;
+    --color-lime: #6a3fe0;
+    --color-on-lime: #ffffff;
+    --color-lime-soft: #efe9ff;
+    --color-orange: #c2410c;
+    --color-on-orange: #ffffff;
+    --color-periwinkle: #4a5bd0;
+    --color-on-periwinkle: #ffffff;
+    --color-hairline: #e7e5f0;
+    --color-outline: #d9d6e6;
+    --color-stack: #e3d6ff;
+    --color-danger: #d62f3f;
+    --color-danger-line: #f6d4d8;
+    --color-wait-line: #f1c9b0;
+    --color-orange-soft: #ffeadd;
+    --color-blue-soft: #e3eeff;
+    --color-blue: #1f62c9;
+    --color-night-sky: #f0e9ff;
+    --color-night-1: #d4c6ff;
+    --color-night-2: #7f56ea;
+    --color-night-3: #4f2fc0;
+    --color-night-ink: #2a1660;
+    --color-night-text: #22124f;
+    --color-night-muted: #6a58a8;
+    --color-night-on-hill: #f1ebff;
+    --color-card-sun: #a98cff;
+    --color-card-sun-orange: #ffa07a;
+    --color-card-sun-periwinkle: #8fa6ff;
+    --color-card-window: #ffc85a;
+    --color-card-window-orange: #ffc85a;
+    --color-card-window-periwinkle: #ffc85a;
+    --color-person-blue: #2f5d8a;
+    --color-person-brown: #8a5a2f;
+    --color-person-purple: #6b4c8a;
+    --color-on-person: #ffffff;
+    --color-tile-green: #e4f4dc;
+    --color-on-tile-green: #2f7a1f;
+    --color-tile-sand: #fbefd9;
+    --color-on-tile-sand: #8f5a0a;
+    --color-tile-rose: #fde4e8;
+    --color-on-tile-rose: #b3263f;
+    --color-tile-violet: #efe9ff;
+    --color-on-tile-violet: #6a3fe0;
+  }
+}
+
+/* Re-applies the dark set inside a subtree (the island sheet is black in both themes). */
+.theme-dark {
+  color: var(--color-text);
+  --color-bg: #0e0f13;
+  --color-card: #1a1c22;
+  --color-card-2: #2c2f37;
+  --color-bar: #191b21;
+  --color-text: #f2f3f5;
+  --color-muted: #8b8f98;
+  --color-lime: #c8f25a;
+  --color-on-lime: #1a2300;
+  --color-lime-soft: #2a2d1a;
+  --color-orange: #ff8a5b;
+  --color-on-orange: #2b0e02;
+  --color-periwinkle: #b8c4ff;
+  --color-on-periwinkle: #141a3a;
+  --color-hairline: #23262d;
+  --color-outline: #3a3d45;
+  --color-danger: #ff6b6b;
+  --color-danger-line: #3a2a2a;
+  --color-wait-line: #5a3a28;
+  --color-orange-soft: #3a2318;
+  --color-blue-soft: #1e2a3a;
+  --color-blue: #7fb2ff;
 }

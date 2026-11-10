@@ -63,6 +63,19 @@ export const CardStack = memo(function CardStack({
   }, [frontCardId, reduced]);
   const interactive = n >= 2;
 
+  // The page can switch the household from outside (the flat pill): bring that card to the front.
+  const cardsRef = useRef(cards);
+  const frontIndexRef = useRef(frontIndex);
+  useEffect(() => {
+    cardsRef.current = cards;
+    frontIndexRef.current = frontIndex;
+  });
+  useEffect(() => {
+    if (!frontId) return;
+    const target = cardsRef.current.findIndex((c) => c.id === frontId);
+    if (target >= 0 && target !== frontIndexRef.current) setOffset(target);
+  }, [frontId]);
+
   const advance = () => {
     if (!interactive) return;
     lock(() => {

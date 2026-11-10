@@ -188,7 +188,7 @@ export function Sheet({
         data-done={showDone}
         data-reduced={reduced}
         style={{ borderRadius: radius }}
-        className={cx("sheet relative mx-auto w-full overflow-hidden outline-none", expandedClassName)}
+        className={cx("sheet theme-dark relative mx-auto w-full overflow-hidden outline-none", expandedClassName)}
       >
         <div aria-hidden="true" className="sheet-face absolute inset-0 bg-island" style={{ borderRadius: radius }} />
         {/* the real pill: shown while the card is pill-sized (without a Dynamic Island an empty black pill reads as a stray icon, so it stays invisible there) */}

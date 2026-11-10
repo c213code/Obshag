@@ -40,7 +40,7 @@ async function logIn(page: Page, who: { email: string; name: string }) {
   await page.getByLabel("Почта").fill(who.email);
   await page.getByLabel("Пароль", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText(`Привет, ${who.name}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `Профиль и квартира, ${who.name}` })).toBeVisible();
 }
 
 const savedToStore = (page: Page) =>
@@ -75,7 +75,8 @@ test.describe("slice 11: swipe to delete", () => {
   test("a member adds a shared purchase; the admin swipes it left, confirms, the row disappears", async ({ browser, baseURL }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
-      await page.getByRole("link", { name: "Покупка", exact: true }).click();
+      await page.getByRole("button", { name: "Добавить", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Покупка" }).click();
       await expect(page).toHaveURL(/\/purchases\/new$/);
       for (const name of ["Даня", "Нурик"]) await page.getByRole("button", { name, pressed: true }).click();
       await page.getByLabel("Сумма", { exact: true }).fill("600");

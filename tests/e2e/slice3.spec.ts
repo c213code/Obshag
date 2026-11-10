@@ -112,7 +112,7 @@ async function logIn(page: Page, who: { key: string; name: string }) {
   await page.getByLabel("Почта").fill(email(who.key));
   await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText(`Привет, ${who.name}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `Профиль и квартира, ${who.name}` })).toBeVisible();
 }
 
 /** Resolves when the shared mock store accepted a write (the optimistic UI shows results before that). */
@@ -131,7 +131,8 @@ async function markPaidSaved(page: Page, dbl = false) {
 
 /** Equal split of `amount` over the signed-in user and the named housemates (everyone else is switched off). */
 async function buy(page: Page, amount: number, what: string, with_: ReadonlyArray<string>, without: ReadonlyArray<string> = []) {
-  await page.getByRole("link", { name: "Покупка", exact: true }).click();
+  await page.getByRole("button", { name: "Добавить", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Покупка" }).click();
   await expect(page).toHaveURL(/\/purchases\/new$/);
   for (const name of without) await page.getByRole("button", { name, pressed: true }).click();
   for (const name of with_) await expect(page.getByRole("button", { name, pressed: true })).toBeVisible();
@@ -182,10 +183,10 @@ test.describe("slice 3: netting and settlement", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
       await buy(page, 4000, "Интернет", [BORIS.name]);
-      await expect(page.getByText(`тебе должны ${money(2000)}`)).toBeVisible();
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(2000));
       // «Расчёт» is a real link now, and the «Подтверди оплату» section is absent when nothing was marked
-      await expect(page.getByRole("link", { name: "Расчёт", exact: true })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Рассчитаться" })).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Расчёт: тебе должны/ })).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Расчёт: тебе должны/ })).toBeVisible();
       await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
     });
     // Ерасыл pays 3 600 for both: Айдос owes 1 800
@@ -194,7 +195,7 @@ test.describe("slice 3: netting and settlement", () => {
       await buy(page, 3600, "Картошка", [ADAM.name]);
       // Главная nets per person now: 2 000 against 1 800 is "ты должен 200"
       await expect(page.getByText(`ты должен ${money(200)}`)).toBeVisible();
-      await expect(page.getByText(`тебе должны ${money(0)}`)).toBeVisible();
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
     });
   });
 
@@ -202,7 +203,7 @@ test.describe("slice 3: netting and settlement", () => {
     await withPhone(browser, baseURL, async ({ page, context }) => {
       await logIn(page, BORIS);
       await page.screenshot({ path: `${SHOTS}/s3-app-main.png` });
-      await page.getByRole("link", { name: "Рассчитаться" }).click();
+      await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       // exactly one counterparty: straight to the person
       await expect(page).toHaveURL(/\/settle\/[0-9a-f-]{36}$/);
       adamId = page.url().split("/").pop() ?? "";
@@ -315,7 +316,7 @@ test.describe("slice 3: netting and settlement", () => {
       await logIn(adam.page, ADAM);
       const row = adam.page.getByTestId("incoming-row");
       await expect(row).toHaveCount(1);
-      await expect(adam.page.getByRole("link", { name: "Расчёт", exact: true })).toBeVisible();
+      await expect(adam.page.getByRole("link", { name: /^Расчёт: тебе должны/ })).toBeVisible();
       await adam.page.getByRole("heading", { name: "Подтверди оплату" }).scrollIntoViewIfNeeded();
       await adam.page.screenshot({ path: `${SHOTS}/s3-app-poluchil-0.png` });
       const button = row.locator("button"); // aria-hidden once it has shrunk away
@@ -332,13 +333,13 @@ test.describe("slice 3: netting and settlement", () => {
 
       // balances went to 0 at once, and the row leaves after the animation
       await expect(adam.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
-      await expect(adam.page.getByText(`тебе должны ${money(0)}`)).toBeVisible();
+      await expect(adam.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
       await expect(adam.page.getByRole("heading", { name: "Подтверди оплату" })).toHaveCount(0, { timeout: 4000 });
       // «N из M скинули»: both purchases are fully paid now
       for (const text of ["Интернет", "Картошка"]) {
         await expect(adam.page.getByTestId("purchase-row").filter({ hasText: text })).toContainText("1 из 1");
       }
-      await adam.page.getByRole("link", { name: "Расчёт", exact: true }).click();
+      await adam.page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       await expect(adam.page.getByTestId("settle-empty")).toContainText("Все в расчёте");
       await adam.page.screenshot({ path: `${SHOTS}/s3-app-settle-empty.png` });
     });
@@ -346,7 +347,7 @@ test.describe("slice 3: netting and settlement", () => {
     await withPhone(browser, baseURL, async (boris) => {
       await logIn(boris.page, BORIS);
       await expect(boris.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
-      await expect(boris.page.getByText(`тебе должны ${money(0)}`)).toBeVisible();
+      await expect(boris.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
       await expect(boris.page.getByTestId("waiting-row")).toHaveCount(0);
       await boris.page.goto(`/settle/${adamId}`);
       await expect(boris.page.getByTestId("settle-empty")).toContainText("Все в расчёте");
@@ -426,7 +427,7 @@ test.describe("slice 3: netting and settlement", () => {
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      await expect(page.getByText(`тебе должны ${money(200)}`)).toBeVisible();
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(200));
       await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
       await expect(page.getByTestId("incoming-row")).toHaveCount(0);
     });
@@ -444,7 +445,7 @@ test.describe("slice 3: netting and settlement", () => {
     // Айдос is the creditor: the list stays (it carries the «Напомнить» pill), the pair screen has a live «Напомнить»
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      await page.getByRole("link", { name: "Расчёт", exact: true }).click();
+      await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       await expect(page).toHaveURL(/\/settle$/);
       await expect(page.getByRole("button", { name: /^Напомнить: / })).toBeEnabled();
       await page.getByRole("link", { name: /Рассчитаться с / }).click();
@@ -502,7 +503,7 @@ test.describe("slice 3: netting and settlement", () => {
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
-      await page.getByRole("link", { name: "Расчёт", exact: true }).click();
+      await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       await expect(page).toHaveURL(/\/settle$/);
       const list = page.getByRole("list", { name: "Расчёт" });
       const rows = list.getByRole("link");

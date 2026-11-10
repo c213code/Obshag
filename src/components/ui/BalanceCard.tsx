@@ -28,9 +28,9 @@ export type BalanceCardData = {
 
 /** The tone now colours the sun, the lit windows and "me" (the sky is the same night for every flat). */
 const toneClass: Record<CardTone, { sun: string; light: string; me: string }> = {
-  lime: { sun: "bg-lime", light: "fill-lime", me: "!bg-lime !text-on-lime" },
-  orange: { sun: "bg-orange", light: "fill-orange", me: "!bg-orange !text-on-orange" },
-  periwinkle: { sun: "bg-periwinkle", light: "fill-periwinkle", me: "!bg-periwinkle !text-on-periwinkle" },
+  lime: { sun: "bg-card-sun", light: "fill-card-window", me: "!bg-lime !text-on-lime" },
+  orange: { sun: "bg-card-sun-orange", light: "fill-card-window-orange", me: "!bg-orange !text-on-orange" },
+  periwinkle: { sun: "bg-card-sun-periwinkle", light: "fill-card-window-periwinkle", me: "!bg-periwinkle !text-on-periwinkle" },
 };
 
 /** Night-sky card: paper-cut hill layers, house silhouettes with lit windows and a sun in the flat's tone. */
@@ -98,7 +98,7 @@ export const BalanceCard = memo(function BalanceCard({
             />
           ))}
         </div>
-        {data.caption ? <span className="text-label text-night-muted">{data.caption}</span> : null}
+        {data.caption ? <span className="text-label text-night-on-hill">{data.caption}</span> : null}
       </div>
     </div>
   );

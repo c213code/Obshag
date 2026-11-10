@@ -51,7 +51,7 @@ async function logIn(page: Page, who: { email: string; name: string }) {
   await page.getByLabel("Почта").fill(who.email);
   await page.getByLabel("Пароль", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText(`Привет, ${who.name}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `Профиль и квартира, ${who.name}` })).toBeVisible();
 }
 
 type Stored = {
@@ -305,7 +305,8 @@ test.describe("slices 6+7", () => {
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, T);
-      await page.getByRole("link", { name: "Покупка", exact: true }).click();
+      await page.getByRole("button", { name: "Добавить", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Покупка" }).click();
       await expect(page).toHaveURL(/\/purchases\/new$/);
       await expect(page.getByRole("button", { name: "Рустем", pressed: true })).toBeVisible();
       // (the disabled «Кто платил» option is named «Алия» too: the person chip is the last one)

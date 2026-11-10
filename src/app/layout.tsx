@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
+import { THEME_COLOR_DARK, THEME_COLOR_LIGHT } from "@/lib/themeColors";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,13 +8,18 @@ export const metadata: Metadata = {
   description: "Общие расходы без таблиц",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
-  appleWebApp: { capable: true, title: "Общак", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Общак", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR_LIGHT },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR_DARK },
+  ],
 };
 
 /** The Supabase origin (absent in mock mode): the first request of every session goes there, so the connection is opened early. */

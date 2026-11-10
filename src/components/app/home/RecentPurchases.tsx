@@ -31,7 +31,7 @@ export function RecentPurchases({
         <h2 id="recent-title" className="text-headline">
           {ru.main.recent}
         </h2>
-        <Link href="/purchases" className="text-caption !text-lime">
+        <Link href="/purchases" className="text-label font-semibold !text-lime">
           {ru.main.all}
         </Link>
       </div>
@@ -47,19 +47,19 @@ export function RecentPurchases({
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {entries.map(({ key, item: p, exiting, fresh }) => (
-            <li key={key} data-testid="purchase-row" className={cx("[--enter-y:-16px]", exiting ? "leave" : fresh && "enter")}>
-                {wrap(
-                  p,
-                  p.id.startsWith("optimistic-") ? (
+        <ul className="overflow-hidden rounded-md bg-card">
+          {entries.map(({ key, item: p, exiting, fresh }, i) => (
+            <li key={key} data-testid="purchase-row" className={cx("[--enter-y:-16px]", i > 0 && "border-t border-hairline", exiting ? "leave" : fresh && "enter")}>
+              {wrap(
+                p,
+                p.id.startsWith("optimistic-") ? (
+                  <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
+                ) : (
+                  <Link href={`/purchases/${p.id}`} prefetch={false} draggable={false} className="block bg-card transition-colors duration-200 ease-smooth active:bg-card-2">
                     <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
-                  ) : (
-                    <Link href={`/purchases/${p.id}`} prefetch={false} draggable={false} className="block transition-transform duration-200 ease-smooth active:scale-[0.98]">
-                      <PurchaseCard purchase={p} payerName={payerNames.get(p.payer_id) ?? ru.main.formerMember} />
-                    </Link>
-                  ),
-                )}
+                  </Link>
+                ),
+              )}
             </li>
           ))}
         </ul>

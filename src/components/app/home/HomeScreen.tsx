@@ -2,20 +2,22 @@
 
 import { useCallback, useMemo } from "react";
 import { CardStack } from "@/components/ui/CardStack";
+import type { Bill } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData, useAppDerived } from "../AppDataProvider";
 import { Screen } from "../Screen";
-import { DebtsCard } from "./DebtsCard";
-import { GreetingHeader } from "./GreetingHeader";
+import { Bento } from "./Bento";
+import { HomeHeader } from "./HomeHeader";
 import { IncomingSection } from "./IncomingSection";
 import { PendingSection } from "./PendingSection";
-import { QuickActions } from "./QuickActions";
 import { RecentPurchases } from "./RecentPurchases";
 import { WaitingSection } from "./WaitingSection";
 
-/** Главная, per Main.dc.html: greeting, card stack, quick actions, Долги, Последние покупки. */
+const NONE_BILLS: Bill[] = [];
+
+/** Главная, per bento mockup: header (flat pill, bell, avatar), card stack, bento grid, Последние покупки. */
 export function HomeScreen() {
-  const { me, members, purchases, activeId } = useAppData();
+  const { me, members, purchases, bills, activeId } = useAppData();
   const { switchHousehold } = useAppActions();
   const { cards, active } = useAppDerived();
 
@@ -29,6 +31,9 @@ export function HomeScreen() {
     return { ps, names };
   }, [me, members, purchases, activeId]);
 
+  const flats = useMemo(() => cards.map((c) => ({ id: c.id, name: c.name })), [cards]);
+  const activeBills = (activeId && bills[activeId]) || NONE_BILLS;
+
   const recent = useMemo(() => (data ? data.ps.filter((p) => p.status !== "pending") : []), [data]);
 
   if (!me || !data || !active) return null;
@@ -36,13 +41,12 @@ export function HomeScreen() {
   return (
     <Screen>
       {/* the bell dot means unread notifications: there is no inbox before slice 5, so it stays hidden (the slot is kept) */}
-      <GreetingHeader name={me.display_name} initial={me.display_name} unread={0} />
+      <HomeHeader name={me.display_name} flats={flats} activeId={activeId} onSwitch={switchHousehold} unread={0} />
       <PendingSection purchases={data.ps} />
       <div className="-mt-2">
         <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} />
       </div>
-      <QuickActions />
-      <DebtsCard owe={active.balance.owe} owed={active.balance.owed} />
+      <Bento owed={active.balance.owed} owe={active.balance.owe} bills={activeBills} purchases={data.ps} meId={me.id} />
       <IncomingSection />
       <WaitingSection />
       <RecentPurchases purchases={recent} payerNames={data.names} />

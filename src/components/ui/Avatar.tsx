@@ -4,9 +4,9 @@ export type AvatarColor = "blue" | "brown" | "purple" | "me";
 export type AvatarSize = 26 | 32 | 40 | 44 | 52;
 
 const colorClass: Record<AvatarColor, string> = {
-  blue: "bg-person-blue text-text",
-  brown: "bg-person-brown text-text",
-  purple: "bg-person-purple text-text",
+  blue: "bg-person-blue text-on-person",
+  brown: "bg-person-brown text-on-person",
+  purple: "bg-person-purple text-on-person",
   me: "bg-lime text-on-lime",
 };
 

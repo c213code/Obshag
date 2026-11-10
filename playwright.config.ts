@@ -7,7 +7,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: "list",
   // the service worker is blocked by default: a registered worker hides requests from page.route (slice 4 opts in where it tests it)
-  use: { baseURL: `http://localhost:${PORT}`, ...devices["iPhone 15"], serviceWorkers: "block" },
+  use: { baseURL: `http://localhost:${PORT}`, ...devices["iPhone 15"], serviceWorkers: "block", colorScheme: "dark" },
   projects: [{ name: "webkit-iphone15", use: { ...devices["iPhone 15"] } }],
   // Production build, so tests see real behaviour (CSP, no dev overlay, no HMR).
   // NEXT_PUBLIC_* are inlined at build time, hence the env applies to `build` as well as `start`.

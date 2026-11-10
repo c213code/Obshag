@@ -95,7 +95,7 @@ async function logIn(page: Page, who: { key: string; name: string }) {
   await page.getByLabel("Почта").fill(email(who.key));
   await page.getByLabel("Пароль", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText(`Привет, ${who.name}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `Профиль и квартира, ${who.name}` })).toBeVisible();
 }
 
 function savedToStore(page: Page) {
@@ -323,9 +323,9 @@ test.describe("slice 4: Apple Pay capture", () => {
       await expect(page.getByTestId("pending-section")).toHaveCount(0);
       const row = page.getByTestId("purchase-row").first();
       await expect(row).toContainText("Продукты");
-      await expect(row).toContainText("Magnum");
+      await expect(row).toContainText("Ты · сегодня"); // the row shows payer · day (the merchant lives on the detail screen)
       await expect(row).toContainText(money(6000));
-      await expect(page.getByText(`тебе должны ${money(3000)}`)).toBeVisible();
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, MATE);

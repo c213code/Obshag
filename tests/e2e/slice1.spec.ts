@@ -181,7 +181,7 @@ test.describe("slice 1: first end-to-end path", () => {
 
       // Главная
       await expect(page).toHaveURL(/\/$/);
-      await expect(page.getByText("Привет, Ерасыл")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Профиль и квартира, Ерасыл" })).toBeVisible();
       await expect(page.getByTestId("card-stack")).toHaveAttribute("data-front", "Квартира 42");
       await expect(page.getByText(`ты должен ${money(0)}`)).toBeVisible();
       await expect(page.getByText("Пока пусто — добавь первую покупку")).toBeVisible();
@@ -191,9 +191,11 @@ test.describe("slice 1: first end-to-end path", () => {
       // no unread notifications in slice 1: the bell keeps its slot but shows no dot
       await expect(page.getByRole("button", { name: "Уведомления" })).toBeDisabled();
       expect(await page.getByRole("button", { name: "Уведомления" }).locator("span.bg-orange").count()).toBe(0);
-      // the action row keeps the mockup height: no extra caption line under the «скоро» actions
-      const rowBox = (await page.getByRole("navigation", { name: "Покупка" }).boundingBox())!;
-      expect(rowBox.height).toBeLessThan(96);
+      // bento: «Тебе должны», the monthly tile (empty state) and «Траты» with six week bars, the current one in the accent
+      await expect(page.getByTestId("bento-owed")).toBeVisible();
+      await expect(page.getByTestId("bento-bill")).toContainText("Ежемесячно");
+      await expect(page.getByTestId("spending-bar")).toHaveCount(6);
+      await expect(page.locator('[data-testid="spending-bar"][data-current="true"]')).toHaveCount(1);
       // the Fab menu offers the monthly payment (live since slice 6)
       await page.getByRole("button", { name: "Добавить" }).tap();
       await expect(page.getByRole("menuitem", { name: /Ежемесячный платёж/ })).toBeEnabled();
@@ -274,7 +276,8 @@ test.describe("slice 1: first end-to-end path", () => {
         await one.page.getByRole("link", { name: "Главная", exact: true }).click();
 
         // Новая покупка: 6 000 for both -> по 3 000 ₸ on 2 people
-        await one.page.getByRole("link", { name: "Покупка", exact: true }).click();
+        await one.page.getByRole("button", { name: "Добавить", exact: true }).click();
+        await one.page.getByRole("menuitem", { name: "Покупка" }).click();
         await expect(one.page).toHaveURL(/\/purchases\/new$/);
         const amount = one.page.getByLabel("Сумма");
         expect(await amount.getAttribute("inputmode")).toBe("numeric");
@@ -328,10 +331,10 @@ test.describe("slice 1: first end-to-end path", () => {
         const firstRow = one.page.getByTestId("purchase-row").first();
         await expect(firstRow).toContainText("Хлеб, картошка");
         await expect(firstRow).toContainText(money(6000));
-        await expect(one.page.getByText(`тебе должны ${money(3000)}`)).toBeVisible();
+        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
         release();
         await saved;
-        await expect(one.page.getByText(`тебе должны ${money(3000)}`)).toBeVisible();
+        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
         await expect(one.page.getByText(`+${money(3000)}`).first()).toBeVisible();
         await expect(firstRow).toContainText("0 из 1");
         // the optimistic row turning into the real one must never render twice
@@ -341,13 +344,13 @@ test.describe("slice 1: first end-to-end path", () => {
         // user 2 sees the debt
         await two.page.reload();
         await expect(two.page.getByText(`ты должен ${money(3000)}`)).toBeVisible();
-        await expect(two.page.getByText(`тебе должны ${money(0)}`)).toBeVisible();
+        await expect(two.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
         await expect(two.page.getByTestId("purchase-row").first()).toContainText("Хлеб, картошка");
 
         // the new purchase is still there after a reload for user 1 (persisted)
         await one.page.reload();
         await expect(one.page.getByTestId("purchase-row").first()).toContainText("Хлеб, картошка");
-        await expect(one.page.getByText(`тебе должны ${money(3000)}`)).toBeVisible();
+        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
         await expectSingleRowFor(one.page, "Хлеб, картошка", 300);
       });
     });
@@ -360,7 +363,7 @@ test.describe("slice 1: first end-to-end path", () => {
       await waitHydrated(one.page);
       await login(one.page, email("one"));
       await expect(one.page).toHaveURL(/\/$/);
-      await expect(one.page.getByText("Привет, Ерасыл")).toBeVisible();
+      await expect(one.page.getByRole("link", { name: "Профиль и квартира, Ерасыл" })).toBeVisible();
 
       // somebody else joins now; user 1 does not reload anything
       await withPhone(browser, baseURL, async (three) => {
@@ -374,7 +377,8 @@ test.describe("slice 1: first end-to-end path", () => {
       });
 
       // client-side navigation only: the roster is fetched again when the screen opens
-      await one.page.getByRole("link", { name: "Покупка", exact: true }).click();
+      await one.page.getByRole("button", { name: "Добавить", exact: true }).click();
+      await one.page.getByRole("menuitem", { name: "Покупка" }).click();
       await expect(one.page).toHaveURL(/\/purchases\/new$/);
       await expect(one.page.getByRole("button", { name: "Даня", pressed: true })).toBeVisible();
       await one.page.getByLabel("Сумма").fill("900");

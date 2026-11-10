@@ -182,3 +182,40 @@ export const ShareIcon = (p: IconProps) => (
     <path d="M12 15V4M8 8l4-4 4 4M6 11H5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1h-1" />
   </Svg>
 );
+
+export const BreadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 11a4 4 0 0 1 2-7h10a4 4 0 0 1 2 7v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+    <path d="M9.5 12l1.5 3M13 12l1.5 3" />
+  </Svg>
+);
+export const CarrotIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 20.5 9.5 8.5l6 6z" />
+    <path d="M12 5.5V3M14.5 7.5 17 6M10 6 8.5 4" />
+  </Svg>
+);
+export const MilkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 3h8l1 4v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V7z" />
+    <path d="M7 7h10M7 13h10" />
+  </Svg>
+);
+export const MeatIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9.5" cy="14.5" r="5.5" />
+    <path d="M13.5 10.5 18 6" />
+    <circle cx="18.5" cy="5.5" r="1.6" />
+    <circle cx="20" cy="8" r="1.6" />
+  </Svg>
+);
+export const StoreIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9l1.5-5h13L20 9M4 9a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0M5 12v8h14v-8M10 20v-5h4v5" />
+  </Svg>
+);
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);

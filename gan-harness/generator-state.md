@@ -391,3 +391,16 @@ Nothing committed. Servers stopped. No SQL, `.env.local` untouched.
 ## Known
 - Sheet corners during the first ~100 ms are a crossfade pill -> card (squashed corners hidden under the pill).
 - Interrupting a tab-pill slide jumps from the last resting box (motion's layout handled interruptions smoothly).
+
+---
+
+# Light theme (spec-light-theme.md, one pass)
+
+Nothing committed. Servers stopped. No SQL, `.env.local` untouched.
+
+- Tokens: `src/styles/tokens.css` keeps the dark set; `@media (prefers-color-scheme: light)` overrides it («Белый + фиолет», accent = the "lime" family as violet #6a3fe0). New tokens: `card-sun*`, `card-window*`, `night-on-hill`, `on-person`, `tile-{green,sand,violet,rose}` (+ `on-`). `.theme-dark` re-applies the dark set; the Sheet (island) uses it so it stays black. `color-scheme: light dark`.
+- Contrast compromise: muted is #6a6684 instead of the spec's #7c7894 (4.4:1 on white, 3.9:1 on card-2 -> AA now).
+- PWA chrome: `statusBarStyle: "default"` (black-translucent gives white status text, invisible on light), `theme-color` per scheme (`src/lib/themeColors.ts`, tested against tokens.css), manifest colours stay dark #0E0F13 (a manifest has no per-scheme value). Trade-off: content starts below the status bar (opaque system bar), no edge-to-edge.
+- Home: `HomeHeader` (flat pill with menu when 2+ flats / link to Квартира with one, bell, avatar), `Bento` (Тебе должны + Напомнить, next bill tile or «Ежемесячно/Добавить», Траты with 6 weekly bars), `CategoryTile` + `domain/category.ts`, one rounded card of rows with hairlines and a «N из M» chip. `domain/spending.ts`, `domain/nextBill.ts` (unit tested). CardStack follows `frontId` changes made from outside. Removed GreetingHeader, QuickActions, DebtsCard. The row subtitle is «payer · день» (merchant no longer shown on the row).
+- E2E: playwright `use.colorScheme = "dark"` (kit page fixture); specs that open their own contexts run in light. Assertions moved: greeting -> avatar link «Профиль и квартира, <имя>»; Долги text -> `bento-owed-amount`; «Расчёт»/«Рассчитаться» links -> the Тебе должны tile link; quick «Покупка» -> Fab menu. New `theme.spec.ts`.
+- Screenshots: `gan-harness/screenshots/theme-{light,dark}-{home,home-full,fab,purchases,settle,monthly,flat,island}.png` (script `gan-harness/shoot-theme.mjs`).

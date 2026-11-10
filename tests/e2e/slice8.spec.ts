@@ -70,7 +70,7 @@ test.describe("slice 8", () => {
       await page.getByRole("link", { name: /Создать квартиру/ }).click();
       await page.getByLabel("Название").fill("Квартира 8");
       await page.getByRole("button", { name: "Создать" }).click();
-      await expect(page.getByText("Привет, Рита")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Профиль и квартира, Рита" })).toBeVisible();
       await expect(page.getByTestId("home-empty")).toContainText("Пока пусто — добавь первую покупку");
       await expect(page.getByTestId("home-empty").getByRole("link", { name: "Добавить покупку" })).toBeVisible();
 
@@ -89,7 +89,7 @@ test.describe("slice 8", () => {
       await page.getByLabel("Повтори пароль").fill("brand-new-pass");
       await page.getByRole("button", { name: "Сохранить пароль" }).click();
       await expect(page).toHaveURL(/\/$/);
-      await expect(page.getByText("Привет, Рита")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Профиль и квартира, Рита" })).toBeVisible();
 
     });
   });

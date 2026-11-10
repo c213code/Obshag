@@ -45,7 +45,7 @@ async function logIn(page: Page, who: { email: string; name: string }) {
   await page.getByLabel("Почта").fill(who.email);
   await page.getByLabel("Пароль", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByText(`Привет, ${who.name}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `Профиль и квартира, ${who.name}` })).toBeVisible();
 }
 
 const savedToStore = (page: Page) =>
@@ -86,7 +86,8 @@ const pushLog = async (request: APIRequestContext) =>
 /** Equal purchase with the signed-in user plus the named housemates. */
 async function buy(page: Page, amount: number, what: string, with_: ReadonlyArray<string>) {
   await page.goto("/");
-  await page.getByRole("link", { name: "Покупка", exact: true }).click();
+  await page.getByRole("button", { name: "Добавить", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Покупка" }).click();
   await expect(page).toHaveURL(/\/purchases\/new$/);
   for (const name of ["Айдос", "Даня", "Нурик"].filter((n) => !with_.includes(n))) await page.getByRole("button", { name, pressed: true }).click();
   await page.getByLabel("Сумма", { exact: true }).fill(String(amount));
@@ -103,7 +104,8 @@ test.describe("slices 5+2", () => {
   test("«Свои суммы»: 6000 = 3000/2000/1000, ✓ waits for an exact sum", async ({ browser, baseURL, request }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ME);
-      await page.getByRole("link", { name: "Покупка", exact: true }).click();
+      await page.getByRole("button", { name: "Добавить", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Покупка" }).click();
       await expect(page).toHaveURL(/\/purchases\/new$/);
       await page.getByRole("button", { name: "Нурик", pressed: true }).click(); // Ерасыл, Айдос, Даня
       await page.getByLabel("Сумма", { exact: true }).fill("6000");
@@ -234,7 +236,7 @@ test.describe("slices 5+2", () => {
     // Айдос says «я оплатил» (a marked settlement covers every open share between them)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
-      await page.getByRole("link", { name: "Расчёт", exact: true }).click();
+      await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
       await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
       const saved = savedToStore(page);
       await page.getByRole("button", { name: "Я оплатил" }).click();
