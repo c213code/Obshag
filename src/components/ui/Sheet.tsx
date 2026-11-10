@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
+import { useHasDynamicIsland } from "@/lib/device";
 import { ease, useReducedMotionSafe } from "@/lib/motion";
 import { cx } from "./cx";
 import { CheckIcon } from "./icons";
@@ -50,6 +51,7 @@ export function Sheet({
   focusFirst?: boolean;
 }) {
   const { reduced } = useReducedMotionSafe();
+  const island = useHasDynamicIsland();
   const [phase, setPhase] = useState<Phase>("closed");
   const [prevOpen, setPrevOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -170,7 +172,13 @@ export function Sheet({
           expanded ? cx("w-full", expandedClassName) : cx("h-[34px]", showDone ? "w-[150px]" : "w-[120px]"),
         )}
         initial={reduced ? { opacity: 0 } : false}
-        animate={reduced ? { opacity: visible ? 1 : 0 } : undefined}
+        animate={
+          reduced
+            ? { opacity: visible ? 1 : 0 }
+            : // without a Dynamic Island an empty black pill reads as a stray icon: it stays invisible there, so the card
+              // fades in while it grows and fades out as it collapses (the «✓ Поделено» pill still shows)
+              { opacity: island || expanded || (phase === "collapsed" && showDone) ? 1 : 0 }
+        }
       >
         {expanded ? (
           <motion.div
