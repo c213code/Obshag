@@ -13,7 +13,9 @@ import { formatWhen } from "@/lib/format/date";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ease } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
+import { isAccumulating } from "@/lib/domain/minTransfer";
 import { useAppActions, useAppData } from "../AppDataProvider";
+import { useSettleData } from "../settle/useSettleData";
 import { RemindButton } from "../remind/RemindButton";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
@@ -26,7 +28,8 @@ const fade = { duration: 0.2, ease: ease.smooth };
 export function PurchaseDetailScreen() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const { me, members, purchases, status } = useAppData();
+  const { me, members, purchases, settlements, status } = useAppData();
+  const settle = useSettleData();
   const { deletePurchase, editDescription } = useAppActions();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -74,6 +77,10 @@ export function PurchaseDetailScreen() {
     .filter((s) => s.debtor_id !== purchase.payer_id && s.amount > 0)
     .sort((a, b) => (a.settled_at === null ? 1 : 0) - (b.settled_at === null ? 1 : 0) || (a.settled_at ?? "").localeCompare(b.settled_at ?? ""));
   const { paid, total } = purchaseProgress(purchase.payer_id, purchase.shares);
+  // my open share is under the Kaspi minimum: it is not asked for on its own, it joins the next settlement
+  const mine = purchase.status === "shared" && !isPayer ? purchase.shares.find((s) => s.debtor_id === me.id) : undefined;
+  const myShare = mine && mine.settled_at === null && isAccumulating(mine.amount) ? mine : null;
+  const writeoffs = new Map((settlements[purchase.household_id] ?? []).filter((x) => x.kind === "writeoff").map((x) => [x.id, x]));
 
   const startEdit = () => {
     setDraft(purchase.description);
@@ -160,6 +167,12 @@ export function PurchaseDetailScreen() {
         </div>
       </section>
 
+      {myShare ? (
+        <p data-testid="small-share-note" className="rounded-md border border-hairline bg-card px-4 py-3 text-caption">
+          {ru.detail.smallShare(formatTenge(myShare.amount))}
+        </p>
+      ) : null}
+
       {rows.length > 0 ? (
         <>
           <div className="flex items-baseline justify-between px-[6px]">
@@ -174,7 +187,8 @@ export function PurchaseDetailScreen() {
               const name = s.debtor_id === me.id ? ru.main.you : (m?.profile.display_name ?? ru.main.formerMember);
               const received = s.settled_at !== null;
               const extra = uneven ? ` · ${formatTenge(s.amount)}` : "";
-              const caption = received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
+              const writtenOff = s.settlement_id ? writeoffs.get(s.settlement_id) : undefined;
+              const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
               return (
                 <li key={s.debtor_id}>
                   <PaymentRow
@@ -182,7 +196,7 @@ export function PurchaseDetailScreen() {
                     color={m ? avatarColorFor(m.profile, me.id) : "brown"}
                     received={received}
                     caption={caption}
-                    action={isPayer && m ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
+                    action={isPayer && m && !(settle && isAccumulating(settle.pairWith(s.debtor_id).net)) ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
                   />
                 </li>
               );

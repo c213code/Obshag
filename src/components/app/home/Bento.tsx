@@ -6,6 +6,7 @@ import { BillIcon } from "../bills/BillIcon";
 import { Money } from "@/components/ui/Money";
 import { PillLink } from "@/components/ui/Pill";
 import { cx } from "@/components/ui/cx";
+import { isAccumulating } from "@/lib/domain/minTransfer";
 import { almatyDay } from "@/lib/domain/almaty";
 import { nextBill } from "@/lib/domain/nextBill";
 import { spendingSummary } from "@/lib/domain/spending";
@@ -13,6 +14,7 @@ import type { Bill } from "@/lib/data/types";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
+import { useSettleData } from "../settle/useSettleData";
 
 const tile = "flex flex-col rounded-md bg-card p-4";
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -23,15 +25,35 @@ function billDate(month: string, day: number): string {
   return dateFormat.format(new Date(y, m - 1, day)).replace(".", "");
 }
 
+/** Splits the per-person nets into what Kaspi can transfer (100 ₸ and up) and what only accumulates (1..99 ₸ per person). */
+function useSplitNets(owed: number, owe: number) {
+  const data = useSettleData();
+  if (!data) return { owed, owe, accruing: 0 };
+  let big = { owed: 0, owe: 0 };
+  let accruing = 0;
+  for (const c of data.net.counterparties) {
+    if (isAccumulating(c.net)) accruing += c.net;
+    else if (c.direction === "they_pay") big = { ...big, owed: big.owed + c.net };
+    else big = { ...big, owe: big.owe + c.net };
+  }
+  return { ...big, accruing };
+}
+
 function OwedTile({ owed, owe }: { owed: number; owe: number }) {
+  const split = useSplitNets(owed, owe);
   return (
     <section aria-label={ru.main.bento.owed} data-testid="bento-owed" className={cx(tile, "gap-1")}>
-      <Link href="/settle" aria-label={`${ru.main.bento.settleAria} ${formatTenge(owed)}`} className="flex flex-col gap-1 active:opacity-70 transition-opacity duration-200">
+      <Link href="/settle" aria-label={`${ru.main.bento.settleAria} ${formatTenge(split.owed)}`} className="flex flex-col gap-1 active:opacity-70 transition-opacity duration-200">
         <span className="text-caption">{ru.main.bento.owed}</span>
-        <Money value={owed} data-testid="bento-owed-amount" className="text-[24px] leading-[1.1] font-bold" />
-        <span className="text-caption">{ru.main.bento.iOwe(formatTenge(owe))}</span>
+        <Money value={split.owed} data-testid="bento-owed-amount" className="text-[24px] leading-[1.1] font-bold" />
+        <span className="text-caption">{ru.main.bento.iOwe(formatTenge(split.owe))}</span>
+        {split.accruing > 0 ? (
+          <span data-testid="bento-accruing" className="text-caption">
+            {ru.main.bento.accruing(formatTenge(split.accruing))}
+          </span>
+        ) : null}
       </Link>
-      {owed > 0 ? (
+      {split.owed > 0 ? (
         <Link href="/settle" className="mt-2 self-start text-label font-semibold text-lime">
           {ru.main.bento.remind}
         </Link>

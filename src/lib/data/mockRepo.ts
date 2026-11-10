@@ -31,6 +31,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
+import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
 import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, PendingDigestUser, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
 /** Which mock user is signed in on THIS device (never shared, like a browser cookie). */
@@ -675,6 +676,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         }
         const pair = netPair(debtorId, id, householdShares(db, householdId), householdPurchases(db, householdId));
         if (pair.direction !== "i_pay") throw new RepoError("forbidden", "Not a creditor");
+        if (!isTransferable(pair.net)) throw new RepoError("too_small", "Below the Kaspi minimum");
         const t = now().getTime();
         const last = lastReminder(db, id, debtorId, t);
         if (last !== null) {
@@ -699,7 +701,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
             const shares = householdShares(db, d.household_id);
             const purchases = householdPurchases(db, d.household_id);
             const pair = netPair(d.user_id, c.user_id, shares, purchases);
-            if (pair.direction !== "i_pay") continue;
+            if (pair.direction !== "i_pay" || !isTransferable(pair.net)) continue;
             // the oldest open share the debtor owes this creditor
             const owed = new Set(pair.myItems.map((i) => i.purchase_id));
             const oldest = Math.min(...purchases.filter((p) => owed.has(p.id)).map((p) => Date.parse(p.created_at)));
@@ -732,6 +734,9 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (toUserId === id) throw new RepoError("invalid", "Cannot settle with yourself");
         if (!isMember(db, householdId, toUserId)) throw new RepoError("invalid", "Counterparty is not an active member");
         settlementOpsLeft(db, id);
+        // a debt Kaspi cannot transfer is never marked as paid (the creditor can write it off instead)
+        const net = netPair(id, toUserId, householdShares(db, householdId), householdPurchases(db, householdId));
+        if (net.direction === "i_pay" && isAccumulating(net.net)) throw new RepoError("too_small", "Below the Kaspi minimum");
         // one open marked settlement per pair and direction: asking again returns it, its record refreshed to the current open shares
         const open = db.settlements
           .filter((x) => x.household_id === householdId && x.from_id === id && x.to_id === toUserId && x.status === "marked")
@@ -753,6 +758,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           status: "marked",
           marked_at: now().toISOString(),
           confirmed_at: null,
+          kind: "transfer",
           covered: [],
         };
         record(db, created);
@@ -784,6 +790,46 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         s.status = "confirmed";
         s.confirmed_at = at;
         return structuredClone(s);
+      });
+    },
+
+    async writeOffSmall(householdId, debtorId) {
+      const id = uid();
+      return tx((db): Settlement => {
+        if (!householdId || !debtorId || debtorId === id || !isMember(db, householdId, id) || !isMember(db, householdId, debtorId)) {
+          throw new RepoError("forbidden", "Not allowed");
+        }
+        settlementOpsLeft(db, id);
+        const shares = householdShares(db, householdId);
+        const purchases = householdPurchases(db, householdId);
+        const pair = netPair(debtorId, id, shares, purchases);
+        if (pair.direction !== "i_pay") throw new RepoError("forbidden", "Not a creditor");
+        if (!isAccumulating(pair.net)) throw new RepoError("not_small", "Not below the Kaspi minimum");
+        // a stale «paid» mark of the same pair is superseded by the write-off
+        for (const s of db.settlements) {
+          if (s.household_id === householdId && s.from_id === debtorId && s.to_id === id && s.status === "marked") s.status = "cancelled";
+        }
+        const at = now().toISOString();
+        const created: Settlement = {
+          id: newId(),
+          household_id: householdId,
+          from_id: debtorId,
+          to_id: id,
+          amount: pair.net,
+          status: "confirmed",
+          marked_at: at,
+          confirmed_at: at,
+          kind: "writeoff",
+          covered: [],
+        };
+        record(db, created);
+        for (const share of coveredShares(created, shares, purchases)) {
+          share.settled_at = at;
+          share.settlement_id = created.id;
+        }
+        db.settlements.push(created);
+        countSettlementOp(db, id);
+        return structuredClone(created);
       });
     },
 

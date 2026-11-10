@@ -238,6 +238,7 @@ export const ru = {
       owed: "Тебе должны",
       iOwe: (amount: string) => `ты должен ${amount}`,
       remind: "Напомнить",
+      accruing: (amount: string) => `копится ${amount}`,
       settleAria: "Расчёт: тебе должны",
       monthly: "Ежемесячно",
       monthlyEmpty: "Коммуналка и аренда сами делятся каждый месяц",
@@ -459,6 +460,9 @@ export const ru = {
     received: (time: string) => `получено · ${time}`,
     receivedLabel: "Получено",
     waiting: "ждём",
+    /** Under the Kaspi minimum: the share is not asked for separately. */
+    smallShare: (amount: string) => `Твоя доля ${amount} — добавится к следующему расчёту (Kaspi переводит от 100 ₸)`,
+    writtenOff: (amount: string) => `Списано ${amount}`,
     youOwe: "с тебя",
     nobodyOwes: "Все скинули или никто не должен",
     delete: "Удалить покупку",
@@ -487,6 +491,7 @@ export const ru = {
     cooldownMinutes: (m: number) => `Можно через ${m} мин`,
     failed: "Не получилось напомнить. Попробуй ещё раз.",
     forbidden: "Сейчас этот сосед тебе ничего не должен.",
+    tooSmall: "Долг меньше 100 ₸ — Kaspi его не переведёт. Он копится до следующих покупок.",
     listTitle: "Напомнить",
     nobodyTitle: "Никто не должен",
     nobodyText: "Когда сосед будет тебе должен, напомнить можно будет здесь.",
@@ -545,8 +550,27 @@ export const ru = {
       cancelFailed: "Не получилось отменить. Попробуй ещё раз.",
       stale: "Суммы изменились — отметь оплату заново",
       rateLimited: "Слишком много действий подряд. Подожди немного.",
+      notSmall: "Долг уже не меньше 100 ₸ — списать нельзя. Список обновлён.",
+      writeOffFailed: "Не получилось списать. Попробуй ещё раз.",
     },
     openKaspi: "Открыть Kaspi",
+    /** Kaspi cannot transfer less than 100 ₸: such a debt only accumulates until the next purchases, or the creditor writes it off. */
+    small: {
+      /** Muted label next to the amount. */
+      label: "копится",
+      /** Pair screen, I owe. */
+      iOweNote: (amount: string) => `${amount} — меньше 100 ₸, Kaspi не переведёт. Копится до следующих покупок`,
+      /** Pair screen, they owe me. */
+      theyOweNote: (amount: string) => `${amount} — меньше 100 ₸, Kaspi не переведёт. Копится до следующих покупок`,
+      writeOff: (amount: string) => `Списать ${amount}`,
+      confirmTitle: (amount: string, name: string) => `Списать ${amount} у ${decline(name, "gen")}?`,
+      confirmText: "Долг закроется без перевода.",
+      confirm: "Списать",
+      cancel: "Отмена",
+      /** Row caption on the list. */
+      listCaption: (amount: string) => `${amount} · копится`,
+      writtenOff: (amount: string) => `Списано ${amount}`,
+    },
   },
   pending: {
     title: "Ждут решения",

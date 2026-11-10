@@ -56,6 +56,8 @@ describe("supabaseRepo", () => {
     expect(mapDbError({ code: "23514" }).code).toBe("invalid");
     expect(mapDbError({ code: "23514", message: "stale_settlement" }).code).toBe("stale");
     expect(mapDbError({ code: "P0001", message: "rate_limited" }).code).toBe("rate_limited");
+    expect(mapDbError({ code: "P0001", message: "too_small" }).code).toBe("too_small");
+    expect(mapDbError({ code: "P0001", message: "not_small" }).code).toBe("not_small");
     expect(mapDbError({ code: "P0001", message: "join_failed" }).code).toBe("join_failed");
     expect(mapDbError({ code: "P0001", message: "profile_required" }).code).toBe("profile_required");
     expect(mapDbError({ message: "boom" }).code).toBe("unknown");
@@ -242,6 +244,19 @@ describe("supabaseRepo", () => {
     await expect(failing.listHouseholds()).rejects.toMatchObject({ code: "forbidden" });
     const missing = createSupabaseRepo(fakeClient({ tables: { households: { data: null, error: null } } }).client);
     await expect(missing.listHouseholds()).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("write_off_small: the RPC name and arguments, the row comes back with its recorded shares", async () => {
+    const row = { id: "s9", household_id: "h1", from_id: "u2", to_id: "u1", amount: 75, status: "confirmed", kind: "writeoff", marked_at: "t", confirmed_at: "t" };
+    const { client, calls } = fakeClient({
+      rpc: { write_off_small: { data: row, error: null } },
+      tables: { settlement_shares: { data: [{ purchase_id: "p1", debtor_id: "u2", amount: 75 }], error: null } },
+    });
+    const out = await createSupabaseRepo(client).writeOffSmall("h1", "u2");
+    expect(out).toMatchObject({ kind: "writeoff", amount: 75, covered: [{ purchase_id: "p1", debtor_id: "u2", amount: 75 }] });
+    expect(calls).toEqual([{ fn: "write_off_small", args: { p_household: "h1", p_debtor: "u2" } }]);
+    const refused = createSupabaseRepo(fakeClient({ rpc: { write_off_small: { data: null, error: { code: "P0001", message: "not_small" } } } }).client);
+    await expect(refused.writeOffSmall("h1", "u2")).rejects.toMatchObject({ code: "not_small" });
   });
 
   it("settlements: RPC names and arguments (no amount is ever sent), the read query, and error mapping", async () => {

@@ -21,6 +21,7 @@ describe("cooldownParts", () => {
 describe("postRemind", () => {
   it("maps the route's answers", async () => {
     expect(await postRemind(args, {}, reply(200, { ok: true }))).toEqual({ ok: true });
+    expect(await postRemind(args, {}, reply(409, { ok: false }))).toEqual({ ok: false, reason: "too_small" });
     expect(await postRemind(args, {}, reply(429, { ok: false, retry_after: 3600 }))).toEqual({ ok: false, reason: "cooldown", retryAfter: 3600 });
     expect(await postRemind(args, {}, reply(429, undefined, { "retry-after": "120" }))).toEqual({ ok: false, reason: "cooldown", retryAfter: 120 });
     expect(await postRemind(args, {}, reply(429, {}))).toMatchObject({ reason: "cooldown", retryAfter: 21600 });

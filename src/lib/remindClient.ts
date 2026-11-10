@@ -3,7 +3,7 @@
 export type RemindResult =
   | { ok: true }
   | { ok: false; reason: "cooldown"; retryAfter: number }
-  | { ok: false; reason: "forbidden" | "failed" };
+  | { ok: false; reason: "forbidden" | "too_small" | "failed" };
 
 export const COOLDOWN_SECONDS = 6 * 60 * 60;
 
@@ -35,6 +35,7 @@ export async function postRemind(
       const retry = typeof json?.retry_after === "number" ? json.retry_after : fromHeader;
       return { ok: false, reason: "cooldown", retryAfter: Number.isFinite(retry) && retry > 0 ? retry : COOLDOWN_SECONDS };
     }
+    if (res.status === 409) return { ok: false, reason: "too_small" };
     if (res.status === 403) return { ok: false, reason: "forbidden" };
     if (res.status !== 200) return { ok: false, reason: "failed" };
     const json = (await res.json().catch(() => null)) as { ok?: unknown } | null;

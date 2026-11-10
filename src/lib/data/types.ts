@@ -8,6 +8,8 @@ export type Role = "admin" | "member";
 export type PurchaseSource = "apple_pay" | "manual" | "monthly";
 export type PurchaseStatus = "pending" | "shared" | "personal";
 export type SettlementStatus = "marked" | "confirmed" | "cancelled";
+/** `writeoff` = the creditor closed a debt under the Kaspi minimum without a transfer. Rows that predate slice 13 have no kind (= transfer). */
+export type SettlementKind = "transfer" | "writeoff";
 
 export type Profile = {
   id: Uuid;
@@ -120,6 +122,7 @@ export type Settlement = {
   status: SettlementStatus;
   marked_at: IsoDateTime;
   confirmed_at: IsoDateTime | null;
+  kind?: SettlementKind;
   /** The exact open shares this settlement covers, recorded when it was marked. Confirming closes these and nothing else. */
   covered: SettlementShare[];
 };

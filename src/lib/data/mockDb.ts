@@ -75,6 +75,7 @@ const settlement = z.object({
   status: z.enum(["marked", "confirmed", "cancelled"]),
   marked_at: iso,
   confirmed_at: iso.nullable(),
+  kind: z.enum(["transfer", "writeoff"]).optional(),
   covered: z.array(z.object({ purchase_id: uuid, debtor_id: uuid, amount: z.number().int() })).max(2000),
 });
 

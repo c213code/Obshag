@@ -11,6 +11,7 @@ import { buildCards, buildSummaries, type Summary } from "./home/householdCards"
 import { useRepo } from "@/components/RepoProvider";
 import { PurchaseTracker, type UiPurchase } from "@/lib/data/purchaseTracker";
 import { SettlementTracker } from "@/lib/data/settlementTracker";
+import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
 import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
 import { splitEqual } from "@/lib/domain/split";
@@ -52,6 +53,8 @@ export type AppActions = {
   setRemindersEnabled(householdId: string, enabled: boolean): Promise<boolean>;
   /** «Я оплатил»: optimistic `marked` settlement to `toUserId` for the current net. Resolves true when the server accepted it. */
   markPaid(householdId: string, toUserId: string): Promise<boolean>;
+  /** Creditor only: «Списать 75 ₸». Optimistic: the pair's open shares show as settled at once; rolled back with a notice on failure. */
+  writeOff(householdId: string, debtorId: string): Promise<boolean>;
   /** «Получил»: optimistic confirm; the covered shares show as settled at once. Rolled back with a notice on failure. */
   confirmReceived(settlementId: string): Promise<boolean>;
   /** «Отменить» (by the debtor) or declining an incoming mark (by the creditor). */
@@ -520,6 +523,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const ps = shown.purchases[householdId] ?? [];
       const pair = netPair(me.id, toUserId, ps.flatMap((p) => p.shares), ps);
       if (pair.direction !== "i_pay") return false;
+      if (!isTransferable(pair.net)) return false; // under the Kaspi minimum nothing can be marked as paid
       const existing = (shown.settlements[householdId] ?? []).find((x) => x.status === "marked" && x.from_id === me.id && x.to_id === toUserId);
       if (existing) return true; // a second tap changes nothing
       settlementTracker.begin({
@@ -550,6 +554,52 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           setNotice(
             code === "invalid" ? ru.settle.errors.nothingToPay : code === "rate_limited" ? ru.settle.errors.rateLimited : ru.settle.errors.markFailed,
           );
+          void refresh({ silent: true });
+        }
+        return false;
+      }
+    },
+    [repo, settlementTracker, patchSettlements, refresh, scheduleRefresh],
+  );
+
+  const writeOff = useCallback(
+    async (householdId: string, debtorId: string): Promise<boolean> => {
+      const me = meRef.current;
+      if (!me) return false;
+      const optimisticId = `optimistic-s-${++tempId.current}`;
+      const shown = snapRef.current;
+      const ps = shown.purchases[householdId] ?? [];
+      const shares = ps.flatMap((p) => p.shares);
+      const pair = netPair(debtorId, me.id, shares, ps);
+      if (pair.direction !== "i_pay" || !isAccumulating(pair.net)) return false;
+      const at = new Date().toISOString();
+      settlementTracker.begin({
+        id: optimisticId,
+        household_id: householdId,
+        from_id: debtorId,
+        to_id: me.id,
+        amount: pair.net,
+        status: "confirmed",
+        marked_at: at,
+        confirmed_at: at,
+        kind: "writeoff",
+        covered: pairShares(me.id, debtorId, shares, ps),
+      });
+      patchSettlements(householdId);
+      try {
+        const real = await repo.writeOffSmall(householdId, debtorId);
+        settlementTracker.resolve(optimisticId, real);
+        if (alive.current) {
+          patchSettlements(householdId);
+          scheduleRefresh();
+        }
+        return true;
+      } catch (e) {
+        settlementTracker.release(optimisticId);
+        if (alive.current) {
+          patchSettlements(householdId);
+          const code = e instanceof RepoError ? e.code : null;
+          setNotice(code === "not_small" ? ru.settle.errors.notSmall : code === "rate_limited" ? ru.settle.errors.rateLimited : ru.settle.errors.writeOffFailed);
           void refresh({ silent: true });
         }
         return false;
@@ -659,8 +709,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const stage = useMemo(

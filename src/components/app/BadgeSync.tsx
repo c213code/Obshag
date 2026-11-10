@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { applyBadge, badgeCount } from "@/lib/domain/badge";
+import { isTransferable } from "@/lib/domain/minTransfer";
 import { useAppData } from "./AppDataProvider";
 import { useSettleData } from "./settle/useSettleData";
 
@@ -11,7 +12,7 @@ export function BadgeSync() {
   const settle = useSettleData();
   const pending = ((activeId && purchases[activeId]) || []).filter((p) => p.status === "pending").length;
   const incoming = settle?.incoming.length ?? 0;
-  const owe = settle?.net.counterparties.filter((c) => c.direction === "i_pay").length ?? 0;
+  const owe = settle?.net.counterparties.filter((c) => c.direction === "i_pay" && isTransferable(c.net)).length ?? 0;
   const n = badgeCount({ pending, incoming, owe });
   useEffect(() => {
     applyBadge(n);

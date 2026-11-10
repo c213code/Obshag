@@ -46,6 +46,8 @@ const MESSAGES: Record<RepoErrorCode, string> = {
   weak_password: "Password is too weak",
   rate_limited: "Too many requests",
   has_payments: "Something was already paid for this purchase",
+  too_small: "Below the Kaspi minimum",
+  not_small: "Not below the Kaspi minimum",
   not_settled: "Settle up with everyone first",
   stale: "The amounts changed since the payment was marked",
   invalid_link: "The reset link is invalid or expired",
@@ -70,6 +72,8 @@ export function mapDbError(error: NonNullable<DbError>): RepoError {
   else if (error.code === "23514" && message.includes("not_settled")) code = "not_settled";
   else if (["23514", "23503", "23505", "22023", "22P02"].includes(error.code ?? "")) code = "invalid";
   else if (error.code === "P0002") code = "not_found";
+  else if (message.includes("too_small")) code = "too_small";
+  else if (message.includes("not_small")) code = "not_small";
   else if (message.includes("rate_limited")) code = "rate_limited";
   else if (message.includes("join_failed")) code = "join_failed";
   else if (message.includes("profile_required")) code = "profile_required";
@@ -435,6 +439,11 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
           ...(expectedAmount === undefined ? {} : { p_expected_amount: expectedAmount }),
         }),
       );
+      return withCovered({ ...row, covered: await recordedShares(row.id) });
+    },
+
+    async writeOffSmall(householdId, debtorId) {
+      const row = ok<Omit<Settlement, "covered">>(await client.rpc("write_off_small", { p_household: householdId, p_debtor: debtorId }));
       return withCovered({ ...row, covered: await recordedShares(row.id) });
     },
 

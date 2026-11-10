@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { ListRow } from "@/components/ui/ListRow";
+import { isAccumulating } from "@/lib/domain/minTransfer";
 import { listRedirect } from "@/lib/domain/settleNav";
 import { formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
@@ -16,6 +17,7 @@ import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { EmptySettle } from "./EmptySettle";
 import { useSettleData } from "./useSettleData";
+import { WriteOffButton } from "./WriteOffButton";
 
 /** /settle: the people I have a non-zero net with. One person goes straight to their screen; nobody shows «Все в расчёте». */
 export function SettleListScreen() {
@@ -50,7 +52,8 @@ export function SettleListScreen() {
           {counterparties.map((c) => {
             const member = data.memberOf(c.userId);
             const amount = formatTenge(c.net);
-            const caption = c.direction === "i_pay" ? ru.settle.iOwe(amount) : ru.settle.theyOwe(amount);
+            const small = isAccumulating(c.net);
+            const caption = small ? ru.settle.small.listCaption(amount) : c.direction === "i_pay" ? ru.settle.iOwe(amount) : ru.settle.theyOwe(amount);
             if (!member) {
               // left the household: the debt is still real and still counted, but there is no screen to settle it on
               return (
@@ -81,12 +84,16 @@ export function SettleListScreen() {
                       avatarColor={avatarColorFor(member.profile, me.id)}
                       title={name}
                       caption={caption}
-                      captionTone="lime"
+                      captionTone={small ? "muted" : "lime"}
                       trailing={<span aria-hidden="true" className="block w-[136px]" />}
                     />
                   </Link>
                   <div className="absolute top-1/2 right-[10px] z-10 -translate-y-1/2">
-                    <RemindButton householdId={data.householdId} debtorId={c.userId} name={name} testId={`remind-${c.userId}`} />
+                    {small ? (
+                      <WriteOffButton householdId={data.householdId} debtorId={c.userId} name={name} amount={c.net} testId={`writeoff-${c.userId}`} />
+                    ) : (
+                      <RemindButton householdId={data.householdId} debtorId={c.userId} name={name} testId={`remind-${c.userId}`} />
+                    )}
                   </div>
                 </li>
               );
@@ -104,7 +111,7 @@ export function SettleListScreen() {
                     avatarColor={avatarColorFor(member.profile, me.id)}
                     title={name}
                     caption={caption}
-                    captionTone={c.direction === "i_pay" ? "orange" : "lime"}
+                    captionTone={small ? "muted" : c.direction === "i_pay" ? "orange" : "lime"}
                     trailing={<ChevronRightIcon size={20} className="text-muted" />}
                   />
                 </Link>

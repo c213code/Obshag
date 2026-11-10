@@ -38,7 +38,7 @@ export function useRemind(householdId: string, debtorId: string): { entry: Remin
     if (result.ok) return setSent(key);
     if (result.reason === "cooldown") return setCooldown(key, result.retryAfter);
     setIdle(key);
-    showNotice(result.reason === "forbidden" ? ru.remind.forbidden : ru.remind.failed);
+    showNotice(result.reason === "forbidden" ? ru.remind.forbidden : result.reason === "too_small" ? ru.remind.tooSmall : ru.remind.failed);
   }, [key, householdId, debtorId, repo, showNotice]);
 
   return { entry, press };

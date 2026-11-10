@@ -19,7 +19,7 @@ export type ReminderDeps = {
 };
 
 export type ReminderOutcome<B> = {
-  status: 200 | 400 | 401 | 403 | 429 | 500;
+  status: 200 | 400 | 401 | 403 | 409 | 429 | 500;
   body: B;
   /** Runs after the response (Next `after`). Never throws. */
   afterResponse?: () => Promise<void>;
@@ -141,6 +141,7 @@ export async function handleRemind(
       if (e.code === "unauthenticated") return { status: 401, body: { ok: false } };
       if (e.code === "forbidden" || e.code === "not_found") return { status: 403, body: { ok: false } };
       if (e.code === "invalid") return { status: 400, body: { ok: false } };
+      if (e.code === "too_small") return { status: 409, body: { ok: false } };
       if (e.code === "rate_limited") return { status: 429, body: { ok: false, retry_after: e.retryAfter } };
     }
     return { status: 500, body: { ok: false } };

@@ -10,6 +10,7 @@ import { CheckIcon, ExternalIcon } from "@/components/ui/icons";
 import { Pill } from "@/components/ui/Pill";
 import { KASPI_TRANSFERS_URL } from "@/lib/clipboard";
 import { formatNumber, formatTenge } from "@/lib/format/money";
+import { isAccumulating } from "@/lib/domain/minTransfer";
 import { maskKaspiPhone } from "@/lib/domain/phoneFormat";
 import { pairScreenState } from "@/lib/domain/settleNav";
 import type { NetItem, PairNet } from "@/lib/domain/netting";
@@ -24,6 +25,7 @@ import { IncomingRow } from "./IncomingRow";
 import { PairScene } from "./PairScene";
 import { useHeldIncoming } from "./useHeldIncoming";
 import { useKaspiCopy } from "./useKaspiCopy";
+import { WriteOffButton } from "./WriteOffButton";
 import { useSettleData, type Incoming } from "./useSettleData";
 
 const MAX_ITEMS = 3;
@@ -154,6 +156,8 @@ export function SettleScreen() {
   };
 
   const iPay = pair.direction === "i_pay";
+  /** 1..99 ₸: Kaspi cannot transfer it. It accumulates; the creditor may write it off. */
+  const small = pair.direction !== "even" && isAccumulating(pair.net);
   const fade = { duration: 0.3, ease: ease.smooth };
 
   return (
@@ -200,6 +204,11 @@ export function SettleScreen() {
             ))}
           </AnimatePresence>
 
+          {small ? (
+            <p data-testid="small-note" className="rounded-md border border-hairline bg-card px-4 py-3 text-caption">
+              {iPay ? ru.settle.small.iOweNote(formatTenge(pair.net)) : ru.settle.small.theyOweNote(formatTenge(pair.net))}
+            </p>
+          ) : (
           <Bar className="pl-5" data-testid="kaspi-bar">
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-caption">{ru.settle.kaspiOf(name)}</span>
@@ -228,7 +237,8 @@ export function SettleScreen() {
               </button>
             ) : null}
           </Bar>
-          {kaspi.failed && phone ? (
+          )}
+          {!small && kaspi.failed && phone ? (
             <p role="status" className="px-[6px] text-label text-orange">
               {ru.settle.copyFailed(phone)}
             </p>
@@ -236,9 +246,11 @@ export function SettleScreen() {
         </>
       )}
 
-      {!even ? (
+      {!even && !(small && iPay) ? (
         <BottomActions barClassName="flex-1">
-          {iPay ? (
+          {small ? (
+            <WriteOffButton householdId={data.householdId} debtorId={userId} name={name} amount={pair.net} size="pay" className="flex-1" testId="writeoff-pair" />
+          ) : iPay ? (
             <>
               <AnimatePresence initial={false} mode="popLayout">
                 <m.span

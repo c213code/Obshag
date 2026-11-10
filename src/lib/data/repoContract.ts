@@ -173,6 +173,46 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
         return { a, b, meA, meB, h };
       }
 
+      describe("under the Kaspi minimum", () => {
+        /** B pays 150 for two: A owes B 75. */
+        async function small() {
+          const [a, b] = await makeRepos();
+          await signIn(a, "a@x.kz", "Ерасыл", "+77001234567");
+          await signIn(b, "b@x.kz", "Айдос", "+77007654321");
+          const meA = (await a.getMe())!;
+          const meB = (await b.getMe())!;
+          const h = await a.createHousehold("Квартира");
+          await b.joinHousehold(h.invite_code);
+          await b.createPurchase({ household_id: h.id, amount: 150, description: "Хлеб", participant_ids: [meA.id, meB.id] });
+          return { a, b, meA, meB, h };
+        }
+
+        it("refuses to mark a 75 ₸ debt as paid (too_small) and creates nothing", async () => {
+          const { a, meB, h } = await small();
+          await expect(a.markSettlement(h.id, meB.id)).rejects.toMatchObject({ code: "too_small" });
+          expect(await a.listSettlements(h.id)).toEqual([]);
+        });
+
+        it("the creditor writes it off: confirmed writeoff, the open share is closed, the net is 0", async () => {
+          const { a, b, meA, meB, h } = await small();
+          const s = await b.writeOffSmall(h.id, meA.id);
+          expect(s).toMatchObject({ kind: "writeoff", status: "confirmed", amount: 75, from_id: meA.id, to_id: meB.id });
+          expect(s.covered).toHaveLength(1);
+          expect((await a.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null && x.amount > 0))).toEqual([]);
+          expect((await a.listSettlements(h.id)).map((x) => x.kind)).toEqual(["writeoff"]);
+          await expect(b.writeOffSmall(h.id, meA.id)).rejects.toMatchObject({ code: "forbidden" }); // nothing left
+        });
+
+        it("the debtor cannot write off; 100 ₸ and more cannot be written off (not_small)", async () => {
+          const { a, b, meA, meB, h } = await small();
+          await expect(a.writeOffSmall(h.id, meB.id)).rejects.toMatchObject({ code: "forbidden" });
+          await expect(b.writeOffSmall(h.id, meB.id)).rejects.toMatchObject({ code: "forbidden" }); // yourself
+          await b.createPurchase({ household_id: h.id, amount: 100, description: "Вода", participant_ids: [meA.id, meB.id] }); // +50 -> 125
+          await expect(b.writeOffSmall(h.id, meA.id)).rejects.toMatchObject({ code: "not_small" });
+          expect((await a.markSettlement(h.id, meB.id)).amount).toBe(125);
+        });
+      });
+
       it("marks for the server-side net, idempotently, and shows it to both people", async () => {
         const { a, b, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);

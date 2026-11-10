@@ -130,6 +130,11 @@ export interface Repo {
    * stale = a recorded share was deleted, settled or changed since the mark: nothing is closed, cancel and mark again.
    */
   confirmSettlement(settlementId: Uuid, expectedAmount?: number): Promise<Settlement>;
+  /**
+   * The creditor closes a debt of 1..99 ₸ without a transfer (kind "writeoff", confirmed at once, closes the open shares of
+   * the pair). forbidden = not a creditor / nothing owed, not_small = the net is 100 ₸ or more.
+   */
+  writeOffSmall(householdId: Uuid, debtorId: Uuid): Promise<Settlement>;
   /** The debtor or the creditor withdraws a `marked` settlement (cancelling twice is a no-op). */
   cancelSettlement(settlementId: Uuid): Promise<Settlement>;
 
@@ -200,6 +205,8 @@ export type RepoErrorCode =
   | "weak_password"
   | "rate_limited"
   | "has_payments"
+  | "too_small" // the pair net is under the Kaspi minimum: no mark, no reminder
+  | "not_small" // write-off of a debt that is at or above the minimum
   | "not_settled" // removing or leaving while a net with someone is non-zero
   | "stale"
   | "invalid_link" // the password reset link is expired, used or malformed

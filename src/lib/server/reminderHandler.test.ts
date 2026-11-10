@@ -178,6 +178,7 @@ describe("handleRemind", () => {
     expect((await fail("forbidden")).status).toBe(403);
     expect((await fail("not_found")).status).toBe(403);
     expect((await fail("invalid")).status).toBe(400);
+    expect((await fail("too_small")).status).toBe(409);
     expect(await fail("rate_limited", 3600)).toMatchObject({ status: 429, body: { ok: false, retry_after: 3600 } });
     expect((await fail("unknown")).status).toBe(500);
     expect((await handleRemind(body, deps({ remind: async () => Promise.reject(new Error("raw")) }))).status).toBe(500);
