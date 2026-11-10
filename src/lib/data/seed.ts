@@ -1,4 +1,4 @@
-import type { Bill, Duty, Household, Member, Profile, Purchase, Settlement, Share, SwapRequest } from "./types";
+import type { Bill, Duty, DutyEvent, Household, Member, Profile, Purchase, Settlement, Share, SwapRequest } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
@@ -39,6 +39,8 @@ export type MockDb = {
   dutyOverrides?: Array<{ duty_id: string; day: string; user_id: string; source: "swap" | "admin"; reason: string | null }>;
   dutyDone?: Array<{ duty_id: string; day: string; user_id: string; done_at: string }>;
   swapRequests?: SwapRequest[];
+  /** duty_events (Мусор / Вода) */
+  dutyEvents?: DutyEvent[];
   /** private.duty_morning_log */
   dutyMorningLog?: Array<{ duty_id: string; day: string }>;
 };

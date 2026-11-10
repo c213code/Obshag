@@ -20,3 +20,22 @@ export async function postDutyNotify(
     return false;
   }
 }
+
+/** Fire-and-forget after a ping / «вода кончилась»: the server pushes the current person. Never throws. */
+export async function postDutyEventNotify(
+  body: { event_id: string },
+  headers: Record<string, string> = {},
+  doFetch: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const res = await doFetch("/api/duty/event-notify", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      credentials: "same-origin",
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}

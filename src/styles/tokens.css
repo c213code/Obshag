@@ -82,6 +82,28 @@
   /* faded labels of past days; the ink of «today» labels */
   --color-faint: #5d6068;
   --color-lime-ink: #c8f25a;
+  /* «Мусор»: the bin hero card is dark green in both themes (DutyTrash.dc.html) */
+  --color-bin: #10372b;
+  --color-bin-body: #1d5a45;
+  --color-bin-rim: #2c7a5e;
+  --color-bin-lid: #c8f25a;
+  --color-bin-text: #ffffff;
+  --color-bin-muted: #b9e6cf;
+  /* «Вода»: the navy hero card (both themes), bottles, and the «Кто идёт» tiles (DutyWater.dc.html) */
+  --color-aqua: #0b2f57;
+  --color-aqua-glass: #123f70;
+  --color-aqua-fill: #5fb3ff;
+  --color-aqua-btn: #1f5a96;
+  --color-aqua-text: #ffffff;
+  --color-aqua-muted: #a9d4ff;
+  --color-aqua-pick: #1a2b44;
+  --color-aqua-pick-line: #5fb3ff;
+  --color-aqua-pick-text: #e6f2ff;
+  --color-aqua-pick-muted: #a9d4ff;
+  --color-aqua-pick-fill: #5fb3ff;
+  --color-aqua-bar: #24405f;
+  --color-aqua-bar-on: #5fb3ff;
+  --color-bottle-empty: #2c2f37;
   --color-transparent: transparent;
   --color-current: currentColor;
 
@@ -203,6 +225,14 @@
     --color-on-tile-violet: #6a3fe0;
     --color-faint: #8c88a3;
     --color-lime-ink: #4f2fc0;
+    --color-aqua-pick: #eef5ff;
+    --color-aqua-pick-line: #1f62c9;
+    --color-aqua-pick-text: #0b2f57;
+    --color-aqua-pick-muted: #36598a;
+    --color-aqua-pick-fill: #1f62c9;
+    --color-aqua-bar: #dbe9fb;
+    --color-aqua-bar-on: #1f62c9;
+    --color-bottle-empty: #e6e4ee;
   }
 }
 

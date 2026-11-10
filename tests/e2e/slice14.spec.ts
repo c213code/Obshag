@@ -117,7 +117,7 @@ test.describe("slice 14: Очередь", () => {
       await expect(page.getByTestId("week-cell")).toHaveCount(7);
       await expect(page.getByTestId("order-person")).toHaveCount(4);
       await expect(page.getByTestId("home-duty-tile")).toHaveCount(0); // we are on /duty
-      expect((await readStore(request)).db.duties).toHaveLength(1);
+      expect((await readStore(request)).db.duties.filter((d) => d.household_id === HOUSEHOLD)).toHaveLength(1);
 
       // «Приготовил»: a check over today's circle
       await expect(todayCell).toHaveAttribute("data-done", "false");

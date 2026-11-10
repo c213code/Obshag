@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RepoError } from "@/lib/data/repo";
-import type { DutyMorningItem, DutyNotice } from "@/lib/data/types";
-import { handleDutyNotify, handleMorning, morningGroupText, swapDmKeyboard, swapDmText, type DutyDeps } from "./dutyHandler";
+import type { DutyEventNotice, DutyMorningItem, DutyNotice } from "@/lib/data/types";
+import { handleDutyEventNotify, handleDutyNotify, handleMorning, morningGroupText, swapDmKeyboard, swapDmText, type DutyDeps } from "./dutyHandler";
 import { createRecordingSender } from "./push";
 import { createRecordingTelegram } from "./telegram/api";
 import { parseSwapCallback } from "./telegram/parse";
@@ -17,10 +17,11 @@ const notice: DutyNotice = {
   request_id: ID, target_user: "u2", subscriptions: [sub], telegram_user_id: 222, from_name: "Ерасыл", to_name: "Айдос",
   from_day: "2026-11-17", to_day: "2026-11-18", from_label: "пн 17", to_label: "вт 18", reason: "пары",
 };
+const evNotice: DutyEventNotice = { event_id: ID, kind: "ping", title: "Мусор", target_user: "u2", self: false, actor_name: "Ерасыл", subscriptions: [sub] };
 const make = (over: Partial<DutyDeps["repo"]> = {}) => {
   const push = createRecordingSender();
   const telegram = createRecordingTelegram();
-  const deps: DutyDeps = { repo: { runDutyMorning: async () => [item], swapNotice: async () => notice, ...over }, push, telegram, secret: SECRET };
+  const deps: DutyDeps = { repo: { runDutyMorning: async () => [item], swapNotice: async () => notice, dutyEventNotice: async () => evNotice, ...over }, push, telegram, secret: SECRET };
   return { deps, push, telegram };
 };
 
@@ -84,5 +85,25 @@ describe("notify", () => {
       expect((await handleDutyNotify({ request_id: ID, event: "requested" }, deps)).status, code).toBe(status);
     }
     expect((await handleDutyNotify({ request_id: ID, event: "requested" }, make({ swapNotice: async () => Promise.reject(new Error("x")) }).deps)).status).toBe(500);
+  });
+});
+
+describe("event notify (Мусор / Вода)", () => {
+  it("pushes the current person; the caller's own turn pushes nobody", async () => {
+    const { deps, push } = make();
+    const out = await handleDutyEventNotify({ event_id: ID }, deps);
+    expect(out.status).toBe(200);
+    await out.afterResponse?.();
+    expect(push.calls).toEqual([{ endpoint: sub.endpoint, payload: { type: "duty-event", kind: "ping", name: "Ерасыл", title: "Мусор" } }]);
+    const own = make({ dutyEventNotice: async () => ({ ...evNotice, self: true, subscriptions: [] }) });
+    await (await handleDutyEventNotify({ event_id: ID }, own.deps)).afterResponse?.();
+    expect(own.push.calls).toEqual([]);
+  });
+  it("maps refusals", async () => {
+    expect((await handleDutyEventNotify({ event_id: ID, extra: 1 }, make().deps)).status).toBe(400);
+    expect((await handleDutyEventNotify({ event_id: ID }, null)).status).toBe(500);
+    const refuse = (code: "unauthenticated" | "forbidden") => make({ dutyEventNotice: async () => { throw new RepoError(code, "x"); } }).deps;
+    expect((await handleDutyEventNotify({ event_id: ID }, refuse("unauthenticated"))).status).toBe(401);
+    expect((await handleDutyEventNotify({ event_id: ID }, refuse("forbidden"))).status).toBe(403);
   });
 });

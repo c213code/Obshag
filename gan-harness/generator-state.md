@@ -435,3 +435,24 @@ Nothing committed. Servers stopped. `.env.local` untouched; 0001-0011 untouched;
 - Repo: `listDuties`, `dutySchedule`, `listSwapRequests`, `getSwapRequest`, `createDuty`, `setDutyOrder`, `adminAssignDay`, `markDutyDone`, `requestSwap`, `respondSwap`, `cancelSwap`, `swapNotice`, `runDutyMorning`, `tgRespondSwap`; `RepoErrorCode` += busy, not_assignee, past_day, future_day, locked, expired. `mockDuty.ts` (mock twin, own test), `supabaseDuty.ts`; `mapDbError` maps the P0001 messages; mock db schema gets optional `duties`, `dutyOverrides`, `dutyDone`, `swapRequests`, `dutyMorningLog` (no version bump).
 - Server: `dutyHandler.ts` (`handleMorning`, `handleDutyNotify`, group text, DM text + `sw:a|d:<id>` keyboard), `GET /api/cron/morning` (Bearer CRON_SECRET), `POST /api/duty/notify` (session user; push + DM to the other side), webhook handles `sw:a:`/`sw:d:` (`parseSwapCallback`), declined-from-Telegram pushes the requester; `vercel.json` second cron `0 4 * * *`; push payload types `duty-today`, `swap-request`, `swap-declined` (+ sw.js + tests).
 - UI (`components/app/duty/`): `/duty` (DutyScreen: chips, StoveCard, PendingCards, WeekCard, OrderCard, create flow for admins, empty state for members, order/start sheet, «Заменить повара» sheet), `/duty/calendar` (month nav, legend, stats; with `?swap=<day>` it is the picker for the swap sheet), `/duty/request/[id]`, SwapSheet (DutySwap), Home tile `DutyTile` (hidden without a duty), TabBar «Очередь» between Покупки and Ежемесячно (5 tabs, tighter paddings), tokens `stove-*`, `duty-*`, `faint`, `lime-ink`.
+
+# Slice 15 «Мусор» и «Вода» (spec-slice15.md, one pass)
+
+Nothing committed. `0013_slice15_trash_water.sql` is NOT applied to the live DB; 0001-0012 and `.env.local` untouched.
+
+## SQL (`supabase/migrations/0013_slice15_trash_water.sql`, `tests/db/slice15.test.ts`, 18 PGlite tests)
+- `duties` += price_per_liter (20), bottle_liters (5), bottles_total (4), bottles_full (4). New `duty_events(id, duty_id, kind done|ping|empty, user_id, partner_id, liters, purchase_id, created_at)` with RLS (members select, no client writes). partner_id = second carrier on `done`, the current person on ping/empty.
+- Private: `duty_current` (pointer, away/inactive skipped), `duty_event_open` (lock duty row, member + kind check), `duty_event_cooldown` (P0001 rate_limited, hint = seconds), `duty_group_line` (Telegram, never fails the event).
+- Authenticated RPCs: `duty_done_event`, `duty_ping` (2 h), `water_empty` (1 h, bottles 0), `water_brought(duty, partner)` (2 / 4 bottles, shared purchase via check_participants + insert_equal_shares, so triggers/netting/Telegram apply), `water_bottle_used`, `set_water_price` (admin), `duty_event_notice(secret, event)` (authenticated + secret, own fresh event only).
+- `run_duty_morning` replaced to skip trash/water (they have no day).
+- Anon surface: still 9.
+
+## App
+- `domain/dutyEvents.ts` (+test), mock twin in `mockDuty.ts` (+`mockDutyEvents.test.ts`), `supabaseDuty.ts`, Repo methods, `/api/duty/event-notify`, push `duty-event` + sw.js, tokens `bin-*`, `aqua-*`, `bottle-empty`.
+- UI: chips switch Готовка / Мусор / Вода (`?kind=`), `TrashPanel`, `WaterPanel`, `useEventDuty`, CreateDuty per kind, settings sheet for event duties (no start date), admin price sheet.
+- Tests: verify green (824 unit), e2e slice14 + slice15 green; screenshots `gan-harness/screenshots/duty15-trash.png`, `duty15-water.png`.
+
+## Gaps
+- Not run against live Supabase; pg_net Telegram lines untested outside PGlite (tg_send is a no-op there).
+- Trash card sub-line can wrap when the time is «сегодня, HH:MM» (mock shows «вчера»).
+- «Вода кончилась» push only when the current person is not the caller.

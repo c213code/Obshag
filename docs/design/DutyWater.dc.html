@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Очередь — вода</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#6a3fe0}a:hover{color:#4f2fc0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #f6f6f9; font-family: -apple-system, 'SF Pro Text', Inter, system-ui, sans-serif; color: #16132b; display: flex; flex-direction: column; padding: 58px 16px 18px; gap: 12px; overflow: hidden; position: relative">
+
+<h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.6px">Очередь</h1>
+
+<div style="display: flex; gap: 8px">
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #e3e1ec; background: #ffffff; color: #6a6684; font-size: 14px; font-weight: 500; font-family: inherit">Готовка</button>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #e3e1ec; background: #ffffff; color: #6a6684; font-size: 14px; font-weight: 500; font-family: inherit">Мусор</button>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #16132b; color: #ffffff; font-size: 14px; font-weight: 600; font-family: inherit">Вода</button>
+</div>
+
+<div style="position: relative; height: 196px; border-radius: 28px; background: #0b2f57; overflow: hidden; color: #ffffff; padding: 18px 20px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between">
+<div style="position: absolute; right: 16px; bottom: 16px; display: flex; gap: 6px; align-items: flex-end">
+<sc-for list="{{bottles}}" as="b" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; align-items: center">
+<span style="width: 12px; height: 7px; border-radius: 2px; background: #5fb3ff"></span>
+<span style="position: relative; width: 30px; height: 64px; border-radius: 9px; background: #123f70; overflow: hidden; display: block"><span style="position: absolute; left: 0; right: 0; bottom: 0; height: {{b.h}}; background: #5fb3ff"></span></span>
+</div>
+</sc-for>
+</div>
+<div style="position: relative; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #a9d4ff; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 4px; background: #ff8a3d"></span>Осталось 1 бутылка из 4 · 5 л</div>
+<div style="position: relative">
+<div style="font-size: 14px; color: #a9d4ff">Следующий несёт</div>
+<div style="font-size: 26px; font-weight: 800; letter-spacing: -0.5px">Парасат</div>
+</div>
+<div style="position: relative; display: flex; gap: 8px">
+<button style="height: 40px; padding: 0 16px; border-radius: 20px; border: 0; background: #ffffff; color: #0b2f57; font-size: 15px; font-weight: 600; font-family: inherit">Вода кончилась</button>
+<button style="height: 40px; padding: 0 16px; border-radius: 20px; border: 0; background: #1f5a96; color: #ffffff; font-size: 15px; font-weight: 600; font-family: inherit">Принёс</button>
+</div>
+</div>
+
+<div style="background: #ffffff; border-radius: 24px; padding: 14px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px 10px"><h2 style="margin: 0; font-size: 17px; font-weight: 700">Кто идёт</h2><span style="font-size: 13px; color: #6a6684">20 ₸ за литр</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="border-radius: 18px; border: 1px solid #e3e1ec; background: #ffffff; padding: 12px; text-align: left; font-family: inherit; color: #16132b">
+<div style="display: flex; gap: 4px"><span style="width: 12px; height: 22px; border-radius: 4px; background: #5fb3ff"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #5fb3ff"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #e6e4ee"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #e6e4ee"></span></div>
+<div style="font-size: 15px; font-weight: 700; margin-top: 8px">Один · 2 бутылки</div>
+<div style="font-size: 13px; color: #6a6684; margin-top: 2px">10 л · 200 ₸</div>
+</button>
+<button style="border-radius: 18px; border: 2px solid #1f62c9; background: #eef5ff; padding: 12px; text-align: left; font-family: inherit; color: #0b2f57">
+<div style="display: flex; gap: 4px"><span style="width: 12px; height: 22px; border-radius: 4px; background: #1f62c9"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #1f62c9"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #1f62c9"></span><span style="width: 12px; height: 22px; border-radius: 4px; background: #1f62c9"></span></div>
+<div style="font-size: 15px; font-weight: 700; margin-top: 8px">Вдвоём · 4 бутылки</div>
+<div style="font-size: 13px; color: #36598a; margin-top: 2px">20 л · 400 ₸ · с Айдосом</div>
+</button>
+</div>
+<p style="margin: 10px 2px 0; font-size: 12px; color: #6a6684">«Принёс» запишет 400 ₸ общей покупкой: по 100 ₸ каждому</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="background: #ffffff; border-radius: 22px; padding: 14px">
+<div style="font-size: 12px; color: #6a6684">За ноябрь</div>
+<div style="font-size: 22px; font-weight: 800; letter-spacing: -0.4px">140 л</div>
+<div style="font-size: 12px; color: #6a6684">2 800 ₸ на всех</div>
+<div style="display: flex; gap: 3px; align-items: flex-end; height: 26px; margin-top: 8px"><span style="flex: 1; height: 40%; background: #dbe9fb; border-radius: 3px"></span><span style="flex: 1; height: 70%; background: #dbe9fb; border-radius: 3px"></span><span style="flex: 1; height: 55%; background: #dbe9fb; border-radius: 3px"></span><span style="flex: 1; height: 90%; background: #1f62c9; border-radius: 3px"></span></div>
+</div>
+<div style="background: #ffffff; border-radius: 22px; padding: 14px">
+<div style="font-size: 12px; color: #6a6684">Кто сколько ходил</div>
+<div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 6px"><span style="width: 20px; height: 20px; border-radius: 10px; background: #3b82f6; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center">N</span><span style="flex: 1">Nurdaulet</span><b style="font-weight: 700">3</b></div>
+<div style="display: flex; align-items: center; gap: 6px"><span style="width: 20px; height: 20px; border-radius: 10px; background: #c8f25a; color: #1a2300; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center">Е</span><span style="flex: 1">Ты</span><b style="font-weight: 700">2</b></div>
+<div style="display: flex; align-items: center; gap: 6px"><span style="width: 20px; height: 20px; border-radius: 10px; background: #9b7bff; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center">П</span><span style="flex: 1">Парасат</span><b style="font-weight: 700">1</b></div>
+</div>
+</div>
+</div>
+
+<nav style="position: absolute; left: 16px; right: 16px; bottom: 18px; display: flex; gap: 10px; align-items: center">
+<div style="flex: 1; height: 58px; border-radius: 29px; background: #ffffff; box-shadow: 0 6px 20px rgba(22,19,43,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 14px">
+<a href="#" aria-label="Главная" style="color: #6a6684; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg></a>
+<a href="#" aria-label="Покупки" style="color: #6a6684; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></a>
+<span style="height: 46px; padding: 0 16px; border-radius: 23px; background: #efe9ff; color: #4f2fc0; display: flex; align-items: center; font-size: 14px; font-weight: 600">Очередь</span>
+<a href="#" aria-label="Ежемесячно" style="color: #6a6684; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></a>
+<a href="#" aria-label="Квартира" style="color: #6a6684; display: flex; margin-right: 10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg></a>
+</div>
+<button aria-label="Добавить" style="width: 58px; height: 58px; border-radius: 29px; border: 0; background: #6a3fe0; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { bottles: [{ h: '70%' }, { h: '0%' }, { h: '0%' }, { h: '0%' }] };
+  }
+}
+</script>
+</body>
+</html>

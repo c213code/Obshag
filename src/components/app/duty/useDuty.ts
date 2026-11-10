@@ -12,7 +12,7 @@ import { useAppData } from "../AppDataProvider";
 
 const NONE: MemberWithProfile[] = [];
 
-type DutyState = { status: DutyView["status"]; duty: Duty | null; plan: DutyDay[]; requests: SwapRequest[] };
+type DutyState = { status: DutyView["status"]; duty: Duty | null; all: Duty[]; plan: DutyDay[]; requests: SwapRequest[] };
 
 /** A clock that ticks every `ms` (a lazy initial value keeps render pure). */
 export function useNow(ms = 30_000): number {
@@ -39,8 +39,10 @@ export type DutyView = {
   me: Profile | null;
   roster: ReadonlyArray<MemberWithProfile>;
   isAdmin: boolean;
-  /** The cooking duty (the only one with a screen for now), or the first duty. null = none yet. */
+  /** The dated duty (cooking, else a custom one) with the plan below. null = none yet. */
   duty: Duty | null;
+  /** Every active duty of the household, including the event ones (Мусор / Вода). */
+  duties: Duty[];
   plan: DutyDay[];
   requests: SwapRequest[];
   today: string;
@@ -79,6 +81,7 @@ export function useDuty(range: { from: string | ((today: string) => string); to:
   const [state, setState] = useState<DutyState>({
     status: "loading",
     duty: null,
+    all: [],
     plan: [],
     requests: [],
   });
@@ -94,12 +97,13 @@ export function useDuty(range: { from: string | ((today: string) => string); to:
     if (!activeId) return null;
     try {
       const duties = await repo.listDuties(activeId);
-      const duty = duties.find((d) => d.kind === "cooking") ?? duties[0] ?? null;
-      if (!duty) return { status: "ready", duty: null, plan: [], requests: [] };
+      const dated = duties.filter((d) => d.kind !== "trash" && d.kind !== "water");
+      const duty = dated.find((d) => d.kind === "cooking") ?? dated[0] ?? null;
+      if (!duty) return { status: "ready", duty: null, all: duties, plan: [], requests: [] };
       const [plan, requests] = await Promise.all([repo.dutySchedule(duty.id, from, to), repo.listSwapRequests(duty.id)]);
-      return { status: "ready", duty, plan, requests };
+      return { status: "ready", duty, all: duties, plan, requests };
     } catch {
-      return { status: "error", duty: null, plan: [], requests: [] };
+      return { status: "error", duty: null, all: [], plan: [], requests: [] };
     }
   }, [repo, activeId, from, to]);
 
@@ -138,6 +142,7 @@ export function useDuty(range: { from: string | ((today: string) => string); to:
     roster,
     isAdmin,
     duty: state.duty,
+    duties: state.all,
     plan: state.plan,
     requests: state.requests,
     today,

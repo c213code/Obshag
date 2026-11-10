@@ -21,7 +21,10 @@ export type SwapPushPayload = {
   toLabel: string;
 };
 
-export type DutyPushPayload = DutyTodayPushPayload | SwapPushPayload;
+/** «Пакет полный» (kind ping) / «Вода кончилась» (kind empty) for whoever is current; tapping opens /duty?kind=trash|water. */
+export type DutyEventPushPayload = { type: "duty-event"; kind: "ping" | "empty"; name: string; title: string };
+
+export type DutyPushPayload = DutyTodayPushPayload | SwapPushPayload | DutyEventPushPayload;
 
 export type PushPayload = PendingPushPayload | ReminderPushPayload | BillPushPayload | DigestPushPayload | DutyPushPayload;
 

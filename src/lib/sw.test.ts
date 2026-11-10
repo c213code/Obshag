@@ -104,6 +104,16 @@ describe("sw.js", () => {
     expect(sw.shown[1].title).toBe("Мусор: сегодня твоя очередь");
   });
 
+  it("push: «Пакет полный» and «Вода кончилась» open that queue", async () => {
+    const sw = load();
+    await sw.wait(sw.handlers.push, pushEvent({ type: "duty-event", kind: "ping", name: "Парасат", title: "Мусор" }));
+    expect(sw.shown[0].title).toBe("🗑 Пакет полный");
+    expect(sw.shown[0].options).toMatchObject({ data: { url: "/duty?kind=trash" } });
+    await sw.wait(sw.handlers.push, pushEvent({ type: "duty-event", kind: "empty", name: "Парасат", title: "Вода" }));
+    expect(sw.shown[1].title).toBe("💧 Вода кончилась");
+    expect(sw.shown[1].options).toMatchObject({ data: { url: "/duty?kind=water" } });
+  });
+
   it("push: a swap request and a decline open the request screen", async () => {
     const sw = load();
     await sw.wait(sw.handlers.push, pushEvent({ type: "swap-request", requestId: "r1", name: "Ерасыл", fromLabel: "пн 17", toLabel: "вт 18" }));

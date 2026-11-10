@@ -6,6 +6,8 @@ import type {
   CaptureTokenInfo,
   Duty,
   DutyDay,
+  DutyEvent,
+  DutyEventNotice,
   DutyMorningItem,
   DutyNotice,
   DutyNoticeEvent,
@@ -229,6 +231,24 @@ export interface Repo {
   runDutyMorning(secret: string): Promise<DutyMorningItem[]>;
   /** SERVER ONLY: a Telegram button on a swap DM. forbidden = that Telegram user is not the counterparty. */
   tgRespondSwap(secret: string, tgUserId: number, requestId: Uuid, accept: boolean): Promise<TgSwapResult>;
+
+  // ---- «Мусор» и «Вода» (slice 15): event duties, the turn moves on fact
+  /** The latest events of an event duty, newest first (at most 200). */
+  listDutyEvents(dutyId: Uuid): Promise<DutyEvent[]>;
+  /** Мусор «Вынес я»: any member; the turn moves past the caller. */
+  dutyDoneEvent(dutyId: Uuid): Promise<DutyEvent>;
+  /** Мусор «Пакет полный»: any member. rate_limited (2 h per duty, retryAfter = seconds left). */
+  dutyPing(dutyId: Uuid): Promise<DutyEvent>;
+  /** Вода «Вода кончилась»: any member; no full bottles left. rate_limited (1 h). */
+  waterEmpty(dutyId: Uuid): Promise<DutyEvent>;
+  /** Вода «Принёс»: alone = 2 bottles, with a partner = 4; records a shared purchase. invalid = bad partner. */
+  waterBrought(dutyId: Uuid, partnerId: Uuid | null): Promise<DutyEvent>;
+  /** One full bottle less (never below 0). */
+  waterBottleUsed(dutyId: Uuid): Promise<Duty>;
+  /** Admin only: the price of a liter (1..1000). */
+  setWaterPrice(dutyId: Uuid, price: number): Promise<Duty>;
+  /** SERVER ONLY (CRON_SECRET + session): who to push for the caller's own fresh ping / empty event. */
+  dutyEventNotice(secret: string, eventId: Uuid): Promise<DutyEventNotice>;
 }
 
 export type RepoErrorCode =

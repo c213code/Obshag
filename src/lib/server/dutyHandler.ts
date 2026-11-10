@@ -1,12 +1,12 @@
 import { RepoError, type Repo } from "@/lib/data/repo";
 import type { DutyMorningItem, DutyNotice } from "@/lib/data/types";
-import { dutyNotifyBodySchema } from "@/lib/domain/schemas";
+import { dutyEventNotifyBodySchema, dutyNotifyBodySchema } from "@/lib/domain/schemas";
 import { bearerMatches } from "./cronAuth";
 import type { DutyPushPayload, PushSender } from "./push";
 import type { InlineKeyboard, TelegramApi } from "./telegram/api";
 
 export type DutyDeps = {
-  repo: Pick<Repo, "runDutyMorning" | "swapNotice">;
+  repo: Pick<Repo, "runDutyMorning" | "swapNotice" | "dutyEventNotice">;
   /** null = push is not configured. */
   push: PushSender | null;
   /** null / missing = the bot is not configured (or mock mode): nothing goes to Telegram. */
@@ -114,6 +114,30 @@ export async function handleDutyNotify(raw: unknown, deps: DutyDeps | null): Pro
       if (e.code === "unauthenticated") return { status: 401, body: { ok: false } };
       if (e.code === "forbidden" || e.code === "not_found") return { status: 403, body: { ok: false } };
       if (e.code === "invalid") return { status: 409, body: { ok: false } };
+    }
+    return { status: 500, body: { ok: false } };
+  }
+}
+
+/** POST /api/duty/event-notify {event_id}: push the current person after «Пакет полный» / «Вода кончилась» (the group line is sent by SQL). */
+export async function handleDutyEventNotify(raw: unknown, deps: DutyDeps | null): Promise<DutyOutcome<{ ok: boolean }>> {
+  if (!deps) return { status: 500, body: { ok: false } };
+  const body = dutyEventNotifyBodySchema.safeParse(raw);
+  if (!body.success) return { status: 400, body: { ok: false } };
+  try {
+    const notice = await deps.repo.dutyEventNotice(deps.secret, body.data.event_id);
+    return {
+      status: 200,
+      body: { ok: true },
+      afterResponse: async () => {
+        if (notice.self) return;
+        await pushAll(notice.subscriptions, deps.push, { type: "duty-event", kind: notice.kind, name: notice.actor_name, title: notice.title });
+      },
+    };
+  } catch (e) {
+    if (e instanceof RepoError) {
+      if (e.code === "unauthenticated") return { status: 401, body: { ok: false } };
+      if (e.code === "forbidden" || e.code === "not_found") return { status: 403, body: { ok: false } };
     }
     return { status: 500, body: { ok: false } };
   }

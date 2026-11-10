@@ -48,7 +48,11 @@ export function OrderSheet({ open, onClose, view }: { open: boolean; onClose: ()
   return (
     <DutySheet open={open} onClose={onClose} label={ru.duty.settingsSheet.title} title={ru.duty.settingsSheet.title} testId="duty-order-sheet">
       <OrderEditor order={order} onChange={setOrder} roster={view.roster} meId={view.me?.id ?? null} />
-      <TextField label={ru.duty.create.startLabel} type="date" value={start} onChange={(e) => setStart(e.target.value)} error={error} />
+      {duty?.kind === "trash" || duty?.kind === "water" ? (
+        error ? <p role="alert" className="text-body text-orange">{error}</p> : null
+      ) : (
+        <TextField label={ru.duty.create.startLabel} type="date" value={start} onChange={(e) => setStart(e.target.value)} error={error} />
+      )}
       <Pill variant="lime" size="lg" disabled={busy || order.length === 0} onClick={save} data-testid="duty-order-save" className="w-full">
         {ru.duty.settingsSheet.save}
       </Pill>

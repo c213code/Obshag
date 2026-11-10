@@ -11,10 +11,13 @@ import {
   swapExpiresAt,
   type DutyState,
 } from "@/lib/domain/duty";
+import { defaultParticipants } from "@/lib/domain/away";
+import { EMPTY_COOLDOWN_S, PING_COOLDOWN_S, currentOf, waterPlan } from "@/lib/domain/dutyEvents";
+import { splitEqual } from "@/lib/domain/split";
 import { newId } from "@/lib/domain/uuid";
 import { RepoError, type Repo } from "./repo";
 import type { MockDb } from "./seed";
-import type { Duty, DutyDay, DutyKind, DutyMorningItem, DutyNotice, SwapRequest, Uuid } from "./types";
+import type { Duty, DutyDay, DutyEvent, DutyKind, DutyMorningItem, DutyNotice, Purchase, Share, SwapRequest, Uuid } from "./types";
 
 type Ctx = {
   tx<T>(fn: (db: MockDb) => T): Promise<T>;
@@ -41,6 +44,14 @@ export type MockDutyApi = Pick<
   | "swapNotice"
   | "runDutyMorning"
   | "tgRespondSwap"
+  | "listDutyEvents"
+  | "dutyDoneEvent"
+  | "dutyPing"
+  | "waterEmpty"
+  | "waterBrought"
+  | "waterBottleUsed"
+  | "setWaterPrice"
+  | "dutyEventNotice"
 >;
 
 const KINDS: ReadonlyArray<DutyKind> = ["cooking", "trash", "water", "custom"];
@@ -155,7 +166,148 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
     return r;
   }
 
+  /** The duty of the expected kind for an active member (forbidden otherwise, invalid = wrong kind). */
+  const eventDuty = (db: MockDb, id: Uuid, userId: Uuid, kind: "trash" | "water"): Duty => {
+    const d = visibleDuty(db, id, userId);
+    if (d.kind !== kind || !d.active) throw invalid("Invalid duty");
+    return d;
+  };
+  const eventsOf = (db: MockDb, dutyId: Uuid) => (db.dutyEvents ?? []).filter((e) => e.duty_id === dutyId);
+  const currentFor = (db: MockDb, d: Duty): Uuid | null =>
+    currentOf(
+      d.order,
+      db.members.filter((m) => m.household_id === d.household_id).map((m) => ({ user_id: m.user_id, active: m.active, away_until: m.away_until })),
+      eventsOf(db, d.id),
+      today(),
+    );
+  const cooldown = (db: MockDb, dutyId: Uuid, kind: "ping" | "empty", windowS: number) => {
+    const last = eventsOf(db, dutyId)
+      .filter((e) => e.kind === kind)
+      .reduce((m, e) => Math.max(m, Date.parse(e.created_at)), 0);
+    const left = last ? Math.ceil((last + windowS * 1000 - ctx.now().getTime()) / 1000) : 0;
+    if (left > 0) throw new RepoError("rate_limited", "Cooldown", left);
+  };
+  const addEvent = (db: MockDb, e: Omit<DutyEvent, "id" | "created_at">): DutyEvent => {
+    const row: DutyEvent = { ...e, id: newId(), created_at: ctx.now().toISOString() };
+    (db.dutyEvents ??= []).push(row);
+    return row;
+  };
+
   return {
+    async listDutyEvents(dutyId) {
+      const id = ctx.uid();
+      return ctx.read((db) => {
+        visibleDuty(db, dutyId, id);
+        return structuredClone(
+          eventsOf(db, dutyId)
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+            .slice(0, 200),
+        );
+      });
+    },
+
+    async dutyDoneEvent(dutyId) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "trash");
+        return structuredClone(addEvent(db, { duty_id: d.id, kind: "done", user_id: id, partner_id: null, liters: null, purchase_id: null }));
+      });
+    },
+
+    async dutyPing(dutyId) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "trash");
+        cooldown(db, d.id, "ping", PING_COOLDOWN_S);
+        return structuredClone(addEvent(db, { duty_id: d.id, kind: "ping", user_id: id, partner_id: currentFor(db, d), liters: null, purchase_id: null }));
+      });
+    },
+
+    async waterEmpty(dutyId) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "water");
+        cooldown(db, d.id, "empty", EMPTY_COOLDOWN_S);
+        const row = addEvent(db, { duty_id: d.id, kind: "empty", user_id: id, partner_id: currentFor(db, d), liters: null, purchase_id: null });
+        d.bottles_full = 0;
+        return structuredClone(row);
+      });
+    },
+
+    async waterBrought(dutyId, partnerId) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "water");
+        if (partnerId !== null && (partnerId === id || !memberOf(db, d.household_id, partnerId))) throw invalid("Invalid partner");
+        const plan = waterPlan(partnerId === null ? "alone" : "pair", d.bottle_liters ?? 5, d.price_per_liter ?? 20);
+        const roster = db.members.filter((m) => m.household_id === d.household_id && m.active);
+        const people = defaultParticipants(roster, today());
+        const createdAt = ctx.now().toISOString();
+        const purchase: Purchase = {
+          id: newId(),
+          household_id: d.household_id,
+          payer_id: id,
+          amount: plan.amount,
+          description: `Вода ${plan.liters} л`,
+          merchant: null,
+          source: "manual",
+          status: "shared",
+          created_at: createdAt,
+        };
+        const shares: Share[] = splitEqual(plan.amount, people, id).map((s) => ({
+          purchase_id: purchase.id,
+          debtor_id: s.debtor_id,
+          amount: s.amount,
+          settled_at: s.settled ? createdAt : null,
+          settlement_id: null,
+        }));
+        db.purchases.push(purchase);
+        db.shares.push(...shares);
+        const row = addEvent(db, { duty_id: d.id, kind: "done", user_id: id, partner_id: partnerId, liters: plan.liters, purchase_id: purchase.id });
+        d.bottles_full = Math.min(plan.bottles, d.bottles_total ?? 4);
+        return structuredClone(row);
+      });
+    },
+
+    async waterBottleUsed(dutyId) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "water");
+        d.bottles_full = Math.max(0, (d.bottles_full ?? 0) - 1);
+        return structuredClone(d);
+      });
+    },
+
+    async setWaterPrice(dutyId, price) {
+      const id = ctx.uid();
+      return ctx.tx((db) => {
+        const d = eventDuty(db, dutyId, id, "water");
+        if (memberOf(db, d.household_id, id)?.role !== "admin") throw forbidden();
+        if (!Number.isInteger(price) || price < 1 || price > 1000) throw invalid("Invalid price");
+        d.price_per_liter = price;
+        return structuredClone(d);
+      });
+    },
+
+    async dutyEventNotice(secret, eventId) {
+      ctx.requireSecret(secret);
+      const id = ctx.uid();
+      return ctx.read((db) => {
+        const e = (db.dutyEvents ?? []).find((x) => x.id === eventId);
+        if (!e || e.user_id !== id || e.kind === "done" || Date.parse(e.created_at) < ctx.now().getTime() - 600_000) throw forbidden();
+        const self = e.partner_id === null || e.partner_id === id;
+        return {
+          event_id: e.id,
+          kind: e.kind,
+          title: (db.duties ?? []).find((x) => x.id === e.duty_id)?.title ?? "",
+          target_user: e.partner_id,
+          self,
+          actor_name: db.profiles.find((p) => p.id === id)?.display_name || "?",
+          subscriptions: self || !e.partner_id ? [] : ctx.subscriptionsOf(db, e.partner_id),
+        };
+      });
+    },
+
     async listDuties(householdId) {
       const id = ctx.uid();
       return ctx.read((db) => {
@@ -233,6 +385,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
           start_date: input.start_date ?? today(),
           active: true,
           order,
+          ...(input.kind === "water" ? { price_per_liter: 20, bottle_liters: 5, bottles_total: 4, bottles_full: 4 } : {}),
         };
         (db.duties ??= []).push(duty);
         return structuredClone(duty);
@@ -364,7 +517,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
         expireDue(db, null);
         const out: DutyMorningItem[] = [];
         for (const d of [...(db.duties ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
-          if (!d.active || d.order.length === 0) continue;
+          if (!d.active || d.order.length === 0 || d.kind === "trash" || d.kind === "water") continue;
           if ((db.dutyMorningLog ?? []).some((l) => l.duty_id === d.id && l.day === t)) continue;
           db.dutyMorningLog!.push({ duty_id: d.id, day: t });
           const cook = assignee(db, d, t);

@@ -97,6 +97,9 @@ export const dutyNotifyBodySchema = z
   .object({ request_id: z.string().min(1).max(64), event: z.enum(["requested", "declined"]) })
   .strict();
 
+/** POST /api/duty/event-notify: the caller's own fresh ping / «вода кончилась» event. */
+export const dutyEventNotifyBodySchema = z.object({ event_id: z.string().min(1).max(64) }).strict();
+
 export const RESOLVE_DESCRIPTION_MAX = 200;
 
 /** resolve_pending input. Shared needs participants (the payer included, like a new purchase); personal ignores them. */

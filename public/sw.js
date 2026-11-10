@@ -157,7 +157,22 @@ function showSwap(data) {
   });
 }
 
+function showDutyEvent(data) {
+  // «Пакет полный» / «Вода кончилась»: for whoever is current; tapping opens that queue
+  const ping = data.kind === "ping";
+  const name = str(data.name, "Сосед");
+  return self.registration.showNotification(ping ? "🗑 Пакет полный" : "💧 Вода кончилась", {
+    body: ping ? name + ": твоя очередь выносить" : name + ": твоя очередь нести воду",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: "duty-event-" + (ping ? "ping" : "empty"),
+    renotify: true,
+    data: { url: ping ? "/duty?kind=trash" : "/duty?kind=water" },
+  });
+}
+
 function show(data) {
+  if (data && data.type === "duty-event") return showDutyEvent(data);
   if (data && data.type === "duty-today") return showDutyToday(data);
   if (data && (data.type === "swap-request" || data.type === "swap-declined")) return showSwap(data);
   if (data && data.type === "digest") return showDigest(data);

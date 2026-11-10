@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { RepoError, type Repo } from "./repo";
-import type { Duty, DutyDay, DutyMorningItem, DutyNotice, SwapRequest, TgSwapResult } from "./types";
+import type { Duty, DutyDay, DutyEvent, DutyEventNotice, DutyMorningItem, DutyNotice, SwapRequest, TgSwapResult } from "./types";
 
 type DbError = { code?: string; message?: string; hint?: string } | null;
 type Helpers = {
@@ -31,8 +31,16 @@ export function createSupabaseDuty(
   | "swapNotice"
   | "runDutyMorning"
   | "tgRespondSwap"
+  | "listDutyEvents"
+  | "dutyDoneEvent"
+  | "dutyPing"
+  | "waterEmpty"
+  | "waterBrought"
+  | "waterBottleUsed"
+  | "setWaterPrice"
+  | "dutyEventNotice"
 > {
-  const COLUMNS = "id, household_id, kind, title, start_date, active";
+  const COLUMNS = "id, household_id, kind, title, start_date, active, price_per_liter, bottle_liters, bottles_total, bottles_full";
 
   async function orderOf(dutyId: string): Promise<string[]> {
     const { data, error } = await client.from("duty_members").select("user_id, position").eq("duty_id", dutyId).order("position");
@@ -154,6 +162,45 @@ export function createSupabaseDuty(
       return ok<TgSwapResult>(
         await client.rpc("tg_respond_swap", { p_secret: secret, p_tg_user_id: tgUserId, p_request: requestId, p_accept: accept }),
       );
+    },
+
+    async listDutyEvents(dutyId) {
+      const { data, error } = await client
+        .from("duty_events")
+        .select("id, duty_id, kind, user_id, partner_id, liters, purchase_id, created_at")
+        .eq("duty_id", dutyId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw mapDbError(error);
+      return (data ?? []) as DutyEvent[];
+    },
+
+    async dutyDoneEvent(dutyId) {
+      return ok<DutyEvent>(await client.rpc("duty_done_event", { p_duty: dutyId }));
+    },
+
+    async dutyPing(dutyId) {
+      return ok<DutyEvent>(await client.rpc("duty_ping", { p_duty: dutyId }));
+    },
+
+    async waterEmpty(dutyId) {
+      return ok<DutyEvent>(await client.rpc("water_empty", { p_duty: dutyId }));
+    },
+
+    async waterBrought(dutyId, partnerId) {
+      return ok<DutyEvent>(await client.rpc("water_brought", { p_duty: dutyId, p_partner: partnerId }));
+    },
+
+    async waterBottleUsed(dutyId) {
+      return withOrder(ok<DutyRow>(await client.rpc("water_bottle_used", { p_duty: dutyId })));
+    },
+
+    async setWaterPrice(dutyId, price) {
+      return withOrder(ok<DutyRow>(await client.rpc("set_water_price", { p_duty: dutyId, p_price: price })));
+    },
+
+    async dutyEventNotice(secret, eventId) {
+      return ok<DutyEventNotice>(await client.rpc("duty_event_notice", { p_secret: secret, p_event: eventId }));
     },
   };
 }

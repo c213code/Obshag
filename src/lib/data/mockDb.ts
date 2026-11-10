@@ -87,6 +87,20 @@ const duty = z.object({
   start_date: z.string().max(10),
   active: z.boolean(),
   order: z.array(uuid).max(20),
+  price_per_liter: z.number().int().optional(),
+  bottle_liters: z.number().int().optional(),
+  bottles_total: z.number().int().optional(),
+  bottles_full: z.number().int().optional(),
+});
+const dutyEvent = z.object({
+  id: uuid,
+  duty_id: uuid,
+  kind: z.enum(["done", "ping", "empty"]),
+  user_id: uuid,
+  partner_id: uuid.nullable(),
+  liters: z.number().int().nullable(),
+  purchase_id: uuid.nullable(),
+  created_at: iso,
 });
 const swapRequest = z.object({
   id: uuid,
@@ -130,6 +144,7 @@ export const mockDbSchema = z.object({
     .optional(),
   dutyDone: z.array(z.object({ duty_id: uuid, day: z.string().max(10), user_id: uuid, done_at: iso })).max(5000).optional(),
   swapRequests: z.array(swapRequest).max(5000).optional(),
+  dutyEvents: z.array(dutyEvent).max(5000).optional(),
   dutyMorningLog: z.array(z.object({ duty_id: uuid, day: z.string().max(10) })).max(5000).optional(),
 });
 

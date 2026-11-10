@@ -181,6 +181,40 @@ export type Duty = {
   start_date: IsoDate;
   active: boolean;
   order: Uuid[];
+  /** Вода only (slice 15): price of a liter, litres per bottle, bottles in the stock, bottles still full. */
+  price_per_liter?: number;
+  bottle_liters?: number;
+  bottles_total?: number;
+  bottles_full?: number;
+};
+
+export type DutyEventKind = "done" | "ping" | "empty";
+
+/**
+ * One fact of an event duty (Мусор / Вода). `partner_id`: the second carrier of a water trip on `done`; the person who
+ * was current (and got the push) on `ping` / `empty`.
+ */
+export type DutyEvent = {
+  id: Uuid;
+  duty_id: Uuid;
+  kind: DutyEventKind;
+  user_id: Uuid;
+  partner_id: Uuid | null;
+  liters: number | null;
+  purchase_id: Uuid | null;
+  created_at: IsoDateTime;
+};
+
+/** Who to push after a ping / «вода кончилась» (duty_event_notice); never reaches a browser. */
+export type DutyEventNotice = {
+  event_id: Uuid;
+  kind: "ping" | "empty";
+  title: string;
+  target_user: Uuid | null;
+  /** The target is the caller: nobody to push. */
+  self: boolean;
+  actor_name: string;
+  subscriptions: PushSubscriptionInput[];
 };
 
 export type DutySource = "rotation" | "swap" | "admin" | "skip";
