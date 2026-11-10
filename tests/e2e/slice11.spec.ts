@@ -130,4 +130,38 @@ test.describe("slice 11: swipe to delete", () => {
       await expect(rows.filter({ hasText: "Ты" }).first().locator("[data-swipeable]")).toHaveCount(1); // his own
     });
   });
+
+  test("a short swipe only uncovers «Удалить»; a nudge does nothing; tapping the row closes it", async ({ browser, baseURL }) => {
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, ME);
+      await page.getByRole("link", { name: "Покупки", exact: true }).click();
+      const row = page.locator("[data-swipeable]").first();
+      await expect(row).toBeVisible();
+      const box = await row.boundingBox();
+      if (!box) throw new Error("row has no box");
+      const y = box.y + box.height / 2;
+      const x0 = box.x + box.width - 40;
+      const drag = async (dx: number) => {
+        await page.mouse.move(x0, y);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) {
+          await page.mouse.move(x0 - (dx * i) / 6, y);
+          await page.waitForTimeout(40);
+        }
+        await page.waitForTimeout(150); // stop before lifting: no flick
+        await page.mouse.up();
+      };
+      await drag(20); // a nudge
+      await page.waitForTimeout(500);
+      await expect(page.getByTestId("swipe-confirm-sheet")).toHaveCount(0);
+      await expect(page.getByTestId("swipe-delete")).toHaveCount(0);
+      await drag(90); // a short swipe parks it open
+      await expect(page.getByTestId("swipe-delete")).toBeVisible();
+      await page.waitForTimeout(400);
+      await expect(page.getByTestId("swipe-confirm-sheet")).toHaveCount(0);
+      await row.click({ position: { x: 30, y: box.height / 2 } }); // tap the row: closes, does not navigate
+      await expect(page.getByTestId("swipe-delete")).toHaveCount(0);
+      await expect(page).toHaveURL(/\/purchases$/);
+    });
+  });
 });
