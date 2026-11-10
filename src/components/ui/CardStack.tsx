@@ -93,7 +93,7 @@ export const CardStack = memo(function CardStack({
           key={`peek-${d}`}
           data-testid="stack-peek"
           aria-hidden="true"
-          className={d === 1 ? "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-stack" : "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-card-2"}
+          className={d === 1 ? "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-night-2" : "absolute inset-x-0 bottom-0 origin-bottom rounded-lg bg-night-1"}
           style={{ height: CARD_HEIGHT, zIndex: MAX_DEPTH + 1 - d, transform: `translateY(${-d * STEP}px) scale(${1 - d * SCALE_STEP})` }}
         />
       ))}
@@ -140,12 +140,12 @@ export const CardStack = memo(function CardStack({
             {/* neutral faces for the layers behind (opacity only, never a filter) */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -inset-px rounded-lg bg-stack transition-opacity duration-[600ms] ease-smooth"
+              className="pointer-events-none absolute -inset-px rounded-lg bg-night-2 transition-opacity duration-[600ms] ease-smooth"
               style={{ opacity: reduced ? 0 : d >= 1 ? 1 : 0 }}
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -inset-px rounded-lg bg-card-2 transition-opacity duration-[600ms] ease-smooth"
+              className="pointer-events-none absolute -inset-px rounded-lg bg-night-1 transition-opacity duration-[600ms] ease-smooth"
               style={{ opacity: reduced ? 0 : d >= 2 ? 1 : 0 }}
             />
           </div>

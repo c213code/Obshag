@@ -26,13 +26,14 @@ export type BalanceCardData = {
   chipLabel?: string;
 };
 
-const toneClass: Record<CardTone, { card: string; ring: string; me: string }> = {
-  lime: { card: "bg-lime text-on-lime", ring: "border-lime", me: "!bg-on-lime !text-lime" },
-  orange: { card: "bg-orange text-on-orange", ring: "border-orange", me: "!bg-on-orange !text-orange" },
-  periwinkle: { card: "bg-periwinkle text-on-periwinkle", ring: "border-periwinkle", me: "!bg-on-periwinkle !text-periwinkle" },
+/** The tone now colours the sun, the lit windows and "me" (the sky is the same night for every flat). */
+const toneClass: Record<CardTone, { sun: string; light: string; me: string }> = {
+  lime: { sun: "bg-lime", light: "fill-lime", me: "!bg-lime !text-on-lime" },
+  orange: { sun: "bg-orange", light: "fill-orange", me: "!bg-orange !text-on-orange" },
+  periwinkle: { sun: "bg-periwinkle", light: "fill-periwinkle", me: "!bg-periwinkle !text-on-periwinkle" },
 };
 
-/** Main.dc.html front card: 28px radius, 20px padding, two soft rings, big rounded balance. */
+/** Night-sky card: paper-cut hill layers, house silhouettes with lit windows and a sun in the flat's tone. */
 export const BalanceCard = memo(function BalanceCard({
   data,
   className,
@@ -46,19 +47,31 @@ export const BalanceCard = memo(function BalanceCard({
   return (
     <div
       style={{ height: CARD_HEIGHT }}
-      className={cx("relative flex flex-col justify-between overflow-hidden rounded-lg p-5", tone.card, className)}
+      className={cx("relative flex flex-col justify-between overflow-hidden rounded-lg bg-night-sky p-5 text-night-text", className)}
     >
+      <span aria-hidden="true" className={cx("pointer-events-none absolute top-[78px] right-[64px] size-[56px] rounded-full", tone.sun)} />
       <svg
         aria-hidden="true"
         focusable="false"
-        viewBox="0 0 190 190"
-        className="pointer-events-none absolute -top-10 -right-10 size-[190px]"
-        fill="none"
-        stroke="currentColor"
-        strokeOpacity="0.08"
+        viewBox="0 0 300 110"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[112px] w-full"
       >
-        <circle cx="95" cy="95" r="86" strokeWidth="22" />
-        <circle cx="95" cy="95" r="38" strokeWidth="12" />
+        <path className="fill-night-1" d="M0 40 Q60 10 120 35 T240 25 T300 30 V110 H0Z" />
+        <path className="fill-night-2" d="M0 60 Q80 35 160 58 T300 50 V110 H0Z" />
+        <path className="fill-night-3" d="M0 80 Q90 60 180 80 T300 72 V110 H0Z" />
+        <g className="fill-night-ink">
+          <rect x="121" y="80" width="26" height="30" />
+          <path d="M117 82 L134 68 L151 82Z" />
+          <rect x="159" y="74" width="20" height="36" />
+          <rect x="187" y="86" width="30" height="24" />
+          <path d="M183 88 L202 72 L221 88Z" />
+        </g>
+        <g className={tone.light}>
+          <rect x="130" y="89" width="7" height="7" />
+          <rect x="166" y="82" width="6" height="6" />
+          <rect x="199" y="94" width="7" height="7" />
+        </g>
       </svg>
       <div className="relative flex items-center justify-between">
         <p className="text-headline">{data.name}</p>
@@ -69,7 +82,7 @@ export const BalanceCard = memo(function BalanceCard({
         ) : null}
       </div>
       <div className="relative flex flex-col gap-1">
-        <span className="text-label">{ru.main.balance}</span>
+        <span className="text-label text-night-muted">{ru.main.balance}</span>
         <Money id={balanceId} value={data.balance} sign className="text-display" />
       </div>
       <div className="relative flex items-center justify-between">
@@ -81,11 +94,11 @@ export const BalanceCard = memo(function BalanceCard({
               color={p.color}
               size={26}
               decorative
-              className={cx("border-2", tone.ring, i > 0 && "-ml-2", p.color === "me" && tone.me)}
+              className={cx("border-2 border-night-3", i > 0 && "-ml-2", p.color === "me" && tone.me)}
             />
           ))}
         </div>
-        {data.caption ? <span className="text-label">{data.caption}</span> : null}
+        {data.caption ? <span className="text-label text-night-muted">{data.caption}</span> : null}
       </div>
     </div>
   );

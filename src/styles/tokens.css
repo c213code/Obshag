@@ -29,6 +29,14 @@
   --color-orange-soft: #3a2318;
   --color-blue-soft: #1e2a3a;
   --color-blue: #7fb2ff;
+  /* Home balance card: "night sky" paper layers (sky, far, mid, near hills, house silhouettes) */
+  --color-night-sky: #1a1f4a;
+  --color-night-1: #2b2f6e;
+  --color-night-2: #3f3f8f;
+  --color-night-3: #5a4fb0;
+  --color-night-ink: #0b0b1e;
+  --color-night-text: #eef0ff;
+  --color-night-muted: #a9aedb;
   --color-transparent: transparent;
   --color-current: currentColor;
 
