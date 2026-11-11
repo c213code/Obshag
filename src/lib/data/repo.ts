@@ -163,7 +163,7 @@ export interface Repo {
    * The token-authenticated capture the iOS Shortcut triggers (anon RPC). unauthenticated = unknown token (generic),
    * rate_limited = more than 30 per hour, invalid = bad amount or no household.
    */
-  capture(token: string, amount: number, merchant?: string | null, choice?: CaptureChoice | null): Promise<CaptureResult>;
+  capture(token: string, amount: number, merchant?: string | null, choice?: CaptureChoice | "later" | null): Promise<CaptureResult>;
   /** Token-authenticated removal of a dead push endpoint of the token's owner. */
   prunePushSubscription(token: string, endpoint: string): Promise<void>;
   /** My pending (not yet resolved) Apple Pay purchases of a household, newest first. */

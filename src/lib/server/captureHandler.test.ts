@@ -161,6 +161,15 @@ describe("handleCapture", () => {
       expect(await owner.listPending(householdId)).toHaveLength(3);
     });
 
+    it("later reaches the repo as \"later\" (the DB tells it from no choice: no Telegram DM), junk as null", async () => {
+      const capture = vi.fn(owner.capture);
+      const repo = { capture, prunePushSubscription: owner.prunePushSubscription };
+      await handleCapture({ token, amount: 100, choice: "Потом" }, { repo, push: null });
+      await handleCapture({ token, amount: 101, choice: "xyz" }, { repo, push: null });
+      await handleCapture({ token, amount: 102, choice: "общее" }, { repo, push: null });
+      expect(capture.mock.calls.map((c) => c[3])).toEqual(["later", null, "shared"]);
+    });
+
     it("no choice or junk (an old Shortcut): pending WITH the instant push, so nothing is lost", async () => {
       await owner.savePushSubscription(sub);
       for (const [i, choice] of [undefined, "", "xyz"].entries()) {

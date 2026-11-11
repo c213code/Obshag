@@ -48,7 +48,7 @@ export async function handleCapture(raw: unknown, deps: CaptureDeps): Promise<Ca
   const choice = parseChoice(body.data.choice ?? body.data.choise);
   let captured;
   try {
-    captured = await deps.repo.capture(token, amount, merchant, choice === "later" ? null : choice);
+    captured = await deps.repo.capture(token, amount, merchant, choice);
   } catch (e) {
     if (e instanceof RepoError) {
       if (e.code === "unauthenticated") return fail(401);

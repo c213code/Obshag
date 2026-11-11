@@ -180,6 +180,7 @@ export function ShortcutScreen() {
           <li>{ru.shortcut.quick.two}</li>
           <li>{ru.shortcut.quick.three}</li>
           <li>{ru.shortcut.quick.four}</li>
+          <li>{ru.shortcut.quick.five}</li>
         </ol>
       </section>
 
@@ -191,6 +192,7 @@ export function ShortcutScreen() {
       </section>
 
       <p className="text-caption">{ru.shortcut.note}</p>
+      <p className="text-caption">{ru.shortcut.telegramNote}</p>
 
       <PushPill vapidKey={vapidKey} />
     </Screen>
