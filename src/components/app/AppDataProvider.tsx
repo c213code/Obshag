@@ -12,7 +12,7 @@ import { useRepo } from "@/components/RepoProvider";
 import { PurchaseTracker, type UiPurchase } from "@/lib/data/purchaseTracker";
 import { SettlementTracker } from "@/lib/data/settlementTracker";
 import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
-import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
+import { markCovered, netPair, pairShares, withoutInFlight } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
 import { orderSplit, type OrderInput } from "@/lib/domain/orders";
 import type { ResolvePendingInput, UpdatePurchaseInput } from "@/lib/domain/schemas";
@@ -556,11 +556,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       // the optimistic amount is only for display: the backend recomputes the net and the real row replaces this one
       const shown = snapRef.current;
       const ps = shown.purchases[householdId] ?? [];
-      const pair = netPair(me.id, toUserId, ps.flatMap((p) => p.shares), ps);
-      if (pair.direction !== "i_pay") return false;
-      if (!isTransferable(pair.net)) return false; // under the Kaspi minimum nothing can be marked as paid
       const existing = (shown.settlements[householdId] ?? []).find((x) => x.status === "marked" && x.from_id === me.id && x.to_id === toUserId);
       if (existing) return true; // a second tap changes nothing
+      // a marked transfer counts as paid (slice 19): the pair is netted without the shares in flight
+      const open = withoutInFlight(ps.flatMap((p) => p.shares), shown.settlements[householdId] ?? []);
+      const pair = netPair(me.id, toUserId, open, ps);
+      if (pair.direction !== "i_pay") return false;
+      if (!isTransferable(pair.net)) return false; // under the Kaspi minimum nothing can be marked as paid
       settlementTracker.begin({
         id: optimisticId,
         household_id: householdId,
@@ -570,7 +572,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         status: "marked",
         marked_at: new Date().toISOString(),
         confirmed_at: null,
-        covered: pairShares(me.id, toUserId, ps.flatMap((p) => p.shares), ps),
+        covered: pairShares(me.id, toUserId, open, ps),
       });
       patchSettlements(householdId);
       try {
@@ -623,7 +625,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const optimisticId = `optimistic-s-${++tempId.current}`;
       const shown = snapRef.current;
       const ps = shown.purchases[householdId] ?? [];
-      const shares = ps.flatMap((p) => p.shares);
+      const shares = withoutInFlight(ps.flatMap((p) => p.shares), shown.settlements[householdId] ?? []);
       const pair = netPair(debtorId, me.id, shares, ps);
       if (pair.direction !== "i_pay" || !isAccumulating(pair.net)) return false;
       const at = new Date().toISOString();

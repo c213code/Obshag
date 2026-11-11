@@ -12,6 +12,7 @@ import { formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 import { useAppData } from "../AppDataProvider";
 import { IncomingSection } from "../home/IncomingSection";
+import { WaitingSection } from "../home/WaitingSection";
 import { RemindButton } from "../remind/RemindButton";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
@@ -45,7 +46,9 @@ export function SettleListScreen() {
     <Screen topOffset={54} bottomRoom={false} className="pb-10">
       <Header title={ru.settle.listTitle} onBack={() => (window.history.length > 1 ? router.back() : router.push("/"))} />
       <IncomingSection />
-      {counterparties.length === 0 && data.incoming.length === 0 ? (
+      {/* slice 19: a transfer I marked is out of every net, so a person waiting for my confirmation can be on no row below */}
+      <WaitingSection />
+      {counterparties.length === 0 && data.incoming.length === 0 && data.outgoing.length === 0 ? (
         <EmptySettle />
       ) : (
         <ul className="flex flex-col gap-3" aria-label={ru.settle.listTitle}>

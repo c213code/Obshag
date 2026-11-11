@@ -343,8 +343,9 @@ test.describe("slice 1: first end-to-end path", () => {
 
         // user 2 sees the debt
         await two.page.reload();
-        await expect(two.page.getByText(`ты должен ${money(3000)}`)).toBeVisible();
-        await expect(two.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+        // slice 19: a net debtor's tile reads «Ты должен» with «Оплатить»
+        await expect(two.page.getByTestId("bento-owe-amount")).toHaveText(money(3000));
+        await expect(two.page.getByTestId("bento-owed-caption")).toHaveText(`тебе должны ${money(0)}`);
         await expect(two.page.getByTestId("purchase-row").first()).toContainText("Хлеб, картошка");
 
         // the new purchase is still there after a reload for user 1 (persisted)

@@ -15,6 +15,7 @@ import type {
   Member,
   MonthlyRun,
   PaidAnswerResult,
+  PayLinkView,
   PaidPrompt,
   PaidPromptNotice,
   PurchaseOrder,
@@ -276,6 +277,12 @@ export interface Repo {
   paidPromptNotice(secret: string, promptId: Uuid): Promise<PaidPromptNotice>;
   /** SERVER ONLY: a Telegram button on the question. forbidden = that Telegram user is not the debtor. */
   tgAnswerPaid(secret: string, tgUserId: number, promptId: Uuid, yes: boolean): Promise<PaidAnswerResult>;
+
+  // ---- «💸 Перевести» (slice 19): the pay link under the Telegram reminder. No session: the server secret is the credential.
+  /** SERVER ONLY: the link page. open = false only looks; open = true records the «opened Kaspi» prompt (state pay) and returns its id. */
+  payLinkOpen(secret: string, code: string, open: boolean): Promise<PayLinkView>;
+  /** SERVER ONLY: «Да, перевёл» / «Ещё нет» for the prompt of this link's pair. forbidden = a prompt of somebody else's pair. */
+  payLinkAnswer(secret: string, code: string, promptId: Uuid, yes: boolean): Promise<PaidAnswerResult>;
 }
 
 export type RepoErrorCode =

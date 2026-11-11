@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
+import { Avatar } from "@/components/ui/Avatar";
 import { BottomActions } from "@/components/ui/BottomActions";
 import { Bar } from "@/components/ui/Bar";
+import { cx } from "@/components/ui/cx";
 import { Header } from "@/components/ui/Header";
 import { CheckIcon, ExternalIcon } from "@/components/ui/icons";
 import { Pill } from "@/components/ui/Pill";
@@ -113,7 +115,9 @@ export function SettleScreen() {
   const pair = frozen ?? livePair;
   const name = other.profile.display_name;
   const marked = data.outgoing.find((s) => s.to_id === userId) ?? null;
-  const even = pair.direction === "even" && incomingRows.length === 0;
+  // slice 19: my pending transfer is out of the net (it counts as paid), so the pair can be even while I still wait for them
+  const pendingOnly = !!marked && pair.direction === "even" && incomingRows.length === 0;
+  const even = pair.direction === "even" && incomingRows.length === 0 && !marked;
   const masked = maskKaspiPhone(other.profile.kaspi_phone);
 
   const transfer = () => {
@@ -156,6 +160,8 @@ export function SettleScreen() {
   /** 1..99 ₸: Kaspi cannot transfer it. It accumulates; the creditor may write it off. */
   const small = pair.direction !== "even" && isAccumulating(pair.net);
   const fade = { duration: 0.3, ease: ease.smooth };
+  /** Is there a main action next to «Отменить»? Without one the cancel pill takes the whole bar. */
+  const hasMain = small ? !iPay : iPay || !pendingOnly;
 
   return (
     <Screen topOffset={54} bottomRoom={false} gap={4} className="pb-[132px]">
@@ -168,6 +174,22 @@ export function SettleScreen() {
         <EmptySettle />
       ) : (
         <>
+          {marked ? (
+            <section
+              data-testid="waiting"
+              role="status"
+              className="enter flex items-center gap-3 rounded-lg border border-hairline bg-card px-4 py-4"
+            >
+              <Avatar name={name} color={avatarColorFor(other.profile, me.id)} size={40} decorative />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="flex items-center gap-2 text-[14px]">
+                  <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-orange" />
+                  <span className="truncate">{ru.settle.waiting(name)}</span>
+                </span>
+                <span className="text-caption">{ru.settle.waitingCard(formatTenge(marked.amount))}</span>
+              </div>
+            </section>
+          ) : null}
           {pair.direction !== "even" ? (
             <PairScene
               meName={me.display_name}
@@ -178,14 +200,15 @@ export function SettleScreen() {
               theyOwe={pair.theyOwe}
               net={pair.net}
               direction={pair.direction}
-              waitingLabel={iPay && marked ? ru.settle.waiting(name) : undefined}
             />
           ) : null}
 
+          {pendingOnly ? null : (
           <div className="grid grid-cols-2 gap-3">
             <Side testId="side-owe" label={ru.settle.toThem(name)} tone="orange" items={pair.myItems} />
             <Side testId="side-owed" label={ru.settle.toMe(name)} tone="lime" items={pair.theirItems} />
           </div>
+          )}
 
           <AnimatePresence initial={false}>
             {incomingRows.map((r) => (
@@ -201,7 +224,7 @@ export function SettleScreen() {
             ))}
           </AnimatePresence>
 
-          {small ? (
+          {pendingOnly ? null : small ? (
             <p data-testid="small-note" className="rounded-md border border-hairline bg-card px-4 py-3 text-caption">
               {iPay ? ru.settle.small.iOweNote(formatTenge(pair.net)) : ru.settle.small.theyOweNote(formatTenge(pair.net))}
             </p>
@@ -235,7 +258,7 @@ export function SettleScreen() {
             ) : null}
           </Bar>
           )}
-          {!small && kaspi.failed && phone ? (
+          {!pendingOnly && !small && kaspi.failed && phone ? (
             <p role="status" className="px-[6px] text-label text-orange">
               {ru.settle.copyFailed(phone)}
             </p>
@@ -243,33 +266,40 @@ export function SettleScreen() {
         </>
       )}
 
-      {!even && !(small && iPay) ? (
+      {!even && (marked || !(small && iPay)) ? (
         <BottomActions barClassName="flex-1">
+          <AnimatePresence initial={false}>
+            {marked ? (
+              <m.span
+                key="cancel"
+                className={hasMain ? undefined : "flex-1"}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: ease.smooth }}
+              >
+                <Pill
+                  variant="ghost"
+                  size="pay"
+                  onClick={() => void onCancel()}
+                  aria-disabled={busy}
+                  className={cx(!hasMain && "w-full", busy && "!opacity-40")}
+                >
+                  {ru.settle.cancel}
+                </Pill>
+              </m.span>
+            ) : null}
+          </AnimatePresence>
           {small ? (
-            <WriteOffButton householdId={data.householdId} debtorId={userId} name={name} amount={pair.net} size="pay" className="flex-1" testId="writeoff-pair" />
+            iPay ? null : (
+              <WriteOffButton householdId={data.householdId} debtorId={userId} name={name} amount={pair.net} size="pay" className="flex-1" testId="writeoff-pair" />
+            )
           ) : iPay ? (
-            <>
-              <AnimatePresence initial={false}>
-                {marked ? (
-                  <m.span
-                    key="cancel"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: ease.smooth }}
-                  >
-                    <Pill variant="ghost" size="pay" onClick={() => void onCancel()} aria-disabled={busy} className={busy ? "!opacity-40" : undefined}>
-                      {ru.settle.cancel}
-                    </Pill>
-                  </m.span>
-                ) : null}
-              </AnimatePresence>
-              <Pill variant="lime" size="pay" onClick={transfer} className="flex-1">
-                {ru.settle.transfer(formatTenge(pair.net))}
-                <ExternalIcon size={18} strokeWidth={2.2} />
-              </Pill>
-            </>
-          ) : (
+            <Pill variant="lime" size="pay" onClick={transfer} className="flex-1">
+              {ru.settle.transfer(formatTenge(pair.net))}
+              <ExternalIcon size={18} strokeWidth={2.2} />
+            </Pill>
+          ) : pendingOnly ? null : (
             <RemindButton householdId={data.householdId} debtorId={userId} name={name} variant="on" size="pay" className="flex-1" testId="remind-pair" />
           )}
         </BottomActions>

@@ -188,3 +188,9 @@ export const billSchema = z
 export type BillFormInput = z.input<typeof billSchema>;
 
 export const billMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Invalid month");
+
+/** The body of POST /api/k/<code>/answer: the prompt the open call returned, and the answer. */
+export const payLinkAnswerBodySchema = z.object({ prompt_id: z.string().min(1).max(64), yes: z.boolean() }).strict();
+
+/** A pay link code: url-safe, ~12 characters (SQL: base64url of 9 random bytes). Anything else never reaches the database. */
+export const PAY_CODE_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;

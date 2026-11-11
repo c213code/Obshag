@@ -1,4 +1,4 @@
-import { coveredShares, netForUser, netPair, type PairNet, type UserNet } from "@/lib/domain/netting";
+import { coveredShares, netForUser, netPair, withoutInFlight, type PairNet, type UserNet } from "@/lib/domain/netting";
 import type { Settlement } from "@/lib/data/types";
 import type { MemberWithProfile } from "@/lib/data/repo";
 import type { Snapshot } from "../snapshot";
@@ -28,6 +28,8 @@ export function buildSettleData(snap: Snapshot, activeId: string | null): Settle
   const ps = purchases[activeId] ?? [];
   const shares = ps.flatMap((p) => p.shares);
   const open = (settlements[activeId] ?? []).filter((s) => s.status === "marked");
+  // slice 19: a transfer that is marked but not yet confirmed counts as paid for every number below (the rows stay open)
+  const netShares = withoutInFlight(shares, open);
   const byId = new Map(ms.map((m) => [m.user_id, m]));
   const incoming = open
     .filter((s) => s.to_id === me.id)
@@ -40,10 +42,10 @@ export function buildSettleData(snap: Snapshot, activeId: string | null): Settle
     meId: me.id,
     householdId: activeId,
     members: ms,
-    net: netForUser(me.id, shares, ps, (id) => byId.has(id)),
+    net: netForUser(me.id, netShares, ps, (id) => byId.has(id)),
     incoming,
     outgoing: open.filter((s) => s.from_id === me.id),
-    pairWith: (userId) => netPair(me.id, userId, shares, ps),
+    pairWith: (userId) => netPair(me.id, userId, netShares, ps),
     memberOf: (userId) => byId.get(userId),
   };
 }

@@ -27,10 +27,10 @@ export async function proxy(request: NextRequest) {
   return updateSession(request, env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-// Everything except Next internals, public assets, the gallery /api/capture (the iOS Shortcut has no cookie: the token is its credential) /api/cron (Vercel Cron: the bearer CRON_SECRET) and /api/telegram (Telegram has no cookie: the webhook secret header, or the bearer CRON_SECRET for setup). Exclusions are anchored (`kit(?:/|$)`), so a
+// Everything except Next internals, the public pay link /k/<code> and its /api/k (the roommates open it from the Telegram group, signed in or not: the code is the credential and the server secret gates every call), public assets, the gallery /api/capture (the iOS Shortcut has no cookie: the token is its credential) /api/cron (Vercel Cron: the bearer CRON_SECRET) and /api/telegram (Telegram has no cookie: the webhook secret header, or the bearer CRON_SECRET for setup). Exclusions are anchored (`kit(?:/|$)`), so a
 // real route such as /kitchen is still protected, and static files are matched by extension.
 export const config = {
   matcher: [
-    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|sw-rules\\.js$|offline(?:/|$)|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|api/cron(?:/|$)|api/telegram(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
+    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sw\\.js$|sw-rules\\.js$|offline(?:/|$)|icons(?:/|$)|api/mock-store(?:/|$)|api/mock-push-log(?:/|$)|api/capture(?:/|$)|api/cron(?:/|$)|api/telegram(?:/|$)|api/k(?:/|$)|k(?:/|$)|kit(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|json|webmanifest)$).*)",
   ],
 };

@@ -218,6 +218,12 @@ export const ru = {
       settle: "Рассчитаться",
       even: "Все в расчёте",
     },
+    /** Slice 19: «К оплате», one row per person I owe a transferable amount. */
+    toPay: {
+      title: "К оплате",
+      transfer: "Перевести",
+      rowAria: (name: string, amount: string) => `Перевести ${name}, ${amount}`,
+    },
     recent: "Последние покупки",
     all: "Все",
     progress: (paid: number, total: number) => `${paid} из ${total}`,
@@ -237,10 +243,16 @@ export const ru = {
     yesterday: "вчера",
     bento: {
       owed: "Тебе должны",
+      /** Slice 19: the tile of a net debtor. */
+      youOwe: "Ты должен",
+      pay: "Оплатить",
+      owedCaption: (amount: string) => `тебе должны ${amount}`,
+      payAria: (amount: string) => `Оплатить ${amount}`,
       iOwe: (amount: string) => `ты должен ${amount}`,
       remind: "Напомнить",
       accruing: (amount: string) => `копится ${amount}`,
       settleAria: "Расчёт: тебе должны",
+      settleAriaDebtor: "Расчёт: ты должен",
       monthly: "Ежемесячно",
       monthlyEmpty: "Коммуналка и аренда сами делятся каждый месяц",
       add: "Добавить",
@@ -500,6 +512,8 @@ export const ru = {
     received: (time: string) => `получено · ${time}`,
     receivedLabel: "Получено",
     waiting: "ждём",
+    /** Slice 19: the money is sent and marked, the payer has not confirmed it yet. */
+    sentWaiting: "перевёл · ждём подтверждения",
     /** Under the Kaspi minimum: the share is not asked for separately. */
     payTo: (name: string, amount: string) => `Оплатить ${name} · ${amount}`,
     payNetted: "Сумма с учётом всех ваших общих покупок",
@@ -580,6 +594,8 @@ export const ru = {
     },
     transfer: (amount: string) => `Перевести ${amount}`,
     waiting: (name: string) => `Ждём подтверждения от ${decline(name, "gen")}`,
+    /** Under the «Ждём подтверждения от …» line of the pair screen. */
+    waitingCard: (amount: string) => `Ты отметил перевод ${amount}`,
     waitingTitle: "Ждём подтверждения",
     waitingRow: (amount: string) => `оплата ${amount} отмечена`,
     cancel: "Отменить",
@@ -620,6 +636,40 @@ export const ru = {
       /** Row caption on the list. */
       listCaption: (amount: string) => `${amount} · копится`,
       writtenOff: (amount: string) => `Списано ${amount}`,
+    },
+  },
+  /** Slice 19: /k/<code>, the short page behind «💸 Перевести» in the Telegram reminder. */
+  payLink: {
+    brand: "Общак",
+    transferTo: "Перевести",
+    kaspiOf: (name: string) => `Kaspi ${decline(name, "gen")}`,
+    noKaspi: "Номер Kaspi не указан",
+    go: "Скопировать номер и открыть Kaspi",
+    hint: "Номер скопируется сам: останется вставить его в Kaspi",
+    copyFailed: (phone: string) => `Номер не скопировался, вот он: ${phone}`,
+    paid: "Уже оплачено ✓",
+    paidText: "Переводить больше нечего.",
+    small: "Меньше 100 ₸ — добавится к следующему расчёту",
+    smallText: "Kaspi не переводит такие суммы, переводить пока не нужно.",
+    expired: "Ссылка устарела",
+    expiredText: "Попроси напомнить ещё раз в Общаке.",
+    failed: "Не получилось открыть ссылку",
+    failedText: "Попробуй ещё раз чуть позже.",
+    openApp: "Открыть Общак",
+    ask: {
+      title: (name: string, amount: string) => `Ты оплатил ${decline(name, "dat")} ${amount}?`,
+      text: (name: string) => `Ты перешёл в Kaspi. Если перевёл, отметим оплату: ${name} подтвердит, что деньги пришли.`,
+      yes: "Да, перевёл",
+      no: "Ещё нет",
+      done: "отмечено",
+    },
+    result: {
+      marked: (name: string) => `Отмечено ✓ — ${name} подтвердит`,
+      already: "Уже отмечено ✓",
+      stale: "Долг уже закрыт ✓",
+      expired: "Время вышло. Открой ссылку и переведи ещё раз.",
+      too_small: "Меньше 100 ₸ — добавится к следующему расчёту",
+      failed: "Не получилось отметить оплату. Попробуй ещё раз.",
     },
   },
   pending: {

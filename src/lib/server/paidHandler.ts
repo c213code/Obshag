@@ -22,6 +22,9 @@ export type PaidDeps = {
   wait?: (ms: number) => Promise<void>;
 };
 
+/** What the delayed question needs: no session (the pay link has none), only the secret-gated notice. */
+export type AskDeps = Omit<PaidDeps, "repo"> & { repo: Pick<Repo, "paidPromptNotice"> };
+
 export type PaidOutcome = {
   status: 200 | 400 | 401 | 403 | 409 | 500;
   body: { ok: boolean };
@@ -43,7 +46,7 @@ export const paidDmKeyboard = (promptId: string): InlineKeyboard => [
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** The delayed question: Telegram DM when linked, else a push to every device. Every failure is swallowed. */
-export async function askLater(promptId: string, deps: PaidDeps): Promise<void> {
+export async function askLater(promptId: string, deps: AskDeps): Promise<void> {
   try {
     await (deps.wait ?? sleep)(ASK_DELAY_MS);
     const n = await deps.repo.paidPromptNotice(deps.secret, promptId);

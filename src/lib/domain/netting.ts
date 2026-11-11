@@ -173,3 +173,35 @@ export function markCovered<S extends NetShare & { settlement_id: string | null 
   const covered = new Set(coveredShares(settlement, shares, purchases));
   return shares.map((s) => (covered.has(s) ? { ...s, settled_at: settledAt, settlement_id: settlement.id } : s));
 }
+
+/** What stands in `settled_at` of a share that is only in flight: not null, so netting skips it, and obviously not a date. */
+export const IN_FLIGHT = "in-flight";
+
+export type InFlightSettlement = Pick<Settlement, "id" | "status" | "covered">;
+
+/**
+ * Slice 19: a share recorded in a MARKED (not yet confirmed) transfer counts as paid for netting, balances and reminders
+ * (SQL private.open_pair_shares). Returns a copy where those shares are marked as settled FOR CALCULATION ONLY; the rows
+ * themselves stay open until the creditor confirms, and a cancelled transfer puts them back. Shares that are not in
+ * flight keep their identity. `ignoreId` leaves one settlement out: a re-mark of my own pending transfer records its own
+ * shares again, exactly like SQL record_settlement_shares deleting its rows before it reads the open ones.
+ */
+export function withoutInFlight<S extends NetShare>(
+  shares: ReadonlyArray<S>,
+  settlements: ReadonlyArray<InFlightSettlement>,
+  ignoreId?: string,
+): S[] {
+  const flying = new Set<string>();
+  for (const st of settlements) {
+    if (st.status !== "marked" || st.id === ignoreId) continue;
+    for (const c of st.covered) flying.add(key(c.purchase_id, c.debtor_id));
+  }
+  if (flying.size === 0) return shares as S[];
+  return shares.map((s) => (s.settled_at === null && flying.has(key(s.purchase_id, s.debtor_id)) ? { ...s, settled_at: IN_FLIGHT } : s));
+}
+
+/** True when this open share is inside a marked transfer (the purchase screen shows it as «sent, waiting»). */
+export function isInFlight(share: Pick<Share, "purchase_id" | "debtor_id" | "settled_at">, settlements: ReadonlyArray<InFlightSettlement>): boolean {
+  if (share.settled_at !== null) return false;
+  return settlements.some((st) => st.status === "marked" && st.covered.some((c) => c.purchase_id === share.purchase_id && c.debtor_id === share.debtor_id));
+}

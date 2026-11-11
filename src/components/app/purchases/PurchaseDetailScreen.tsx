@@ -8,6 +8,7 @@ import { Header } from "@/components/ui/Header";
 import { EditIcon } from "@/components/ui/icons";
 import { Money } from "@/components/ui/Money";
 import { Pill, PillLink } from "@/components/ui/Pill";
+import { isInFlight } from "@/lib/domain/netting";
 import { purchaseProgress } from "@/lib/domain/summary";
 import { formatWhen } from "@/lib/format/date";
 import { formatNumber, formatTenge } from "@/lib/format/money";
@@ -82,7 +83,8 @@ export function PurchaseDetailScreen() {
   const uneven = amounts.length > 0 && perText === null;
   // the full edit (amount, payer, participants, orders): payer or admin, shared, not a bill, nothing paid yet, an equal split
   const isAdmin = (members[purchase.household_id] ?? []).some((x) => x.user_id === me.id && x.active && x.role === "admin");
-  const paidAny = purchase.shares.some((s) => s.settlement_id !== null || (s.settled_at !== null && s.debtor_id !== purchase.payer_id));
+  const marked = settlements[purchase.household_id] ?? [];
+  const paidAny = purchase.shares.some((s) => s.settlement_id !== null || (s.settled_at !== null && s.debtor_id !== purchase.payer_id) || isInFlight(s, marked));
   const fullEdit = purchase.status === "shared" && !purchase.bill_id && (isPayer || isAdmin) && !paidAny && derived !== null && !purchase.id.startsWith("optimistic-");
 
   // who already sent the money first (in the order they did), people still being waited for after them (Purchase.dc.html)
@@ -94,7 +96,7 @@ export function PurchaseDetailScreen() {
   const mine = purchase.status === "shared" && !isPayer ? purchase.shares.find((s) => s.debtor_id === me.id) : undefined;
   const myShare = mine && mine.settled_at === null && isAccumulating(mine.amount) ? mine : null;
   // my share is still open: pay the payer from here (the transfer is the pair's net, so the other purchases between us count too)
-  const open = mine && mine.settled_at === null && mine.settlement_id === null && mine.amount > 0 ? mine : null;
+  const open = mine && mine.settled_at === null && mine.settlement_id === null && mine.amount > 0 && !isInFlight(mine, marked) ? mine : null;
   const pair = open && settle ? settle.pairWith(purchase.payer_id) : null;
   const canPay = pair !== null && pair.direction === "i_pay" && !isAccumulating(pair.net) && roster.get(purchase.payer_id)?.active === true;
   const nettedOut = pair !== null && pair.direction !== "i_pay";
@@ -234,7 +236,9 @@ export function PurchaseDetailScreen() {
               const received = s.settled_at !== null;
               const extra = uneven || orders.length > 0 ? ` · ${formatTenge(s.amount)}` : "";
               const writtenOff = s.settlement_id ? writeoffs.get(s.settlement_id) : undefined;
-              const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
+              // slice 19: money already sent and marked, the payer has not confirmed it yet
+              const sent = !received && isInFlight(s, marked);
+              const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : sent ? `${ru.detail.sentWaiting}${extra}` : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
               return (
                 <li key={s.debtor_id}>
                   <PaymentRow
@@ -242,7 +246,7 @@ export function PurchaseDetailScreen() {
                     color={m ? avatarColorFor(m.profile, me.id) : "brown"}
                     received={received}
                     caption={caption}
-                    action={isPayer && m && !(settle && isAccumulating(settle.pairWith(s.debtor_id).net)) ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
+                    action={isPayer && m && !sent && !(settle && isAccumulating(settle.pairWith(s.debtor_id).net)) ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
                   />
                 </li>
               );

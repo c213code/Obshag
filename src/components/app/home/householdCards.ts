@@ -1,4 +1,5 @@
 import type { BalanceCardData, CardTone } from "@/components/ui/BalanceCard";
+import { withoutInFlight } from "@/lib/domain/netting";
 import { householdSummary } from "@/lib/domain/summary";
 import { ru } from "@/lib/i18n/ru";
 import { avatarColorFor } from "../avatars";
@@ -11,12 +12,14 @@ export type Summary = ReturnType<typeof householdSummary>;
 
 /** One summary per household, computed once; the cards and Главная's Долги read the same numbers. */
 export function buildSummaries(snap: Snapshot): Record<string, Summary> {
-  const { me, households, members, purchases } = snap;
+  const { me, households, members, purchases, settlements } = snap;
   if (!me) return {};
   const out: Record<string, Summary> = {};
   for (const h of households) {
     const ps = purchases[h.id] ?? [];
-    out[h.id] = householdSummary(me.id, members[h.id] ?? [], ps.flatMap((p) => p.shares), ps);
+    // a marked, unconfirmed transfer counts as paid (slice 19)
+    const shares = withoutInFlight(ps.flatMap((p) => p.shares), settlements[h.id] ?? []);
+    out[h.id] = householdSummary(me.id, members[h.id] ?? [], shares, ps);
   }
   return out;
 }

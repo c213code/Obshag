@@ -42,6 +42,7 @@ const MIGRATIONS = [
   "0014_slice16_queue_fix_bill_icons.sql",
   "0015_slice17_paid_prompt.sql",
   "0016_slice18_orders_payer.sql",
+  "0017_slice19_inflight_paylinks.sql",
 ];
 
 let db: PGlite;
@@ -343,7 +344,7 @@ describe("tg_answer_paid", () => {
 });
 
 describe("surface", () => {
-  it("the anon surface is exactly ten functions and includes tg_answer_paid only from this slice", async () => {
+  it("the anon surface is thirteen (ten of 0015 + pay_link_open, pay_link_answer, anon paid_prompt_notice of 0017)", async () => {
     await admin();
     const r = await db.query<{ n: string }>(
       `select p.proname n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
@@ -351,9 +352,9 @@ describe("surface", () => {
          and p.proname not in ('uid')
        order by 1`,
     );
-    expect(r.rows).toHaveLength(10);
+    expect(r.rows).toHaveLength(13);
     expect(r.rows.map((x) => x.n)).toContain("tg_answer_paid");
-    for (const hidden of ["open_paid_prompt", "answer_paid_prompt", "paid_prompt_notice", "my_paid_prompts", "paid_prompt_answer", "mark_settlement_for"]) {
+    for (const hidden of ["open_paid_prompt", "answer_paid_prompt", "my_paid_prompts", "paid_prompt_answer", "mark_settlement_for"]) {
       expect(r.rows.map((x) => x.n)).not.toContain(hidden);
     }
   });

@@ -11,6 +11,7 @@ import { readCronSecret } from "./cronAuth";
 import type { Repo } from "@/lib/data/repo";
 import type { DutyDeps } from "./dutyHandler";
 import type { PaidDeps } from "./paidHandler";
+import type { PayLinkDeps } from "./payLinkHandler";
 import type { ReminderDeps } from "./reminderHandler";
 import { getTelegramApi } from "./telegram/env";
 
@@ -91,4 +92,15 @@ export async function getPaidDeps(request: Request, headers: Record<string, stri
   const mock = getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock";
   // mock mode (E2E): no 150 s timer holding the server; the notice then finds the prompt too young and sends nothing
   return { ...session, push: getPushSender(), telegram: mock ? null : getTelegramApi(), ...(mock ? { wait: () => Promise.resolve() } : {}) };
+}
+
+/**
+ * Dependencies of the pay link page and /api/k/<code>/*: NO session (the roommates open the link from the Telegram group),
+ * the anon-key server repo and the server secret. In mock mode (E2E) there is no 150 s timer and the bot is never called.
+ */
+export function getPayLinkDeps(): PayLinkDeps | null {
+  const server = getServerRepo();
+  if (!server) return null;
+  const mock = getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock";
+  return { ...server, push: getPushSender(), telegram: mock ? null : getTelegramApi(), ...(mock ? { wait: () => Promise.resolve() } : {}) };
 }

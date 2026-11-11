@@ -15,15 +15,18 @@ export function PaidPromptSheet({
   amount,
   onAnswer,
   onClosed,
+  copy = ru.settle.askPaid,
 }: {
   name: string;
   amount: number;
   onAnswer: (yes: boolean) => void;
   onClosed: () => void;
+  /** The words (the pay link page asks «Ты оплатил …?»). */
+  copy?: { title: (name: string, amount: string) => string; text: (name: string) => string; yes: string; no: string; done: string };
 }) {
   const [open, setOpen] = useState(true);
   const [outcome, setOutcome] = useState<"done" | "dismissed">("dismissed");
-  const title = ru.settle.askPaid.title(name, formatTenge(amount));
+  const title = copy.title(name, formatTenge(amount));
 
   const answer = (yes: boolean) => {
     setOutcome(yes ? "done" : "dismissed");
@@ -38,18 +41,18 @@ export function PaidPromptSheet({
       onClosed={onClosed}
       label={title}
       outcome={outcome}
-      doneLabel={ru.settle.askPaid.done}
+      doneLabel={copy.done}
       expandedClassName="max-w-[358px] p-4"
       focusFirst={false}
     >
       <div className="flex flex-col gap-3" data-testid="paid-sheet">
         <h2 className="px-1 text-headline">{title}</h2>
-        <p className="px-1 text-caption">{ru.settle.askPaid.text(name)}</p>
+        <p className="px-1 text-caption">{copy.text(name)}</p>
         <Pill variant="lime" size="lg" onClick={() => answer(true)} className="w-full" data-testid="paid-yes">
-          {ru.settle.askPaid.yes}
+          {copy.yes}
         </Pill>
         <Pill variant="on" size="lg" onClick={() => answer(false)} className="w-full" data-testid="paid-no">
-          {ru.settle.askPaid.no}
+          {copy.no}
         </Pill>
       </div>
     </Sheet>

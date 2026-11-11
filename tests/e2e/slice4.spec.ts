@@ -330,7 +330,7 @@ test.describe("slice 4: Apple Pay capture", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, MATE);
       await expect(page.getByTestId("purchase-row").first()).toContainText("Продукты");
-      await expect(page.getByText(`ты должен ${money(3000)}`)).toBeVisible();
+      await expect(page.getByTestId("bento-owe-amount")).toHaveText(money(3000));
     });
   });
 
@@ -367,7 +367,7 @@ test.describe("slice 4: Apple Pay capture", () => {
       await expect(page.getByTestId("purchase-row").first()).toContainText("Продукты");
       await expect(page.getByText("Кофе с собой")).toHaveCount(0);
       await expect(page.getByText("Coffee Boom")).toHaveCount(0);
-      await expect(page.getByText(`ты должен ${money(3000)}`)).toBeVisible(); // personal purchases never create debt
+      await expect(page.getByTestId("bento-owe-amount")).toHaveText(money(3000)); // personal purchases never create debt
     });
   });
 

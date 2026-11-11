@@ -15,7 +15,7 @@ import {
 } from "@/lib/domain/schemas";
 import { almatyDay } from "@/lib/domain/almaty";
 import { isAway } from "@/lib/domain/away";
-import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
+import { coveredShares, isStale, netPair, pairShares, withoutInFlight } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
 import { MAX_AMOUNT, normalizeTelegramUsername, pushSubscriptionSchema, resolvePendingSchema, updatePurchaseSchema } from "@/lib/domain/schemas";
@@ -174,6 +174,12 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     const ids = new Set(householdPurchases(db, householdId).map((p) => p.id));
     return db.shares.filter((s) => ids.has(s.purchase_id));
   };
+  /**
+   * The shares netting looks at (SQL private.open_pair_shares): shares inside a marked, unconfirmed transfer count as paid
+   * (slice 19). `ignoreId` = a settlement that is about to record its own shares again.
+   */
+  const openShares = (db: MockDb, householdId: Uuid, ignoreId?: Uuid) =>
+    withoutInFlight(householdShares(db, householdId), db.settlements.filter((x) => x.household_id === householdId), ignoreId);
   /** A settlement the caller is a party of; a missing id and somebody else's id look the same (not_found). */
   const findSettlement = (db: MockDb, id: Uuid, userId: Uuid): Settlement => {
     const s = db.settlements.find((x) => x.id === id);
@@ -193,7 +199,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
   const countSettlementOp = (db: MockDb, userId: Uuid) => db.settlementOps.push({ user_id: userId, at: now().toISOString() });
   /** Rewrites the recorded set from the current open shares and derives the amount from it (the SQL record_settlement_shares). */
   const record = (db: MockDb, s: Settlement) => {
-    const covered = pairShares(s.from_id, s.to_id, householdShares(db, s.household_id), householdPurchases(db, s.household_id));
+    const covered = pairShares(s.from_id, s.to_id, openShares(db, s.household_id, s.id), householdPurchases(db, s.household_id));
     const amount = covered.reduce((sum, c) => sum + (c.debtor_id === s.from_id ? c.amount : -c.amount), 0);
     if (amount <= 0) throw new RepoError("invalid", "You do not owe this person");
     s.covered = covered;
@@ -228,7 +234,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     if (!isMember(db, householdId, toUserId)) throw new RepoError("invalid", "Counterparty is not an active member");
     settlementOpsLeft(db, id);
     // a debt Kaspi cannot transfer is never marked as paid (the creditor can write it off instead)
-    const net = netPair(id, toUserId, householdShares(db, householdId), householdPurchases(db, householdId));
+    const net = netPair(id, toUserId, openShares(db, householdId), householdPurchases(db, householdId));
     if (net.direction === "i_pay" && isAccumulating(net.net)) throw new RepoError("too_small", "Below the Kaspi minimum");
     // one open marked settlement per pair and direction: asking again returns it, its record refreshed to the current open shares
     const open = db.settlements
@@ -240,7 +246,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       return structuredClone(open);
     }
     // the amount is computed here, from the open shares: nothing comes from the caller
-    const pair = netPair(id, toUserId, householdShares(db, householdId), householdPurchases(db, householdId));
+    const pair = netPair(id, toUserId, openShares(db, householdId), householdPurchases(db, householdId));
     if (pair.direction !== "i_pay") throw new RepoError("invalid", "You do not owe this person");
     const created: Settlement = {
       id: newId(),
@@ -293,10 +299,16 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
   };
   /** Non-zero net with anyone in the household (SQL private.has_open_net). */
   const hasOpenNet = (db: MockDb, householdId: Uuid, userId: Uuid) => {
-    const shares = householdShares(db, householdId);
+    const shares = openShares(db, householdId);
     const purchases = householdPurchases(db, householdId);
+    // a pending transfer with that person still blocks leaving: in flight is not settled yet
+    const pending = (a: Uuid, b: Uuid) =>
+      db.settlements.some((x) => x.household_id === householdId && x.status === "marked" && ((x.from_id === a && x.to_id === b) || (x.from_id === b && x.to_id === a)));
     return db.members.some(
-      (m) => m.household_id === householdId && m.user_id !== userId && netPair(userId, m.user_id, shares, purchases).direction !== "even",
+      (m) =>
+        m.household_id === householdId &&
+        m.user_id !== userId &&
+        (netPair(userId, m.user_id, shares, purchases).direction !== "even" || pending(userId, m.user_id)),
     );
   };
   /** SQL private.detach_member: leaves the bills, its bills pass to the first other admin, forgets the default household. */
@@ -710,7 +722,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (!householdId || !debtorId || debtorId === id || !isMember(db, householdId, id) || !isMember(db, householdId, debtorId)) {
           throw new RepoError("forbidden", "Not allowed");
         }
-        const pair = netPair(debtorId, id, householdShares(db, householdId), householdPurchases(db, householdId));
+        const pair = netPair(debtorId, id, openShares(db, householdId), householdPurchases(db, householdId));
         if (pair.direction !== "i_pay") throw new RepoError("forbidden", "Not a creditor");
         if (!isTransferable(pair.net)) throw new RepoError("too_small", "Below the Kaspi minimum");
         const t = now().getTime();
@@ -719,6 +731,18 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           throw new RepoError("rate_limited", "Reminder cooldown", Math.max(1, Math.ceil((last + REMIND_COOLDOWN_MS - t) / 1000)));
         }
         db.reminderLog.push({ from_id: id, to_id: debtorId, at: now().toISOString() });
+        // slice 19: the «💸 Перевести» button of the group post points at a pay link of this pair (debtor -> creditor)
+        const at = now();
+        db.payLinks = (db.payLinks ?? []).filter((l) => Date.parse(l.expires_at) > t - 30 * DAY_MS);
+        db.payLinks.push({
+          code: newId().replaceAll("-", "").slice(0, 12),
+          household_id: householdId,
+          from_user: debtorId,
+          to_user: id,
+          created_at: at.toISOString(),
+          expires_at: new Date(at.getTime() + 7 * DAY_MS).toISOString(),
+          opened_at: null,
+        });
         return target(db, debtorId, id, pair.net);
       });
     },
@@ -734,7 +758,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         for (const d of sorted) {
           if (d.reminders_enabled === false) continue;
           for (const c of sorted.filter((x) => x.household_id === d.household_id && x.user_id !== d.user_id)) {
-            const shares = householdShares(db, d.household_id);
+            const shares = openShares(db, d.household_id);
             const purchases = householdPurchases(db, d.household_id);
             const pair = netPair(d.user_id, c.user_id, shares, purchases);
             if (pair.direction !== "i_pay" || !isTransferable(pair.net)) continue;
@@ -802,13 +826,10 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         settlementOpsLeft(db, id);
         const shares = householdShares(db, householdId);
         const purchases = householdPurchases(db, householdId);
-        const pair = netPair(debtorId, id, shares, purchases);
+        const pair = netPair(debtorId, id, openShares(db, householdId), purchases);
         if (pair.direction !== "i_pay") throw new RepoError("forbidden", "Not a creditor");
         if (!isAccumulating(pair.net)) throw new RepoError("not_small", "Not below the Kaspi minimum");
-        // a stale «paid» mark of the same pair is superseded by the write-off
-        for (const s of db.settlements) {
-          if (s.household_id === householdId && s.from_id === debtorId && s.to_id === id && s.status === "marked") s.status = "cancelled";
-        }
+        // slice 19: the debtor's pending «paid» mark stays: its shares are already out of the net, the write-off covers the rest
         const at = now().toISOString();
         const created: Settlement = {
           id: newId(),
@@ -1205,6 +1226,6 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     },
 
     ...createMockDuty({ tx, read, uid, now, requireSecret, subscriptionsOf }),
-    ...createMockPaid({ tx, uid, now, requireSecret, subscriptionsOf, markIn }),
+    ...createMockPaid({ tx, uid, uidOrNull: () => session.get(), now, requireSecret, subscriptionsOf, markIn }),
   };
 }

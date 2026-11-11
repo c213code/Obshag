@@ -11,12 +11,12 @@ const matched = (path: string) => re.test(path);
 
 describe("proxy matcher", () => {
   it("runs on app pages", () => {
-    for (const p of ["/", "/login", "/purchases/new", "/flat", "/join/ABC123", "/kitchen", "/icons-gallery", "/api/other", "/api/capture-evil", "/api/cron-evil", "/api/telegram-evil", "/api/remind"]) {
+    for (const p of ["/", "/login", "/purchases/new", "/flat", "/join/ABC123", "/kitchen", "/icons-gallery", "/api/other", "/api/capture-evil", "/api/cron-evil", "/api/telegram-evil", "/api/remind", "/kx", "/k2/a", "/api/kit", "/api/k-evil"]) {
       expect(matched(p), p).toBe(true);
     }
   });
   it("skips internals, the gallery and the mock store (anchored)", () => {
-    for (const p of ["/_next/static/chunks/a.js", "/_next/image", "/kit", "/kit/x", "/api/mock-store", "/api/capture", "/api/cron/daily", "/api/telegram/webhook", "/api/telegram/setup", "/icons/a.png", "/sw.js", "/favicon.ico"]) {
+    for (const p of ["/_next/static/chunks/a.js", "/_next/image", "/kit", "/kit/x", "/api/mock-store", "/api/capture", "/api/cron/daily", "/api/telegram/webhook", "/api/telegram/setup", "/k/Ab3_x-9QzLm2", "/api/k/Ab3_x-9QzLm2/open", "/k", "/icons/a.png", "/sw.js", "/favicon.ico"]) {
       expect(matched(p), p).toBe(false);
     }
   });

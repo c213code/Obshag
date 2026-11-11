@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Share as NetShare } from "@/lib/data/types";
-import { coveredShares, isStale, markCovered, netForUser, netPair, pairShares, type NetPurchase } from "./netting";
+import { coveredShares, isInFlight, isStale, markCovered, netForUser, netPair, pairShares, withoutInFlight, type NetPurchase } from "./netting";
 
 const T0 = "2026-11-03T10:00:00.000Z";
 const T1 = "2026-11-03T11:00:00.000Z";
@@ -197,5 +197,45 @@ describe("markCovered", () => {
     expect(next[0]).toMatchObject({ settled_at: T2, settlement_id: "s1" });
     expect(next[1]).toMatchObject({ settled_at: null, settlement_id: null });
     expect(shares[0].settled_at).toBeNull(); // input is not mutated
+  });
+});
+
+describe("in-flight transfers (slice 19)", () => {
+  // the live case: Нурбол (nb) paid Нурдаулет (nd) 150 and marked it; later nd owes nb 450
+  const purchases = [purchase("nan", "nd", T0, "shared", "нан"), purchase("rolton", "nb", T1, "shared", "Ролтон")];
+  const shares = [share("nan", "nb", 150), share("rolton", "nd", 450)];
+  const marked = { id: "s1", status: "marked" as const, covered: [{ purchase_id: "nan", debtor_id: "nb", amount: 150 }] };
+
+  it("the pair net ignores a marked transfer: 450, not 450 - 150", () => {
+    expect(netPair("nd", "nb", shares, purchases)).toMatchObject({ net: 300, direction: "i_pay" });
+    const n = netPair("nd", "nb", withoutInFlight(shares, [marked]), purchases);
+    expect(n).toMatchObject({ iOwe: 450, theyOwe: 0, net: 450, direction: "i_pay" });
+  });
+  it("a cancelled or confirmed settlement no longer hides anything", () => {
+    expect(withoutInFlight(shares, [{ ...marked, status: "cancelled" }])).toBe(shares);
+    expect(withoutInFlight(shares, [{ ...marked, status: "confirmed" }])).toBe(shares);
+  });
+  it("shares that are not in flight keep their identity; the input is not mutated", () => {
+    const out = withoutInFlight(shares, [marked]);
+    expect(out[1]).toBe(shares[1]);
+    expect(out[0]).not.toBe(shares[0]);
+    expect(shares[0].settled_at).toBeNull();
+  });
+  it("my own pending settlement can be left out: its shares are recorded again by a re-mark", () => {
+    const out = withoutInFlight(shares, [marked], "s1");
+    expect(out).toBe(shares);
+    expect(pairShares("nb", "nd", out, purchases)).toHaveLength(2);
+  });
+  it("a marked transfer takes the pair to even, and the person leaves the counterparties", () => {
+    const sh = [share("nan", "nb", 150)];
+    const n = netForUser("nb", withoutInFlight(sh, [marked]), [purchases[0]]);
+    expect(n).toMatchObject({ owe: 0, owed: 0, total: 0 });
+    expect(n.counterparties).toEqual([]);
+  });
+  it("isInFlight is true only for an open share inside a marked transfer", () => {
+    expect(isInFlight(shares[0], [marked])).toBe(true);
+    expect(isInFlight(shares[1], [marked])).toBe(false);
+    expect(isInFlight({ ...shares[0], settled_at: T2 }, [marked])).toBe(false);
+    expect(isInFlight(shares[0], [{ ...marked, status: "cancelled" }])).toBe(false);
   });
 });

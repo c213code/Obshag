@@ -43,6 +43,7 @@ const MIGRATIONS = [
   "0014_slice16_queue_fix_bill_icons.sql",
   "0015_slice17_paid_prompt.sql",
   "0016_slice18_orders_payer.sql",
+  "0017_slice19_inflight_paylinks.sql",
 ];
 
 type Row = {
@@ -330,14 +331,14 @@ describe("update_purchase", () => {
 });
 
 describe("surface", () => {
-  it("the anon surface stays exactly ten", async () => {
+  it("the anon surface is thirteen (0017 adds pay_link_open, pay_link_answer and anon paid_prompt_notice)", async () => {
     await admin();
     const r = await db.query<{ n: string }>(
       `select p.proname n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
        where s.nspname in ('public', 'private') and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute')
          and p.proname not in ('uid')`,
     );
-    expect(r.rows).toHaveLength(10);
+    expect(r.rows).toHaveLength(13);
   });
   it("new functions are security definer with an empty search_path; only authenticated may call them", async () => {
     await admin();

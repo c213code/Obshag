@@ -322,3 +322,30 @@ export type PaidPromptNotice =
       telegram_user_id: number | null;
       subscriptions: PushSubscriptionInput[];
     };
+
+// ---- «💸 Перевести» (slice 19): the short link under the Telegram reminder
+/** public.pay_links: server only. The code is the bearer token shared in the roommates' group. */
+export type PayLink = {
+  code: string;
+  household_id: Uuid;
+  /** the debtor */
+  from_user: Uuid;
+  /** the creditor */
+  to_user: Uuid;
+  created_at: IsoDateTime;
+  expires_at: IsoDateTime;
+  opened_at: IsoDateTime | null;
+};
+
+/** pay_link_open: pay = something to transfer, paid = nothing owed (or already marked), small = under the Kaspi minimum. */
+export type PayLinkView =
+  | { state: "expired" }
+  | {
+      state: "pay" | "paid" | "small";
+      to_name: string;
+      to_phone: string | null;
+      from_name: string;
+      amount: number;
+      /** only when the call was an «open» and the state is pay */
+      prompt_id: Uuid | null;
+    };

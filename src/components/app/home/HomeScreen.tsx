@@ -12,6 +12,7 @@ import { HomeHeader } from "./HomeHeader";
 import { IncomingSection } from "./IncomingSection";
 import { PendingSection } from "./PendingSection";
 import { RecentPurchases } from "./RecentPurchases";
+import { ToPaySection } from "./ToPaySection";
 import { WaitingSection } from "./WaitingSection";
 
 const NONE_BILLS: Bill[] = [];
@@ -48,6 +49,7 @@ export function HomeScreen() {
         <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} />
       </div>
       <Bento owed={active.balance.owed} owe={active.balance.owe} bills={activeBills} purchases={data.ps} meId={me.id} />
+      <ToPaySection />
       <DutyTile />
       <IncomingSection />
       <WaitingSection />

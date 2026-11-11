@@ -12,6 +12,7 @@ const CRON_SECRET = "e2e-cron-secret-0123456789abcdef";
 
 const ME = { email: "erasyl@obshak.test", name: "Ерасыл" };
 const AIDOS = { email: "aidos@obshak.test", name: "Айдос" };
+const DANYA = { email: "danya@obshak.test", name: "Даня" };
 
 type Phone = { context: BrowserContext; page: Page; errors: string[] };
 
@@ -245,8 +246,10 @@ test.describe("slices 5+2", () => {
     // Айдос opens Kaspi, comes back and says «Да, перевёл» (a marked settlement covers every open share between them)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
-      await page.getByRole("link", { name: /^Расчёт: тебе должны/ }).click();
-      await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
+      // slice 19: a net debtor's tile has the «Оплатить» pill (several people to pay: the list, then the person)
+      await page.getByTestId("bento-pay").click();
+      await expect(page).toHaveURL(/\/settle(\/[0-9a-f-]{36})?$/);
+      if (/\/settle$/.test(page.url())) await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
       await payViaKaspi(page);
       await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
     });
@@ -296,17 +299,17 @@ test.describe("slices 5+2", () => {
 
   test("«Напомнить»: a pill per debtor, sending → «Напомнили» → cooldown, also after a reload", async ({ browser, baseURL, request }) => {
     const endpoint = `https://fcm.googleapis.com/fcm/send/s52-${Date.now().toString(36)}`;
-    await addSubscription(request, AIDOS.email, endpoint);
+    await addSubscription(request, DANYA.email, endpoint);
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ME);
       await page.getByRole("link", { name: "Напомнить", exact: true }).click();
       await expect(page).toHaveURL(/\/settle$/);
-      // Айдос, Даня, Нурик all owe me
-      await expect(page.getByRole("button", { name: /^Напомнить: / })).toHaveCount(3);
+      // Даня and Нурик owe me; Айдос's payment is on its way (slice 19: a marked transfer counts as paid), so he is not asked again
+      await expect(page.getByRole("button", { name: /^Напомнить: / })).toHaveCount(2);
       await page.screenshot({ path: `${SHOTS}/s52-app-remind-list.png` });
 
-      const aidos = page.getByRole("button", { name: "Напомнить: Айдос" });
-      await aidos.click();
+      const danya = page.getByRole("button", { name: "Напомнить: Даня" });
+      await danya.click();
       const state = page.getByTestId(/^remind-/).first();
       await expect(page.getByText("Напомнили", { exact: true })).toBeVisible();
       await expect(page.getByText(/Можно через [56] ч/).first()).toBeVisible({ timeout: 6000 });
@@ -322,12 +325,12 @@ test.describe("slices 5+2", () => {
 
       // after a reload the button is idle again; the server's 429 puts it back into the cooldown
       await page.reload();
-      await page.getByRole("button", { name: "Напомнить: Айдос" }).click();
+      await page.getByRole("button", { name: "Напомнить: Даня" }).click();
       await expect(page.getByText(/Можно через [56] ч/).first()).toBeVisible();
       expect((await pushLog(request)).filter((c) => c.endpoint === endpoint)).toHaveLength(1);
 
       // the pair screen has the same button, in the cooldown as well
-      await page.getByRole("link", { name: /Рассчитаться с Айдосом/ }).click();
+      await page.getByRole("link", { name: /Рассчитаться с Даней/ }).click();
       await expect(page).toHaveURL(/\/settle\/[^/]+$/);
       await expect(page.getByTestId("remind-pair")).toContainText(/Можно через [56] ч/);
       await page.getByTestId("remind-pair").click({ force: true }); // a tap in the cooldown changes nothing
@@ -340,7 +343,8 @@ test.describe("slices 5+2", () => {
     const me = userId(s, ME.email);
     const aidos = userId(s, AIDOS.email);
     const household = (s.db as unknown as { households: Array<{ id: string }> }).households[0].id;
-    const body = { household_id: household, debtor_id: aidos };
+    const danya = userId(s, DANYA.email); // the one reminded above (Айдос's payment is in flight)
+    const body = { household_id: household, debtor_id: danya };
 
     expect((await request.post("/api/remind", { data: body })).status()).toBe(401); // no session
     expect((await request.post("/api/remind", { data: { household_id: household }, headers: { "x-mock-user": me } })).status()).toBe(400);

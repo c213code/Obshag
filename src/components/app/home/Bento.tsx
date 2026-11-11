@@ -6,7 +6,8 @@ import { BillIcon } from "../bills/BillIcon";
 import { Money } from "@/components/ui/Money";
 import { PillLink } from "@/components/ui/Pill";
 import { cx } from "@/components/ui/cx";
-import { isAccumulating } from "@/lib/domain/minTransfer";
+import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
+import { listRedirect } from "@/lib/domain/settleNav";
 import { almatyDay } from "@/lib/domain/almaty";
 import { nextBill } from "@/lib/domain/nextBill";
 import { spendingSummary } from "@/lib/domain/spending";
@@ -41,6 +42,30 @@ function useSplitNets(owed: number, owe: number) {
 
 function OwedTile({ owed, owe }: { owed: number; owe: number }) {
   const split = useSplitNets(owed, owe);
+  const data = useSettleData();
+  // slice 19: a net debtor finds the way to pay right on the tile (one person to pay goes straight to their screen)
+  const debtor = isTransferable(split.owe) && split.owe > split.owed;
+  if (debtor) {
+    const only = data ? listRedirect(data.net, (id) => !!data.memberOf(id)) : null;
+    const payHref = only ? `/settle/${only}` : "/settle";
+    return (
+      <section aria-label={ru.main.bento.youOwe} data-testid="bento-owed" data-debtor="true" className={cx(tile, "gap-1")}>
+        <Link href={payHref} prefetch={false} aria-label={`${ru.main.bento.settleAriaDebtor} ${formatTenge(split.owe)}`} className="flex flex-col gap-1 active:opacity-70 transition-opacity duration-200">
+          <span className="text-caption">{ru.main.bento.youOwe}</span>
+          <Money value={split.owe} data-testid="bento-owe-amount" className="text-[24px] leading-[1.1] font-bold" />
+          <span data-testid="bento-owed-caption" className="text-caption">{ru.main.bento.owedCaption(formatTenge(split.owed))}</span>
+          {split.accruing > 0 ? (
+            <span data-testid="bento-accruing" className="text-caption">
+              {ru.main.bento.accruing(formatTenge(split.accruing))}
+            </span>
+          ) : null}
+        </Link>
+        <PillLink href={payHref} prefetch={false} variant="lime" size="md" className="mt-2 w-full" data-testid="bento-pay" aria-label={ru.main.bento.payAria(formatTenge(split.owe))}>
+          {ru.main.bento.pay}
+        </PillLink>
+      </section>
+    );
+  }
   return (
     <section aria-label={ru.main.bento.owed} data-testid="bento-owed" className={cx(tile, "gap-1")}>
       <Link href="/settle" aria-label={`${ru.main.bento.settleAria} ${formatTenge(split.owed)}`} className="flex flex-col gap-1 active:opacity-70 transition-opacity duration-200">

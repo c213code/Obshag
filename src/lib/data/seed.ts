@@ -1,4 +1,4 @@
-import type { Bill, Duty, DutyEvent, Household, Member, Profile, PaidPrompt, Purchase, PurchaseOrder, Settlement, Share, SwapRequest } from "./types";
+import type { Bill, Duty, DutyEvent, Household, Member, Profile, PaidPrompt, PayLink, Purchase, PurchaseOrder, Settlement, Share, SwapRequest } from "./types";
 
 export const ME_ID = "00000000-0000-4000-8000-000000000001";
 export const HOUSEHOLD_ID = "10000000-0000-4000-8000-000000000001";
@@ -45,6 +45,8 @@ export type MockDb = {
   dutyMorningLog?: Array<{ duty_id: string; day: string }>;
   /** public.paid_prompts («Ты перевёл?») */
   paidPrompts?: PaidPrompt[];
+  /** public.pay_links («💸 Перевести» under the Telegram reminder) */
+  payLinks?: PayLink[];
   /** public.purchase_orders («+ Заказ») */
   purchaseOrders?: PurchaseOrder[];
 };
