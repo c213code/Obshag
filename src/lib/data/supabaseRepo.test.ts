@@ -191,13 +191,13 @@ describe("supabaseRepo", () => {
       'members.order("joined_at",{"ascending":true})',
       'members.order("user_id",{"ascending":true})',
       // recent window
-      'purchases.select("*, shares(*)")',
+      'purchases.select("*, shares(*), orders:purchase_orders(*)")',
       'purchases.eq("household_id","h1")',
       expect.stringMatching(/^purchases\.gte\("created_at","\d{4}-/),
       'purchases.order("created_at",{"ascending":false})',
       'purchases.order("id",{"ascending":false})',
       // older but pending
-      'purchases.select("*, shares(*)")',
+      'purchases.select("*, shares(*), orders:purchase_orders(*)")',
       'purchases.eq("household_id","h1")',
       expect.stringMatching(/^purchases\.lt\("created_at"/),
       'purchases.eq("status","pending")',

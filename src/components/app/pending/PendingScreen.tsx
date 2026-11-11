@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/Sheet";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { perPersonRange } from "@/lib/domain/split";
+import { draftsToOrders, orderSplit, type OrderDraft } from "@/lib/domain/orders";
+import { OrdersEditor } from "../purchase/OrdersEditor";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
 import { HomeScreen } from "../home/HomeScreen";
@@ -85,7 +87,11 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
   }, [gone, showNotice, router]);
 
   const roster = held ? (members[held.household_id] ?? []) : [];
-  const per = held ? perPersonRange(held.amount, roster.length).min : 0;
+  const [drafts, setDrafts] = useState<OrderDraft[]>([]);
+  const { orders, incomplete } = draftsToOrders(drafts);
+  const osplit = held && orders.length > 0 ? orderSplit(held.amount, roster.map((m) => m.user_id), orders, held.payer_id) : null;
+  const per = held ? (osplit && !osplit.issue ? osplit.each.min : perPersonRange(held.amount, roster.length).min) : 0;
+  const ordersBlock = incomplete || !!osplit?.issue;
 
   const description = (writing ? text : (category ?? "")).trim();
 
@@ -95,7 +101,7 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
   // «Поделено ✓» appears only once the server has confirmed; a failure keeps the sheet open with an inline message
   const resolve = async (shared: boolean) => {
     if (!held || !me || submittedRef.current) return;
-    if (shared && roster.length === 0) return;
+    if (shared && (roster.length === 0 || ordersBlock)) return;
     submittedRef.current = true;
     setSubmitted(true);
     setBusy(true);
@@ -104,6 +110,7 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
       shared,
       description: description || undefined,
       participant_ids: shared ? roster.map((m) => m.user_id) : undefined,
+      orders: shared && orders.length > 0 ? orders : undefined,
     });
     setBusy(false);
     if (ok) {
@@ -158,8 +165,9 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
             onCommitText={() => (document.activeElement as HTMLElement | null)?.blur()}
             onResolve={(shared) => void resolve(shared)}
             busy={busy}
-            canShare={roster.length > 0}
+            canShare={roster.length > 0 && !ordersBlock}
             error={error}
+            extra={me ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} split={osplit} /> : null}
           />
         </Sheet>
       ) : null}

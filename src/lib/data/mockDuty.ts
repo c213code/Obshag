@@ -234,11 +234,13 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
       });
     },
 
-    async waterBrought(dutyId, partnerId) {
+    async waterBrought(dutyId, partnerId, payerId = null) {
       const id = ctx.uid();
       return ctx.tx((db) => {
         const d = eventDuty(db, dutyId, id, "water");
         if (partnerId !== null && (partnerId === id || !memberOf(db, d.household_id, partnerId))) throw invalid("Invalid partner");
+        const payer = payerId ?? id;
+        if (!memberOf(db, d.household_id, payer)) throw invalid("Invalid payer");
         const plan = waterPlan(partnerId === null ? "alone" : "pair", d.bottle_liters ?? 5, d.price_per_liter ?? 20);
         const roster = db.members.filter((m) => m.household_id === d.household_id && m.active);
         const people = defaultParticipants(roster, today());
@@ -246,7 +248,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
         const purchase: Purchase = {
           id: newId(),
           household_id: d.household_id,
-          payer_id: id,
+          payer_id: payer,
           amount: plan.amount,
           description: `Вода ${plan.liters} л`,
           merchant: null,
@@ -254,7 +256,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
           status: "shared",
           created_at: createdAt,
         };
-        const shares: Share[] = splitEqual(plan.amount, people, id).map((s) => ({
+        const shares: Share[] = splitEqual(plan.amount, people, payer).map((s) => ({
           purchase_id: purchase.id,
           debtor_id: s.debtor_id,
           amount: s.amount,

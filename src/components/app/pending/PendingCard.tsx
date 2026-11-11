@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type FormEvent } from "react";
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { BasketIcon } from "@/components/ui/icons";
 import { cx } from "@/components/ui/cx";
 import { Money } from "@/components/ui/Money";
@@ -32,6 +32,7 @@ export function PendingCard({
   busy = false,
   canShare = true,
   error = null,
+  extra = null,
 }: {
   merchant: string;
   amount: number;
@@ -53,6 +54,8 @@ export function PendingCard({
   canShare?: boolean;
   /** Inline failure message shown above the buttons. */
   error?: string | null;
+  /** Slot under the description: «+ Заказ» (only for «Общее»). */
+  extra?: ReactNode;
 }) {
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -131,6 +134,8 @@ export function PendingCard({
           </button>
         </form>
       ) : null}
+
+      {extra}
 
       {error ? (
         <p role="alert" data-testid="pending-error" className="px-1 text-caption !text-orange">

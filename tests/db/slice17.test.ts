@@ -41,6 +41,7 @@ const MIGRATIONS = [
   "0013_slice15_trash_water.sql",
   "0014_slice16_queue_fix_bill_icons.sql",
   "0015_slice17_paid_prompt.sql",
+  "0016_slice18_orders_payer.sql",
 ];
 
 let db: PGlite;

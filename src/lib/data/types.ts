@@ -110,6 +110,14 @@ export type Share = {
   settlement_id: Uuid | null;
 };
 
+/** A personal order inside a shared purchase (table purchase_orders): `user_id` owes `amount` on top of the equal part. */
+export type PurchaseOrder = {
+  purchase_id: Uuid;
+  user_id: Uuid;
+  amount: number;
+  note: string | null;
+};
+
 /** One share frozen into a settlement at mark time (table settlement_shares). */
 export type SettlementShare = { purchase_id: Uuid; debtor_id: Uuid; amount: number };
 

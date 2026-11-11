@@ -18,7 +18,7 @@ import { isAway } from "@/lib/domain/away";
 import { coveredShares, isStale, netPair, pairShares } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
 import { newCaptureToken, sha256Hex } from "@/lib/domain/hash";
-import { MAX_AMOUNT, normalizeTelegramUsername, pushSubscriptionSchema, resolvePendingSchema } from "@/lib/domain/schemas";
+import { MAX_AMOUNT, normalizeTelegramUsername, pushSubscriptionSchema, resolvePendingSchema, updatePurchaseSchema } from "@/lib/domain/schemas";
 import {
   RepoError,
   type AuthSession,
@@ -33,6 +33,7 @@ import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
 import { createMockDuty } from "./mockDuty";
 import { createMockPaid } from "./mockPaid";
+import { writeSharesWithOrders } from "./mockOrders";
 import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
 import type { Bill, BillNotice, CaptureResult, CaptureTokenInfo, Household, MonthlyRun, PendingDigestUser, Profile, Purchase, ReminderTarget, Settlement, Share, Uuid } from "./types";
 
@@ -199,7 +200,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     s.amount = amount;
   };
   const withShares = (db: MockDb, p: Purchase): PurchaseWithShares =>
-    structuredClone({ ...p, shares: db.shares.filter((s) => s.purchase_id === p.id) });
+    structuredClone({ ...p, shares: db.shares.filter((s) => s.purchase_id === p.id), orders: (db.purchaseOrders ?? []).filter((o) => o.purchase_id === p.id) });
 
   const requireSecret = (secret: string) => {
     if (typeof secret !== "string" || secret === "" || !opts.serverSecret || !sameSecret(secret, opts.serverSecret)) {
@@ -610,16 +611,9 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           status: "shared",
           created_at: createdAt,
         };
-        const shares: Share[] = splitEqual(input.amount, input.participant_ids, id).map((s) => ({
-          purchase_id: purchase.id,
-          debtor_id: s.debtor_id,
-          amount: s.amount,
-          settled_at: s.settled ? createdAt : null,
-          settlement_id: null,
-        }));
+        writeSharesWithOrders(db, purchase, input.participant_ids, input.orders ?? [], createdAt); // throws before anything is stored
         db.purchases.push(purchase);
-        db.shares.push(...shares);
-        return structuredClone({ ...purchase, shares });
+        return withShares(db, purchase);
       });
     },
 
@@ -671,6 +665,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (paid || covered) throw new RepoError("has_payments", "Something was already paid for this purchase");
         db.purchases = db.purchases.filter((x) => x.id !== p.id);
         db.shares = db.shares.filter((s) => s.purchase_id !== p.id);
+        if (db.purchaseOrders) db.purchaseOrders = db.purchaseOrders.filter((o) => o.purchase_id !== p.id);
       });
     },
 
@@ -984,19 +979,48 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           const who = input.participant_ids ?? [];
           if (p.amount < who.length) throw new RepoError("invalid", "Amount is smaller than the number of participants");
           if (!who.every((m) => isMember(db, p.household_id, m))) throw new RepoError("invalid", "Every participant must be an active member");
-          const createdAt = now().toISOString();
-          db.shares.push(
-            ...splitEqual(p.amount, who, id).map((s) => ({
-              purchase_id: p.id,
-              debtor_id: s.debtor_id,
-              amount: s.amount,
-              settled_at: s.settled ? createdAt : null,
-              settlement_id: null,
-            })),
-          );
+          writeSharesWithOrders(db, p, who, input.orders ?? [], now().toISOString());
         }
         p.description = description;
         p.status = input.shared ? "shared" : "personal";
+        return withShares(db, p);
+      });
+    },
+
+    async updatePurchase(purchaseId, raw) {
+      const id = uid();
+      const parsed = updatePurchaseSchema.safeParse(raw);
+      return tx((db): PurchaseWithShares => {
+        const p = db.purchases.find((x) => x.id === purchaseId);
+        if (!p || !isMember(db, p.household_id, id) || p.status !== "shared") throw new RepoError("not_found", "Purchase not found");
+        const admin = db.members.some((m) => m.household_id === p.household_id && m.user_id === id && m.active && m.role === "admin");
+        if (p.payer_id !== id && !admin) throw new RepoError("forbidden", "Only the payer or an admin can edit");
+        if (p.bill_id) throw new RepoError("invalid", "A bill purchase cannot be edited here");
+        const paid = db.shares.some((s) => s.purchase_id === p.id && ((s.settled_at !== null && s.debtor_id !== p.payer_id) || s.settlement_id !== null));
+        const covered = db.settlements.some((s) => s.status !== "cancelled" && s.covered.some((c) => c.purchase_id === p.id));
+        if (paid || covered) throw new RepoError("has_payments", "Something was already paid for this purchase");
+        if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+        const input = parsed.data;
+        if (!isMember(db, p.household_id, input.payer_id)) throw new RepoError("invalid", "The payer must be an active member");
+        const before = structuredClone({ shares: db.shares.filter((s) => s.purchase_id === p.id), orders: db.purchaseOrders ?? [], payer: p.payer_id, amount: p.amount, description: p.description });
+        const restore = () => {
+          db.shares = db.shares.filter((s) => s.purchase_id !== p.id).concat(before.shares);
+          db.purchaseOrders = before.orders;
+          p.payer_id = before.payer;
+          p.amount = before.amount;
+          p.description = before.description;
+        };
+        db.shares = db.shares.filter((s) => s.purchase_id !== p.id);
+        db.purchaseOrders = (db.purchaseOrders ?? []).filter((o) => o.purchase_id !== p.id);
+        p.payer_id = input.payer_id;
+        p.amount = input.amount;
+        p.description = input.description;
+        try {
+          writeSharesWithOrders(db, p, input.participant_ids, input.orders ?? [], now().toISOString());
+        } catch (e) {
+          restore(); // the SQL transaction would roll back; the mock tx saves what is left, so undo by hand
+          throw e;
+        }
         return withShares(db, p);
       });
     },

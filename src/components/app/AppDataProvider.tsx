@@ -14,14 +14,29 @@ import { SettlementTracker } from "@/lib/data/settlementTracker";
 import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
 import { markCovered, netPair, pairShares } from "@/lib/domain/netting";
 import { stageOf, type Stage } from "@/lib/domain/guard";
-import { splitEqual } from "@/lib/domain/split";
-import type { ResolvePendingInput } from "@/lib/domain/schemas";
+import { orderSplit, type OrderInput } from "@/lib/domain/orders";
+import type { ResolvePendingInput, UpdatePurchaseInput } from "@/lib/domain/schemas";
 import { RepoError, type MemberWithProfile, type NewCustomPurchase, type NewPurchase, type Repo } from "@/lib/data/repo";
 import type { PaidAnswer, Profile } from "@/lib/data/types";
 import { ru } from "@/lib/i18n/ru";
 import { pendingJoin } from "@/lib/pendingJoin";
 import { removeDevicePush, syncPush } from "@/lib/pushClient";
 import { getPublicEnv } from "@/lib/env/public";
+
+export type EditPurchaseResult = "ok" | "has_payments" | "invalid" | "failed";
+
+/** The shares an equal split with orders produces (mirror of the SQL, used for the optimistic row). Throws when the input is not splittable. */
+function optimisticShares(purchaseId: string, amount: number, participants: ReadonlyArray<string>, orders: ReadonlyArray<OrderInput> | undefined, payerId: string, at: string) {
+  const split = orderSplit(amount, participants, orders ?? [], payerId);
+  if (split.issue) throw new RangeError(split.issue);
+  return split.shares.map((s) => ({
+    purchase_id: purchaseId,
+    debtor_id: s.debtor_id,
+    amount: s.amount,
+    settled_at: s.settled ? at : null,
+    settlement_id: null,
+  }));
+}
 
 type Status = "loading" | "ready" | "error";
 
@@ -49,6 +64,8 @@ export type AppActions = {
   deletePurchase(purchaseId: string): Promise<boolean>;
   /** Payer only. Optimistic: the new description shows at once; rolled back with a notice on failure. */
   editDescription(purchaseId: string, description: string): Promise<boolean>;
+  /** Payer or admin: rebuilds a shared purchase (amount, text, payer, participants, orders). Not optimistic: resolves how it went. */
+  editPurchase(purchaseId: string, input: UpdatePurchaseInput): Promise<EditPurchaseResult>;
   /** My own «Напоминания» switch for one household. Optimistic, rolled back with a notice on failure. */
   setRemindersEnabled(householdId: string, enabled: boolean): Promise<boolean>;
   /** «Я оплатил»: optimistic `marked` settlement to `toUserId` for the current net. Resolves true when the server accepted it. */
@@ -385,13 +402,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 settled_at: r.user_id === me.id ? createdAt : null,
                 settlement_id: null,
               }))
-            : splitEqual(input.amount, input.participant_ids, me.id).map((s) => ({
-                purchase_id: id,
-                debtor_id: s.debtor_id,
-                amount: s.amount,
-                settled_at: s.settled ? createdAt : null,
-                settlement_id: null,
-              }));
+            : optimisticShares(id, input.amount, input.participant_ids, input.orders, me.id, createdAt);
       } catch {
         setNotice(ru.errors.purchaseFailed);
         return;
@@ -408,6 +419,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         status: "shared",
         created_at: createdAt,
         shares,
+        orders: "shares" in input ? [] : (input.orders ?? []).map((o) => ({ purchase_id: id, user_id: o.user_id, amount: o.amount, note: o.note ? o.note : null })),
       });
       patchPurchases(input.household_id);
 
@@ -482,6 +494,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           void refresh({ silent: true });
         }
         return false;
+      }
+    },
+    [repo, tracker, patchPurchases, refresh, scheduleRefresh, findPurchase],
+  );
+
+  const editPurchase = useCallback(
+    async (purchaseId: string, input: UpdatePurchaseInput): Promise<EditPurchaseResult> => {
+      const current = findPurchase(purchaseId);
+      if (!current || purchaseId.startsWith("optimistic-")) return "failed";
+      try {
+        const real = await repo.updatePurchase(purchaseId, input);
+        tracker.override(real);
+        if (alive.current) {
+          patchPurchases(current.household_id);
+          scheduleRefresh();
+        }
+        return "ok";
+      } catch (e) {
+        if (alive.current) void refresh({ silent: true });
+        if (e instanceof RepoError && e.code === "has_payments") return "has_payments";
+        return e instanceof RepoError && e.code === "invalid" ? "invalid" : "failed";
       }
     },
     [repo, tracker, patchPurchases, refresh, scheduleRefresh, findPurchase],
@@ -678,19 +711,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (input.shared) {
         try {
           const at = new Date().toISOString();
-          shares = splitEqual(current.amount, input.participant_ids ?? [], me.id).map((s) => ({
-            purchase_id: current.id,
-            debtor_id: s.debtor_id,
-            amount: s.amount,
-            settled_at: s.settled ? at : null,
-            settlement_id: null,
-          }));
+          shares = optimisticShares(current.id, current.amount, input.participant_ids ?? [], input.orders, me.id, at);
         } catch {
           setNotice(ru.pending.errors.resolveFailed);
           return false;
         }
       }
-      tracker.override({ ...current, description, status: input.shared ? "shared" : "personal", shares });
+      const orders = input.shared ? (input.orders ?? []).map((o) => ({ purchase_id: current.id, user_id: o.user_id, amount: o.amount, note: o.note ? o.note : null })) : [];
+      tracker.override({ ...current, description, status: input.shared ? "shared" : "personal", shares, orders });
       patchPurchases(current.household_id);
       try {
         const real = await repo.resolvePending(purchaseId, input);
@@ -730,8 +758,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const stage = useMemo(

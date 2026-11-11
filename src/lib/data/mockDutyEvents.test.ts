@@ -51,4 +51,20 @@ describe("mock event duties", () => {
     await expect(aidos.setWaterPrice(duty.id, 30)).rejects.toMatchObject({ code: "forbidden" });
     expect((await me.setWaterPrice(duty.id, 30)).price_per_liter).toBe(30);
   });
+
+  it("Вода: the payer is the caller by default, an explicit member otherwise; a stranger is invalid", async () => {
+    const env = setup();
+    const me = await env.as(ME);
+    const duty = await me.createDuty({ household_id: HOUSEHOLD_ID, kind: "water", title: "Вода", order: [ME, AIDOS, DANYA] });
+    const aidos = await env.as(AIDOS);
+    const first = await aidos.waterBrought(duty.id, DANYA);
+    expect((await aidos.listPurchases(HOUSEHOLD_ID)).find((x) => x.id === first.purchase_id)?.payer_id).toBe(AIDOS);
+    const second = await aidos.waterBrought(duty.id, DANYA, DANYA);
+    const p = (await aidos.listPurchases(HOUSEHOLD_ID)).find((x) => x.id === second.purchase_id);
+    expect(p?.payer_id).toBe(DANYA);
+    expect(second.user_id).toBe(AIDOS); // the queue still records who went
+    expect(p?.shares.find((s) => s.debtor_id === DANYA)?.settled_at).not.toBeNull();
+    expect(p?.shares.find((s) => s.debtor_id === AIDOS)?.settled_at).toBeNull();
+    await expect(aidos.waterBrought(duty.id, null, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({ code: "invalid" });
+  });
 });

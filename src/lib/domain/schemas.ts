@@ -52,6 +52,15 @@ export const householdNameSchema = z.string().trim().min(1, "Household name is r
 
 export const MAX_PARTICIPANTS = 50;
 
+/** «+ Заказ»: a personal order inside a shared purchase. At most 20 per purchase (same cap as SQL check_orders). */
+export const orderSchema = z.object({
+  user_id: z.string().min(1),
+  amount: tengeSchema,
+  note: z.string().trim().max(60).nullish(),
+});
+export const ordersSchema = z.array(orderSchema).max(20, "Too many orders");
+const ordersTotal = (orders: ReadonlyArray<{ amount: number }> | undefined) => (orders ?? []).reduce((s, o) => s + o.amount, 0);
+
 export const createPurchaseSchema = z
   .object({
     household_id: z.string().min(1),
@@ -63,9 +72,10 @@ export const createPurchaseSchema = z
       .min(1, "At least one participant is required")
       .max(MAX_PARTICIPANTS, "Too many participants")
       .refine((ids) => new Set(ids).size === ids.length, "Duplicate participant"),
+    orders: ordersSchema.optional(),
   })
-  // nobody may owe 0 tenge: SQL create_purchase_with_shares enforces the same rule
-  .refine((p) => p.amount >= p.participant_ids.length, {
+  // nobody may owe 0 tenge: SQL create_purchase_with_shares enforces the same rule (the orders come off the total first)
+  .refine((p) => p.amount - ordersTotal(p.orders) >= p.participant_ids.length, {
     path: ["amount"],
     message: "Amount is smaller than the number of participants",
   });
@@ -115,9 +125,29 @@ export const resolvePendingSchema = z
       .max(MAX_PARTICIPANTS, "Too many participants")
       .refine((ids) => new Set(ids).size === ids.length, "Duplicate participant")
       .optional(),
+    orders: ordersSchema.optional(),
   })
   .refine((r) => !r.shared || (r.participant_ids?.length ?? 0) >= 1, { message: "At least one participant is required", path: ["participant_ids"] });
 export type ResolvePendingInput = z.input<typeof resolvePendingSchema>;
+
+/** update_purchase: the whole editable state of a shared purchase (amount, text, payer, participants, orders). */
+export const updatePurchaseSchema = z
+  .object({
+    amount: tengeSchema,
+    description: z.string().trim().min(1, "Description is required").max(200),
+    payer_id: z.string().min(1),
+    participant_ids: z
+      .array(z.string().min(1))
+      .min(1, "At least one participant is required")
+      .max(MAX_PARTICIPANTS, "Too many participants")
+      .refine((ids) => new Set(ids).size === ids.length, "Duplicate participant"),
+    orders: ordersSchema.optional(),
+  })
+  .refine((p) => p.amount - ordersTotal(p.orders) >= p.participant_ids.length, {
+    path: ["amount"],
+    message: "Amount is smaller than the number of participants",
+  });
+export type UpdatePurchaseInput = z.input<typeof updatePurchaseSchema>;
 
 /** The body an iOS Shortcut posts to /api/capture. `amount` is parsed leniently by parseAmount. */
 export const captureBodySchema = z.object({

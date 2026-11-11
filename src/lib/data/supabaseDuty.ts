@@ -187,8 +187,8 @@ export function createSupabaseDuty(
       return ok<DutyEvent>(await client.rpc("water_empty", { p_duty: dutyId }));
     },
 
-    async waterBrought(dutyId, partnerId) {
-      return ok<DutyEvent>(await client.rpc("water_brought", { p_duty: dutyId, p_partner: partnerId }));
+    async waterBrought(dutyId, partnerId, payerId = null) {
+      return ok<DutyEvent>(await client.rpc("water_brought", { p_duty: dutyId, p_partner: partnerId, p_payer: payerId }));
     },
 
     async waterBottleUsed(dutyId) {

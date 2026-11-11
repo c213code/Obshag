@@ -6,6 +6,7 @@ import {
   emailSchema,
   pushSubscriptionSchema,
   resolvePendingSchema,
+  updatePurchaseSchema,
   householdNameSchema,
   inviteCodeSchema,
   passwordSchema,
@@ -130,7 +131,8 @@ function toProfile(row: Profile): Profile {
 const firstIssue = (e: { issues: ReadonlyArray<{ message: string }> }) => e.issues[0]?.message ?? "Invalid input";
 
 type MemberRow = Member & { profile: Profile | null };
-type PurchaseRow = Omit<PurchaseWithShares, "shares"> & { shares: Array<Share & { household_id?: string }> };
+type OrderRow = { purchase_id: string; user_id: string; amount: number; note: string | null; household_id?: string };
+type PurchaseRow = Omit<PurchaseWithShares, "shares" | "orders"> & { shares: Array<Share & { household_id?: string }>; orders?: OrderRow[] | null };
 
 const toShare = ({ purchase_id, debtor_id, amount, settled_at, settlement_id }: Share): Share => ({
   purchase_id,
@@ -139,7 +141,8 @@ const toShare = ({ purchase_id, debtor_id, amount, settled_at, settlement_id }: 
   settled_at,
   settlement_id,
 });
-const toPurchase = ({ shares, ...p }: PurchaseRow): PurchaseWithShares => ({ ...p, shares: shares.map(toShare) });
+const toOrder = ({ purchase_id, user_id, amount, note }: OrderRow) => ({ purchase_id, user_id, amount, note: note ?? null });
+const toPurchase = ({ shares, orders, ...p }: PurchaseRow): PurchaseWithShares => ({ ...p, shares: shares.map(toShare), orders: (orders ?? []).map(toOrder) });
 
 const withCovered = (row: Omit<Settlement, "covered"> & { covered: SettlementShare[] | null }): Settlement => ({
   ...row,
@@ -296,14 +299,14 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       const cutoff = historyCutoff();
       const recent = client
         .from("purchases")
-        .select("*, shares(*)")
+        .select("*, shares(*), orders:purchase_orders(*)")
         .eq("household_id", householdId)
         .gte("created_at", cutoff)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false });
       const olderPending = client
         .from("purchases")
-        .select("*, shares(*)")
+        .select("*, shares(*), orders:purchase_orders(*)")
         .eq("household_id", householdId)
         .lt("created_at", cutoff)
         .eq("status", "pending");
@@ -323,7 +326,7 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       for (let i = 0; i < openIds.length; i += 100) {
         const res = await client
           .from("purchases")
-          .select("*, shares(*)")
+          .select("*, shares(*), orders:purchase_orders(*)")
           .eq("household_id", householdId)
           .in("id", openIds.slice(i, i + 100));
         for (const row of ok<PurchaseRow[]>(res)) byId.set(row.id, row);
@@ -364,14 +367,24 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       const input = parsed.data;
       // One round trip: the RPC returns the saved purchase with its shares. Only an RPC failure is a failure;
       // there is deliberately no follow-up read that could fail after the purchase was already saved.
+      const orders = (input.orders ?? []).map(({ user_id, amount, note }) => ({ user_id, amount, note: note ? note : null }));
       const row = ok<PurchaseRow>(
-        await client.rpc("create_purchase_with_shares", {
-          p_household_id: input.household_id,
-          p_amount: input.amount,
-          p_description: input.description,
-          p_merchant: input.merchant ? input.merchant : null,
-          p_participant_ids: input.participant_ids,
-        }),
+        orders.length > 0
+          ? await client.rpc("create_purchase_with_orders", {
+              p_household: input.household_id,
+              p_amount: input.amount,
+              p_description: input.description,
+              p_merchant: input.merchant ? input.merchant : null,
+              p_participant_ids: input.participant_ids,
+              p_orders: orders,
+            })
+          : await client.rpc("create_purchase_with_shares", {
+              p_household_id: input.household_id,
+              p_amount: input.amount,
+              p_description: input.description,
+              p_merchant: input.merchant ? input.merchant : null,
+              p_participant_ids: input.participant_ids,
+            }),
       );
       if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
       return toPurchase(row);
@@ -493,7 +506,7 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       if (!me) throw new RepoError("unauthenticated", MESSAGES.unauthenticated);
       const res = await client
         .from("purchases")
-        .select("*, shares(*)")
+        .select("*, shares(*), orders:purchase_orders(*)")
         .eq("household_id", householdId)
         .eq("status", "pending")
         .eq("payer_id", me.user_id)
@@ -506,12 +519,38 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       const parsed = resolvePendingSchema.safeParse(raw);
       if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
       const input = parsed.data;
+      const orders = input.shared ? (input.orders ?? []).map(({ user_id, amount, note }) => ({ user_id, amount, note: note ? note : null })) : [];
       const row = ok<PurchaseRow>(
-        await client.rpc("resolve_pending", {
-          p_purchase_id: purchaseId,
-          p_shared: input.shared,
-          p_description: input.description ?? null,
-          p_participant_ids: input.shared ? (input.participant_ids ?? []) : [],
+        orders.length > 0
+          ? await client.rpc("resolve_pending_with_orders", {
+              p_purchase: purchaseId,
+              p_description: input.description ?? null,
+              p_participant_ids: input.participant_ids ?? [],
+              p_orders: orders,
+            })
+          : await client.rpc("resolve_pending", {
+              p_purchase_id: purchaseId,
+              p_shared: input.shared,
+              p_description: input.description ?? null,
+              p_participant_ids: input.shared ? (input.participant_ids ?? []) : [],
+            }),
+      );
+      if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);
+      return toPurchase(row);
+    },
+
+    async updatePurchase(purchaseId, raw) {
+      const parsed = updatePurchaseSchema.safeParse(raw);
+      if (!parsed.success) throw new RepoError("invalid", firstIssue(parsed.error));
+      const input = parsed.data;
+      const row = ok<PurchaseRow>(
+        await client.rpc("update_purchase", {
+          p_id: purchaseId,
+          p_amount: input.amount,
+          p_description: input.description,
+          p_payer: input.payer_id,
+          p_participant_ids: input.participant_ids,
+          p_orders: (input.orders ?? []).map(({ user_id, amount, note }) => ({ user_id, amount, note: note ? note : null })),
         }),
       );
       if (!Array.isArray(row.shares)) throw new RepoError("unknown", MESSAGES.unknown);

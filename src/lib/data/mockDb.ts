@@ -46,6 +46,12 @@ const purchase = z.object({
   bill_id: uuid.nullish(),
   bill_month: z.string().max(10).nullish(),
 });
+const purchaseOrder = z.object({
+  purchase_id: uuid,
+  user_id: uuid,
+  amount: z.number().int().positive(),
+  note: z.string().max(60).nullable(),
+});
 const bill = z.object({
   id: uuid,
   household_id: uuid,
@@ -158,6 +164,7 @@ export const mockDbSchema = z.object({
   dutyEvents: z.array(dutyEvent).max(5000).optional(),
   dutyMorningLog: z.array(z.object({ duty_id: uuid, day: z.string().max(10) })).max(5000).optional(),
   paidPrompts: z.array(paidPrompt).max(5000).optional(),
+  purchaseOrders: z.array(purchaseOrder).max(20000).optional(),
 });
 
 /** What is persisted (localStorage and the E2E store route): the db plus a revision counter for conflict checks. */

@@ -14,11 +14,13 @@ import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ease } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { isAccumulating } from "@/lib/domain/minTransfer";
+import { deriveEqual, orderSplit } from "@/lib/domain/orders";
 import { useAppActions, useAppData } from "../AppDataProvider";
 import { useSettleData } from "../settle/useSettleData";
 import { RemindButton } from "../remind/RemindButton";
 import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
+import { EditPurchaseSheet } from "./EditPurchaseSheet";
 import { PaymentRow } from "./PaymentRow";
 
 const chip = "rounded-pill bg-on-lime/10 px-3 py-[6px] text-label";
@@ -34,6 +36,8 @@ export function PurchaseDetailScreen() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetKey, setSheetKey] = useState(0); // a fresh form (from the saved purchase) on every open
   const inputRef = useRef<HTMLInputElement>(null);
 
   const purchase = useMemo(() => Object.values(purchases).flat().find((p) => p.id === id), [purchases, id]);
@@ -69,8 +73,17 @@ export function PurchaseDetailScreen() {
   const amounts = owing.map((s) => s.amount);
   const lo = Math.min(...amounts);
   const hi = Math.max(...amounts);
-  const perText = amounts.length === 0 ? null : lo === hi ? formatTenge(lo) : hi - lo <= 1 ? `${formatNumber(lo)}–${formatTenge(hi)}` : null;
+  const orders = purchase.orders ?? [];
+  // an equal split with orders: the chip shows the equal part, not «свои суммы»
+  const derived = deriveEqual(purchase);
+  const eachSplit = derived && orders.length > 0 ? orderSplit(purchase.amount, derived.participants, derived.orders, purchase.payer_id) : null;
+  const eachText = eachSplit && !eachSplit.issue ? (eachSplit.each.min === eachSplit.each.max ? formatTenge(eachSplit.each.min) : `${formatNumber(eachSplit.each.min)}–${formatTenge(eachSplit.each.max)}`) : null;
+  const perText = eachText ?? (amounts.length === 0 ? null : lo === hi ? formatTenge(lo) : hi - lo <= 1 ? `${formatNumber(lo)}–${formatTenge(hi)}` : null);
   const uneven = amounts.length > 0 && perText === null;
+  // the full edit (amount, payer, participants, orders): payer or admin, shared, not a bill, nothing paid yet, an equal split
+  const isAdmin = (members[purchase.household_id] ?? []).some((x) => x.user_id === me.id && x.active && x.role === "admin");
+  const paidAny = purchase.shares.some((s) => s.settlement_id !== null || (s.settled_at !== null && s.debtor_id !== purchase.payer_id));
+  const fullEdit = purchase.status === "shared" && !purchase.bill_id && (isPayer || isAdmin) && !paidAny && derived !== null && !purchase.id.startsWith("optimistic-");
 
   // who already sent the money first (in the order they did), people still being waited for after them (Purchase.dc.html)
   const rows = purchase.shares
@@ -83,6 +96,11 @@ export function PurchaseDetailScreen() {
   const writeoffs = new Map((settlements[purchase.household_id] ?? []).filter((x) => x.kind === "writeoff").map((x) => [x.id, x]));
 
   const startEdit = () => {
+    if (fullEdit) {
+      setSheetKey((k) => k + 1);
+      setSheetOpen(true);
+      return;
+    }
     setDraft(purchase.description);
     setConfirming(false);
     setEditing(true);
@@ -104,7 +122,7 @@ export function PurchaseDetailScreen() {
       <Header
         title={ru.detail.title}
         onBack={back}
-        trailing={isPayer && !editing ? { label: ru.detail.edit, icon: <EditIcon size={18} />, onClick: startEdit } : undefined}
+        trailing={(isPayer || fullEdit) && !editing ? { label: ru.detail.edit, icon: <EditIcon size={18} />, onClick: startEdit } : undefined}
       />
 
       <section aria-label={purchase.description} className="relative flex flex-col gap-3 overflow-hidden rounded-lg bg-lime p-5 text-on-lime">
@@ -173,6 +191,29 @@ export function PurchaseDetailScreen() {
         </p>
       ) : null}
 
+      {orders.length > 0 ? (
+        <section aria-label={ru.detail.ordersTitle} data-testid="purchase-orders" className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between px-[6px]">
+            <h2 className="text-headline">{ru.detail.ordersTitle}</h2>
+            <span className="text-label">{ru.detail.ordersCaption}</span>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {orders.map((o, i) => {
+              const name = o.user_id === me.id ? ru.main.you : (roster.get(o.user_id)?.profile.display_name ?? ru.main.formerMember);
+              return (
+                <li key={`${o.user_id}-${i}`} data-testid="purchase-order" className="flex items-center justify-between gap-3 rounded-md bg-card px-4 py-3">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-body">{name}</span>
+                    {o.note ? <span className="truncate text-caption">{o.note}</span> : null}
+                  </span>
+                  <span className="shrink-0 font-rounded text-headline tabular-nums">{formatTenge(o.amount)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
       {rows.length > 0 ? (
         <>
           <div className="flex items-baseline justify-between px-[6px]">
@@ -186,7 +227,7 @@ export function PurchaseDetailScreen() {
               const m = roster.get(s.debtor_id);
               const name = s.debtor_id === me.id ? ru.main.you : (m?.profile.display_name ?? ru.main.formerMember);
               const received = s.settled_at !== null;
-              const extra = uneven ? ` · ${formatTenge(s.amount)}` : "";
+              const extra = uneven || orders.length > 0 ? ` · ${formatTenge(s.amount)}` : "";
               const writtenOff = s.settlement_id ? writeoffs.get(s.settlement_id) : undefined;
               const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
               return (
@@ -245,6 +286,7 @@ export function PurchaseDetailScreen() {
           </AnimatePresence>
         </div>
       ) : null}
+      {fullEdit ? <EditPurchaseSheet key={sheetKey} purchase={purchase} roster={members[purchase.household_id] ?? []} meId={me.id} open={sheetOpen} onClose={() => setSheetOpen(false)} /> : null}
     </Screen>
   );
 }

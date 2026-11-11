@@ -480,3 +480,25 @@ Nothing committed. 0001-0014 and `.env.local` untouched; `0015_slice17_paid_prom
 - UI: SettleScreen has no «Я оплатил»; «Перевести …» (copy + kaspi.kz/transfers) also POSTs the opened event (keepalive, skipped when already marked). `usePaidPrompt` looks for my fresh pending prompt on `visibilitychange -> visible` (and once with `?ask=1`); `PaidPromptSheet` (existing Sheet) asks «Ты перевёл Айдосу 200 ₸?» [Да, перевёл] [Ещё нет]; Esc/backdrop leaves it pending. «Да» -> `answerPaid` action (RPC marks + refresh); «Отменить» stays while marked. Below 100 ₸ nothing changes (no prompt, «копится»).
 - Tests: `tests/db/slice17.test.ts` (29, PGlite), `tests/db/slice15.test.ts` now loads 0015 and pins 10 anon functions, unit: `paidHandler.test.ts`, `paidRepo.test.ts`, `paidClient.test.ts`, pp: cases in `telegram.test.ts`, sw test; e2e: `tests/e2e/slice17.spec.ts`, helper `tests/e2e/payFlow.ts` (slice3 and slice52 specs now pay through it).
 - Known gaps: the delayed job calls `paid_prompt_notice` with the debtor's session client created before the response, so a session token that expires inside the 150 s window means no DM/push (the sheet on return still works). Telegram DM / push delivery is covered by unit tests with recorders, not against live services. `markPaid` stays in AppActions (unused by the UI). slice67 e2e failed once under full-suite load and passed alone (unrelated).
+
+---
+
+# Slice 18 «+ Заказ», «Кто платил?» (water), admin edit (spec-slice18.md, one pass)
+
+Nothing committed. `0016_slice18_orders_payer.sql` is NOT applied live; 0001-0015 and `.env.local` untouched.
+
+## SQL (`supabase/migrations/0016_slice18_orders_payer.sql`, `tests/db/slice18.test.ts`, 20 PGlite tests)
+- `public.purchase_orders(id, seq, purchase_id, household_id, user_id, amount > 0, note <= 60)`; RLS select via `private.can_see_purchase`, no client writes. `telegram_sent` kind check += `purchase_edit`. `private.purchase_json` replaced (same signature) and now also returns `orders`.
+- Private: `check_orders` (<= 20 rows, active members, not the payer, sum < total), `insert_shares_with_orders` (rest = total - orders, equal part through the 0004 rule, + own orders, order-only people allowed, payer's part settled), `tg_purchase_line`. `tg_purchase_message` replaced: adds «+ заказ: @user 500 ₸ (note)» lines.
+- New authenticated RPCs (definer, `search_path=''`, revoked from public/anon): `create_purchase_with_orders`, `resolve_pending_with_orders` (idempotent when already shared), `update_purchase(p_id, amount, description, payer, participants, orders)` (payer or admin, shared, not a bill; `has_payments` when any non-payer share is settled, any share has a settlement_id or a non-cancelled settlement covers it; rebuilds shares + orders; posts «✏️ Исправлено: old → new» through `tg_send`, dedupe `purchase_edit` + fresh uuid, wrapped in begin/exception).
+- `water_brought(p_duty, p_partner default null, p_payer default null)`: drop + create, same grants; payer must be an active member (`invalid payer` 23514); the purchase payer = payer, `duty_events.user_id/partner_id` unchanged. 2-arg calls keep working. Anon surface still 10 (slice15/17 tests load 0016).
+
+## App
+- Domain `domain/orders.ts` (+test): `orderSplit` (mirror of the SQL), `draftsToOrders`, `deriveEqual` (is a saved purchase an equal split + orders). Schemas: `orders` on `createPurchaseSchema` / `resolvePendingSchema`, new `updatePurchaseSchema`.
+- Repo: `NewPurchase.orders`, `ResolvePendingInput.orders`, `updatePurchase`, `waterBrought(duty, partner, payer?)`; `PurchaseWithShares.orders`; mock twin `mockOrders.ts` (+test), supabase repo embeds `orders:purchase_orders(*)` in the purchase selects and picks the `*_with_orders` RPCs only when orders are present.
+- UI: `purchase/OrdersEditor.tsx` («+ Заказ» row, chips + amount + note, live «Каждому 625 ₸ · Диас 1 125 ₸»), used in the new-purchase form (equal split only), the pending island (extra slot of PendingCard, «Общее» sends orders) and `purchases/EditPurchaseSheet.tsx` (DutySheet; amount, text, payer, participants, orders). Purchase detail: «Заказы» block, the chip shows the equal part, rows show amounts when orders exist, «Изменить» opens the sheet for payer/admin when nothing is paid and the shares are an equal split (otherwise the old inline description edit stays). `AppActions.editPurchase` (not optimistic). Water card: «Кто платил?» chips Я / partner / Другой (+ member picker).
+- Tests: verify green (88 files, 926 tests); e2e `tests/e2e/slice18.spec.ts` (4) plus slice1, 3, 4, 11, 13, 15, 52 green. Screenshots `gan-harness/screenshots/s18-*.png`.
+
+## Gaps
+- Pending-island «+ Заказ» and the Telegram «✏️ Исправлено» text are covered by DB/unit tests only (no e2e, tg_send is a no-op in PGlite).
+- A purchase with «Свои суммы» (or any shares that are not equal + orders) cannot use the edit sheet (payer keeps the description edit); bill purchases are not editable.

@@ -17,6 +17,7 @@ import type {
   PaidAnswerResult,
   PaidPrompt,
   PaidPromptNotice,
+  PurchaseOrder,
   NewDuty,
   Profile,
   Purchase,
@@ -30,7 +31,7 @@ import type {
   TgSwapResult,
   Uuid,
 } from "./types";
-import type { ResolvePendingInput } from "@/lib/domain/schemas";
+import type { ResolvePendingInput, UpdatePurchaseInput } from "@/lib/domain/schemas";
 
 export type MemberWithProfile = Member & { profile: Profile };
 export type NewCustomPurchase = {
@@ -42,7 +43,7 @@ export type NewCustomPurchase = {
   shares: ReadonlyArray<{ user_id: Uuid; amount: number }>;
 };
 
-export type PurchaseWithShares = Purchase & { shares: Share[] };
+export type PurchaseWithShares = Purchase & { shares: Share[]; orders?: PurchaseOrder[] };
 
 export type AuthSession = { user_id: Uuid; email: string };
 
@@ -55,6 +56,8 @@ export type NewPurchase = {
   description: string;
   merchant?: string | null;
   participant_ids: ReadonlyArray<Uuid>;
+  /** «+ Заказ»: personal orders; their sum comes off the total before the equal split (never by the payer). */
+  orders?: ReadonlyArray<{ user_id: Uuid; amount: number; note?: string | null }>;
 };
 
 /**
@@ -170,6 +173,12 @@ export interface Repo {
    * not_found = not yours or no such purchase, invalid = the other state was chosen already.
    */
   resolvePending(purchaseId: Uuid, input: ResolvePendingInput): Promise<PurchaseWithShares>;
+  /**
+   * The payer, or an admin: rebuilds amount, text, payer, participants and orders of a SHARED purchase in one go.
+   * has_payments = something was already paid or a settlement covers a share (nothing is changed), invalid = a bill purchase
+   * or bad input, not_found = pending / personal / not visible, forbidden = neither the payer nor an admin.
+   */
+  updatePurchase(purchaseId: Uuid, input: UpdatePurchaseInput): Promise<PurchaseWithShares>;
   /** Upsert by endpoint (a device that changes owner moves the subscription). */
   savePushSubscription(sub: PushSubscriptionInput): Promise<void>;
   /** Removes my subscription for this endpoint. */
@@ -244,8 +253,11 @@ export interface Repo {
   dutyPing(dutyId: Uuid): Promise<DutyEvent>;
   /** Вода «Вода кончилась»: any member; no full bottles left. rate_limited (1 h). */
   waterEmpty(dutyId: Uuid): Promise<DutyEvent>;
-  /** Вода «Принёс»: alone = 2 bottles, with a partner = 4; records a shared purchase. invalid = bad partner. */
-  waterBrought(dutyId: Uuid, partnerId: Uuid | null): Promise<DutyEvent>;
+  /**
+   * Вода «Принёс»: alone = 2 bottles, with a partner = 4; records a shared purchase paid by `payerId` (null = the caller).
+   * invalid = bad partner or a payer who is not an active member. The queue still records who went.
+   */
+  waterBrought(dutyId: Uuid, partnerId: Uuid | null, payerId?: Uuid | null): Promise<DutyEvent>;
   /** One full bottle less (never below 0). */
   waterBottleUsed(dutyId: Uuid): Promise<Duty>;
   /** Admin only: the price of a liter (1..1000). */

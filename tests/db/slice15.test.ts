@@ -42,6 +42,7 @@ const MIGRATIONS = [
   "0013_slice15_trash_water.sql",
   "0014_slice16_queue_fix_bill_icons.sql",
   "0015_slice17_paid_prompt.sql",
+  "0016_slice18_orders_payer.sql",
 ];
 
 let db: PGlite;
@@ -298,7 +299,7 @@ describe("notice, morning, security", () => {
     await as(B);
     await expectCode(db.query(`select private.duty_current($1)`, [trash]), "42501");
   });
-  it("the anon surface is exactly ten (0015 adds tg_answer_paid)", async () => {
+  it("the anon surface is exactly ten (0015 adds tg_answer_paid, 0016 adds none)", async () => {
     await admin();
     const r = await db.query<{ n: string }>(
       `select p.proname n from pg_proc p join pg_namespace s on s.oid = p.pronamespace

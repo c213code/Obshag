@@ -52,6 +52,8 @@ export function WaterPanel({ ev }: { ev: EventDutyView }) {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<WaterMode>("pair");
   const [pickedPartner, setPartner] = useState<string | null>(null);
+  const [payerChoice, setPayerChoice] = useState<"me" | "partner" | "other">("me");
+  const [pickedOther, setPickedOther] = useState<string | null>(null);
   const [priceOpen, setPriceOpen] = useState(false);
   const [priceText, setPriceText] = useState("");
 
@@ -61,6 +63,11 @@ export function WaterPanel({ ev }: { ev: EventDutyView }) {
   const alone = waterPlan("alone", liters, price);
   const pair = waterPlan("pair", liters, price);
   const plan = effective === "pair" ? pair : alone;
+  // «Кто платил?»: me (default) / the partner / somebody else. The queue still records who went, only the purchase payer changes.
+  const strangers = others.filter((m) => m.user_id !== (effective === "pair" ? partner : null));
+  const otherPayer = strangers.some((m) => m.user_id === pickedOther) ? pickedOther : (strangers[0]?.user_id ?? null);
+  const payerKind = payerChoice === "partner" && effective !== "pair" ? "me" : payerChoice === "other" && !otherPayer ? "me" : payerChoice;
+  const payerId = payerKind === "partner" ? partner : payerKind === "other" ? otherPayer : (me?.id ?? null);
   const homeCount = Math.max(1, ev.roster.filter((m) => m.active && !(m.away_until && m.away_until >= today)).length);
   const each = sharePerPerson(plan.amount, homeCount);
   const eachText = each.min === each.max ? formatTenge(each.min) : `${formatNumber(each.min)}–${formatTenge(each.max)}`;
@@ -84,7 +91,7 @@ export function WaterPanel({ ev }: { ev: EventDutyView }) {
   };
   const brought = () =>
     run(async () => {
-      await repo.waterBrought(duty.id, effective === "pair" ? partner : null);
+      await repo.waterBrought(duty.id, effective === "pair" ? partner : null, payerId && payerId !== me?.id ? payerId : null);
       await ev.reload();
       void refresh({ silent: true });
       showNotice(ru.duty.water.broughtOk(formatTenge(plan.amount)));
@@ -214,6 +221,53 @@ export function WaterPanel({ ev }: { ev: EventDutyView }) {
             ))}
           </div>
         ) : null}
+        <div className="mt-[10px] flex flex-col gap-2" data-testid="water-payer">
+          <span className="px-[2px] text-[13px] text-muted">{ru.duty.water.payer}</span>
+          <div role="radiogroup" aria-label={ru.duty.water.payer} className="flex flex-wrap gap-2">
+            {([
+              { k: "me", label: ru.duty.water.payerMe, show: true },
+              { k: "partner", label: partner ? ev.nameOf(partner) : "", show: effective === "pair" && !!partner },
+              { k: "other", label: ru.duty.water.payerOther, show: strangers.length > 0 },
+            ] as const)
+              .filter((o) => o.show)
+              .map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  role="radio"
+                  aria-checked={payerKind === o.k}
+                  data-testid={`water-payer-${o.k}`}
+                  onClick={() => setPayerChoice(o.k)}
+                  className={cx(
+                    "inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium transition-[transform,background-color,border-color] duration-200 ease-smooth active:scale-[0.97]",
+                    payerKind === o.k ? "border-aqua-pick-line bg-aqua-pick text-aqua-pick-text" : "border-outline text-muted",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+          </div>
+          {payerKind === "other" && strangers.length > 0 ? (
+            <div role="radiogroup" aria-label={ru.duty.water.payerOtherLabel} data-testid="water-payer-others" className="flex flex-wrap gap-2">
+              {strangers.map((m) => (
+                <button
+                  key={m.user_id}
+                  type="button"
+                  role="radio"
+                  aria-checked={otherPayer === m.user_id}
+                  onClick={() => setPickedOther(m.user_id)}
+                  className={cx(
+                    "inline-flex h-8 items-center gap-[6px] rounded-full border pr-3 pl-1 text-[13px] font-medium transition-transform active:scale-[0.97]",
+                    otherPayer === m.user_id ? "border-aqua-pick-line bg-aqua-pick text-aqua-pick-text" : "border-outline text-muted",
+                  )}
+                >
+                  <Dot name={ev.nameOf(m.user_id)} tone={ev.toneOf(m.user_id)} size={24} fontSize={11} />
+                  {ev.nameOf(m.user_id)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <p data-testid="water-hint" className="mt-[10px] px-[2px] text-[12px] text-muted">
           {ru.duty.water.hint(formatTenge(plan.amount), eachText)}
         </p>

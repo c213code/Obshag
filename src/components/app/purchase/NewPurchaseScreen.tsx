@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { customSplit } from "@/lib/domain/customSplit";
 import { MAX_AMOUNT, createPurchaseCustomSchema, createPurchaseSchema } from "@/lib/domain/schemas";
 import { perPersonRange } from "@/lib/domain/split";
+import { draftsToOrders, orderSplit, type OrderDraft } from "@/lib/domain/orders";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
@@ -19,6 +20,7 @@ import { Screen } from "../Screen";
 import { avatarColorFor } from "../avatars";
 import { AmountInput } from "./AmountInput";
 import { PersonAmountRow } from "./PersonAmountRow";
+import { OrdersEditor } from "./OrdersEditor";
 import { PersonChip } from "./PersonChip";
 
 const label = "pl-[6px] text-caption";
@@ -37,6 +39,7 @@ export function NewPurchaseScreen() {
   const [sent, setSent] = useState(false);
   const [mode, setMode] = useState<"equal" | "custom">("equal");
   const [texts, setTexts] = useState<Readonly<Record<string, string>>>({});
+  const [drafts, setDrafts] = useState<OrderDraft[]>([]);
 
   // A neighbour may have joined since Главная loaded: fetch the roster again whenever this screen opens.
   useEffect(() => {
@@ -50,15 +53,20 @@ export function NewPurchaseScreen() {
   const selected = picked ?? new Set(defaultParticipants(roster, almatyDay(new Date()).date));
   const participantIds = everyone.filter((id) => selected.has(id));
   const n = participantIds.length;
-  const range = perPersonRange(amount ?? 0, n);
 
   const custom = mode === "custom";
+  // «+ Заказ» only goes with the equal split: the orders come off the total first, the rest is split equally
+  const { orders, incomplete } = draftsToOrders(custom ? [] : drafts);
+  const withOrders = orders.length > 0;
+  const osplit = withOrders ? orderSplit(amount ?? 0, participantIds, orders, me.id) : null;
+  const range = osplit && !osplit.issue ? osplit.each : perPersonRange(amount ?? 0, n);
   const split = customSplit(amount, participantIds, texts, me.id);
   const parsed = createPurchaseSchema.safeParse({
     household_id: activeId,
     amount: amount ?? 0,
     description: what,
     participant_ids: participantIds,
+    orders,
   });
   const parsedCustom = createPurchaseCustomSchema.safeParse({
     household_id: activeId,
@@ -67,16 +75,16 @@ export function NewPurchaseScreen() {
     shares: split.entries,
   });
   // someone other than the payer must owe something, otherwise the purchase changes no balance
-  const debtors = participantIds.filter((id) => id !== me.id).length;
+  const debtors = withOrders ? new Set([...participantIds, ...orders.map((o) => o.user_id)].filter((id) => id !== me.id)).size : participantIds.filter((id) => id !== me.id).length;
   const amountError =
     amount !== null && amount > MAX_AMOUNT
       ? ru.purchase.overLimit(formatTenge(MAX_AMOUNT))
-      : !custom && amount !== null && n > 0 && amount < n
+      : !custom && !withOrders && amount !== null && n > 0 && amount < n
         ? ru.purchase.tooSmall
         : null;
   const canSubmit = custom
     ? parsedCustom.success && !sent && split.ready && !amountError
-    : parsed.success && !sent && debtors > 0 && !amountError;
+    : parsed.success && !sent && debtors > 0 && !amountError && !incomplete && !osplit?.issue;
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -95,7 +103,7 @@ export function NewPurchaseScreen() {
       addPurchase({ ...parsedCustom.data, merchant: null });
     } else {
       if (!parsed.success) return;
-      addPurchase({ ...parsed.data, merchant: null });
+      addPurchase({ ...parsed.data, merchant: null, orders: withOrders ? orders : undefined });
     }
     router.push("/");
   };
@@ -111,7 +119,9 @@ export function NewPurchaseScreen() {
             ? ru.purchase.enterWhat
             : custom && !split.hasOther
               ? ru.purchase.customNeedsOther
-              : null;
+              : incomplete
+                ? ru.orders.finish
+                : null;
   const leftText = split.remaining === 0 ? ru.purchase.allSplit : split.remaining > 0 ? ru.purchase.left(formatTenge(split.remaining)) : ru.purchase.over(formatTenge(-split.remaining));
   const per =
     !amount || n === 0 || amountError
@@ -208,6 +218,7 @@ export function NewPurchaseScreen() {
                 ))}
             </div>
           ) : null}
+          {!custom ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} split={osplit} /> : null}
           {debtors === 0 ? (
             <p role="status" className="pl-[6px] text-label text-orange">
               {others.length === 0 ? ru.purchase.aloneInFlat : ru.purchase.pickDebtor}
