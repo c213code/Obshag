@@ -201,6 +201,14 @@ test.describe("slices 5+2", () => {
       await expect(page.getByRole("button", { name: "Изменить" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Удалить покупку" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: /Напомнить/ })).toHaveCount(0);
+      // the debtor pays from the purchase itself: «Оплатить Ерасыл · N ₸» → the pair's settle screen (or a note when netted out)
+      await expect(page.getByTestId("detail-pay").or(page.getByTestId("detail-netted"))).toBeVisible();
+      await page.screenshot({ path: `${SHOTS}/s19-detail-pay.png` });
+      if (await page.getByTestId("detail-pay").isVisible()) {
+        await expect(page.getByTestId("detail-pay-link")).toContainText(`Оплатить ${ME.name}`);
+        await page.getByTestId("detail-pay-link").click();
+        await expect(page).toHaveURL(/\/settle\/[0-9a-f-]+$/);
+      }
     });
   });
 

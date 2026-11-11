@@ -93,6 +93,11 @@ export function PurchaseDetailScreen() {
   // my open share is under the Kaspi minimum: it is not asked for on its own, it joins the next settlement
   const mine = purchase.status === "shared" && !isPayer ? purchase.shares.find((s) => s.debtor_id === me.id) : undefined;
   const myShare = mine && mine.settled_at === null && isAccumulating(mine.amount) ? mine : null;
+  // my share is still open: pay the payer from here (the transfer is the pair's net, so the other purchases between us count too)
+  const open = mine && mine.settled_at === null && mine.settlement_id === null && mine.amount > 0 ? mine : null;
+  const pair = open && settle ? settle.pairWith(purchase.payer_id) : null;
+  const canPay = pair !== null && pair.direction === "i_pay" && !isAccumulating(pair.net) && roster.get(purchase.payer_id)?.active === true;
+  const nettedOut = pair !== null && pair.direction !== "i_pay";
   const writeoffs = new Map((settlements[purchase.household_id] ?? []).filter((x) => x.kind === "writeoff").map((x) => [x.id, x]));
 
   const startEdit = () => {
@@ -247,6 +252,18 @@ export function PurchaseDetailScreen() {
       ) : null}
 
       <div className="flex-1" />
+      {canPay && pair ? (
+        <div className="flex flex-col items-center gap-2" data-testid="detail-pay">
+          <PillLink href={`/settle/${purchase.payer_id}`} prefetch={false} variant="lime" size="lg" className="w-full" data-testid="detail-pay-link">
+            {ru.detail.payTo(payerName ?? "", formatTenge(pair.net))}
+          </PillLink>
+          {pair.net !== open?.amount ? <span className="text-center text-caption">{ru.detail.payNetted}</span> : null}
+        </div>
+      ) : nettedOut ? (
+        <p data-testid="detail-netted" className="rounded-md border border-hairline bg-card px-4 py-3 text-caption">
+          {ru.detail.nettedOut(payerName ?? "")}
+        </p>
+      ) : null}
       {canDelete(purchase, me.id, members[purchase.household_id]) && !editing ? (
         <div className="flex justify-center">
           <AnimatePresence initial={false} mode="popLayout">

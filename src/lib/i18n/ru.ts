@@ -501,6 +501,9 @@ export const ru = {
     receivedLabel: "Получено",
     waiting: "ждём",
     /** Under the Kaspi minimum: the share is not asked for separately. */
+    payTo: (name: string, amount: string) => `Оплатить ${name} · ${amount}`,
+    payNetted: "Сумма с учётом всех ваших общих покупок",
+    nettedOut: (name: string) => `Платить не нужно: ${name} должен тебе больше — долги взаимно зачтены`,
     smallShare: (amount: string) => `Твоя доля ${amount} — добавится к следующему расчёту (Kaspi переводит от 100 ₸)`,
     writtenOff: (amount: string) => `Списано ${amount}`,
     youOwe: "с тебя",
