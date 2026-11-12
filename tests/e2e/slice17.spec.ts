@@ -5,7 +5,7 @@ import { payViaKaspi, returnFromKaspi } from "./payFlow";
 
 /**
  * Slice 17: «Я оплатил» is gone. Opening Kaspi records a prompt; coming back to the app asks «Ты перевёл …?».
- * «Да, перевёл» marks the settlement (the creditor confirms as before), «Ещё нет» only closes the question.
+ * «Да, перевёл» marks the settlement and it is final at once (slice 22: nobody confirms), «Ещё нет» only closes the question.
  * Own household with one debt of 300 ₸, so the balances other specs assert are untouched.
  */
 const P = { email: "timur@obshak.test", name: "Тимур", id: "00000000-0000-4000-8000-0000000000f1" }; // the debtor
@@ -93,6 +93,23 @@ async function injectHousehold(request: APIRequestContext) {
 const prompts = async (request: APIRequestContext) => (await readStore(request)).db.paidPrompts?.filter((p) => p.household_id === HOUSEHOLD) ?? [];
 const marked = async (request: APIRequestContext) =>
   (await readStore(request)).db.settlements.filter((s) => s.household_id === HOUSEHOLD && s.status === "marked");
+const settled = async (request: APIRequestContext) => (await readStore(request)).db.settlements.filter((s) => s.household_id === HOUSEHOLD);
+/** A new open debt of 300 for Тимур (the previous test closed the first one). */
+async function addDebt(request: APIRequestContext) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const s = await readStore(request);
+    const id = `20000000-0000-4000-8000-0000000000${(10 + s.db.purchases.length) % 100}`.slice(0, 36);
+    const at = new Date().toISOString();
+    s.db.purchases.push({ id, household_id: HOUSEHOLD, payer_id: Q.id, amount: 600, description: "Ещё продукты", merchant: null, source: "manual", status: "shared", created_at: at });
+    s.db.shares.push(
+      { purchase_id: id, debtor_id: Q.id, amount: 300, settled_at: at, settlement_id: null },
+      { purchase_id: id, debtor_id: P.id, amount: 300, settled_at: null, settlement_id: null },
+    );
+    const res = await request.put("/api/mock-store", { data: { version: s.version, rev: s.rev, db: s.db } });
+    if (res.status() === 204) return;
+  }
+  throw new Error("could not add a debt");
+}
 
 test.describe.configure({ mode: "serial" });
 
@@ -101,7 +118,7 @@ test.describe("slice 17: «Ты перевёл?»", () => {
     await injectHousehold(request);
   });
 
-  test("no «Я оплатил»; Kaspi -> back -> «Да, перевёл» marks the settlement and the creditor confirms", async ({ browser, baseURL, request }) => {
+  test("no «Я оплатил»; Kaspi -> back -> «Да, перевёл» closes the debt, nobody confirms", async ({ browser, baseURL, request }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, P);
       await page.goto(`/settle/${Q.id}`);
@@ -112,29 +129,27 @@ test.describe("slice 17: «Ты перевёл?»", () => {
       // opening Kaspi records one pending prompt for exactly this pair and amount
       await payViaKaspi(page, "yes");
       expect(await prompts(request)).toMatchObject([{ from_user: P.id, to_user: Q.id, amount: 300, status: "yes" }]);
-      expect(await marked(request)).toMatchObject([{ from_id: P.id, to_id: Q.id, amount: 300 }]);
+      expect(await marked(request)).toEqual([]);
+      expect(await settled(request)).toMatchObject([{ from_id: P.id, to_id: Q.id, amount: 300, status: "confirmed" }]);
 
-      // the screen now waits for the creditor
-      await expect(page.getByTestId("waiting")).toContainText("Ждём подтверждения от Зарины");
-      await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
+      // the debt is closed at once: no wait for the creditor
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
+      await expect(page.getByTestId("waiting")).toHaveCount(0);
       await page.screenshot({ path: "gan-harness/screenshots/s17-waiting.png" });
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, Q);
-      await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toBeVisible();
-      await expect(page.getByTestId("incoming-row")).toContainText(`${P.name} отметил оплату 300${NBSP}₸`);
+      await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toHaveCount(0);
+      await expect(page.getByTestId("incoming-row")).toHaveCount(0);
     });
   });
 
   test("the sheet reads «Ты перевёл Зарине 300 ₸?» and «Ещё нет» marks nothing", async ({ browser, baseURL, request }) => {
+    await addDebt(request);
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, P);
       await page.goto(`/settle/${Q.id}`);
       await hydrated(page);
-      // withdraw the mark of the previous test: the debt is open again
-      const cancelled = page.waitForResponse((r) => r.url().includes("/api/mock-store") && r.request().method() === "PUT" && r.status() === 204);
-      await page.getByRole("button", { name: "Отменить" }).click();
-      await cancelled;
       await expect(page.getByTestId("waiting")).toHaveCount(0);
       expect(await marked(request)).toEqual([]);
 
@@ -145,10 +160,12 @@ test.describe("slice 17: «Ты перевёл?»", () => {
       const sheet = page.getByTestId("paid-sheet");
       await expect(sheet).toBeVisible();
       await expect(sheet.getByRole("heading")).toHaveText(`Ты перевёл Зарине 300${NBSP}₸?`);
+      await expect(sheet).not.toContainText("подтвердит");
       await page.screenshot({ path: "gan-harness/screenshots/s17-sheet.png" });
       await page.getByTestId("paid-no").click();
       await expect(sheet).toHaveCount(0);
       expect(await marked(request)).toEqual([]);
+      expect(await settled(request)).toHaveLength(1); // only the one from the first test
       expect((await prompts(request)).at(-1)).toMatchObject({ status: "no" });
       // the pair screen is unchanged: still payable
       await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
@@ -176,7 +193,7 @@ test.describe("slice 17: «Ты перевёл?»", () => {
       await returnFromKaspi(page);
       await expect(sheet).toBeVisible();
       await page.getByTestId("paid-yes").click();
-      await expect(page.getByTestId("waiting")).toContainText("Ждём подтверждения от Зарины");
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
     });
   });
 

@@ -14,6 +14,7 @@ import { useRepo } from "@/components/RepoProvider";
 import { KASPI_TRANSFERS_URL } from "@/lib/clipboard";
 import { getPublicEnv } from "@/lib/env/public";
 import { postPaidOpened } from "@/lib/paidClient";
+import { formatDayMonthShort } from "@/lib/format/date";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { isAccumulating } from "@/lib/domain/minTransfer";
 import { maskKaspiPhone } from "@/lib/domain/phoneFormat";
@@ -35,23 +36,21 @@ import { usePaidPrompt } from "./usePaidPrompt";
 import { WriteOffButton } from "./WriteOffButton";
 import { useSettleData, type Incoming } from "./useSettleData";
 
-const MAX_ITEMS = 3;
-
-/** One column of Pay.dc.html: a colored label and the top shares behind that side, plus «и ещё N». */
+/** One column of Pay.dc.html: a colored label and every share behind that side, each with its date. */
 function Side({ label, tone, items, testId }: { label: string; tone: "orange" | "lime"; items: ReadonlyArray<NetItem>; testId: string }) {
-  const shown = items.slice(0, MAX_ITEMS);
-  const rest = items.length - shown.length;
   return (
     <section data-testid={testId} className="flex flex-col gap-2 rounded-md border border-hairline bg-card px-[14px] py-3">
       <h3 className={tone === "orange" ? "text-label text-orange" : "text-label text-lime"}>{label}</h3>
-      {shown.length === 0 ? <p className="text-caption">{ru.settle.nothingOnSide}</p> : null}
-      {shown.map((i) => (
+      {items.length === 0 ? <p className="text-caption">{ru.settle.nothingOnSide}</p> : null}
+      {items.map((i) => (
         <div key={i.purchase_id} className="flex justify-between gap-2 text-body">
-          <span className="min-w-0 truncate">{i.description}</span>
+          <span className="min-w-0 truncate">
+            <span className="text-caption">{formatDayMonthShort(i.created_at)} · </span>
+            {i.description}
+          </span>
           <span className="shrink-0 tabular-nums">{formatNumber(i.amount)}</span>
         </div>
       ))}
-      {rest > 0 ? <p className="text-caption">{ru.settle.more(rest)}</p> : null}
     </section>
   );
 }

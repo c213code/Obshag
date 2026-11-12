@@ -66,6 +66,18 @@ export function createMockPaid(ctx: Ctx): MockPaidApi {
       p.status = "yes";
       return done("marked");
     }
+    // slice 22: the mark is final, so a pair this debtor already settled after the prompt was opened is answered «marked» too
+    if (
+      pair.direction !== "i_pay" &&
+      db.settlements.some(
+        (s) =>
+          s.household_id === p.household_id && s.from_id === p.from_user && s.to_id === p.to_user && s.kind === "transfer" &&
+          s.status === "confirmed" && s.marked_at >= p.opened_at,
+      )
+    ) {
+      p.status = "yes";
+      return done("marked");
+    }
     if (pair.direction !== "i_pay" || !isMember(db, p.household_id, p.to_user)) {
       p.status = "expired";
       return done("stale");

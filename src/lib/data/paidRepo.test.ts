@@ -54,13 +54,13 @@ describe("mockRepo «Ты перевёл?»", () => {
     expect(await mine(aidos)).toHaveLength(0);
   });
 
-  it("«Да» marks the settlement (the creditor confirms as before); a second answer is already", async () => {
+  it("«Да» marks the settlement and it is final at once (slice 22); a second answer is already", async () => {
     const { as } = setup();
     const aidos = await as("aidos@obshak.test");
     const p = await aidos.openPaidPrompt(HOUSEHOLD_ID, ME);
     await expect(aidos.answerPaidPrompt(p.id, true)).resolves.toEqual({ result: "marked", to_name: "Ерасыл" });
-    const marked = (await aidos.listSettlements(HOUSEHOLD_ID)).filter((s) => s.status === "marked");
-    expect(marked).toMatchObject([{ from_id: AIDOS, to_id: ME, amount: 1000 }]);
+    const marked = await aidos.listSettlements(HOUSEHOLD_ID);
+    expect(marked).toMatchObject([{ from_id: AIDOS, to_id: ME, amount: 1000, status: "confirmed" }]);
     await expect(aidos.answerPaidPrompt(p.id, true)).resolves.toMatchObject({ result: "already" });
   });
 

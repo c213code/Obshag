@@ -34,6 +34,11 @@ describe("netPair", () => {
     expect(n.theirItems.map((i) => [i.description, i.amount])).toEqual([["Картошка", 1800]]);
   });
 
+  it("items carry the purchase's created_at (shown as the date on the debt screen)", () => {
+    const n = netPair("me", "aidos", [share("a", "me", 600)], [purchase("a", "aidos", T1, "shared", "Хлеб")]);
+    expect(n.myItems).toEqual([{ purchase_id: "a", description: "Хлеб", amount: 600, created_at: T1 }]);
+  });
+
   it("zero net is even", () => {
     const purchases = [purchase("a", "aidos"), purchase("b", "me")];
     const n = netPair("me", "aidos", [share("a", "me", 500), share("b", "aidos", 500)], purchases);

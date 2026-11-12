@@ -192,7 +192,7 @@ describe("webhook pp: buttons (slice 17)", () => {
     expect((await handleWebhook(WEBHOOK, tap(`pp:y:${ID}`, question), d)).status).toBe(200);
     expect(a.seen).toEqual([[SERVER, 77, ID, true]]);
     expect(api.calls.map((c) => c.method)).toEqual(["answerCallbackQuery", "editMessageText"]);
-    expect(api.calls[1].args).toEqual([77, 9, `${question}\n✓ Отметил, ждём подтверждения от Ерасыла`]);
+    expect(api.calls[1].args).toEqual([77, 9, `${question}\nГотово ✓ — долг перед Ерасылом закрыт`]);
   });
   it("«Ещё нет» passes yes = false and says «Ок, напомню позже»", async () => {
     const a = answers("no");

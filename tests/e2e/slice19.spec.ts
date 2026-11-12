@@ -96,7 +96,7 @@ async function injectHousehold(request: APIRequestContext) {
       { purchase_id: P2, debtor_id: D.id, amount: 150, settled_at: old, settlement_id: null },
       { purchase_id: P2, debtor_id: C.id, amount: 150, settled_at: null, settlement_id: null },
     );
-    // Нурбол marked his 150 to Нурдаулет; Нурдаулет has not confirmed: the share is only in flight
+    // a LEGACY mark (made before slice 22): Нурбол marked his 150 to Нурдаулет, who has not confirmed; the share is only in flight
     s.db.settlements.push({
       id: SETTLEMENT,
       household_id: HOUSEHOLD,
@@ -177,7 +177,7 @@ test.describe("slice 19: перевод в пути, «Оплатить», «�
     });
   });
 
-  test("the reminder builds a pay link; /k/<code> works without a login, Kaspi, back, «Да, перевёл» → «Отмечено ✓»", async ({ browser, baseURL, request }) => {
+  test("the reminder builds a pay link; /k/<code> works without a login, Kaspi, back, «Да, перевёл» → «Готово ✓»", async ({ browser, baseURL, request }) => {
     // Нурбол reminds Нурдаулет (the app route is what «Напомнить» calls)
     const reminded = await request.post("/api/remind", {
       headers: { "x-mock-user": C.id, "content-type": "application/json" },
@@ -241,13 +241,17 @@ test.describe("slice 19: перевод в пути, «Оплатить», «�
       await hydrated(page);
       await expect(sheet).toBeVisible();
       await page.getByTestId("paid-yes").click();
-      await expect(page.getByTestId("pay-notice")).toHaveText(`Отмечено ✓ — ${C.name} подтвердит`);
+      await expect(page.getByTestId("pay-notice")).toHaveText(`Готово ✓ — долг перед ${decline(C.name, "instr")} закрыт`);
       await expect(page.getByTestId("pay-go")).toHaveCount(0);
       await page.waitForTimeout(900); // let the sheet / notice finish animating
       await page.screenshot({ path: "gan-harness/screenshots/s19-k-marked.png" });
-      const open = await marked(request);
-      expect(open).toHaveLength(2);
-      expect(open.find((s) => s.from_id === D.id)).toMatchObject({ to_id: C.id, amount: 450 });
+      // slice 22: D's mark is final; only the legacy C -> D mark of the fixture is still «marked»
+      expect(await marked(request)).toHaveLength(1);
+      expect((await readStore(request)).db.settlements.find((s) => s.household_id === HOUSEHOLD && s.from_id === D.id)).toMatchObject({
+        to_id: C.id,
+        amount: 450,
+        status: "confirmed",
+      });
 
       // the same link now reads «paid»
       await page.reload();

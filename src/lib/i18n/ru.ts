@@ -587,7 +587,7 @@ export const ru = {
     /** «Ты перевёл?» — asked when the debtor comes back from Kaspi (and by the bot a couple of minutes later). */
     askPaid: {
       title: (name: string, amount: string) => `Ты перевёл ${decline(name, "dat")} ${amount}?`,
-      text: (name: string) => `Если да, отметим оплату — ${name} подтвердит, что деньги пришли.`,
+      text: (_name: string) => `Если да — долг закроется.`,
       yes: "Да, перевёл",
       no: "Ещё нет",
       done: "отмечено",
@@ -658,13 +658,13 @@ export const ru = {
     openApp: "Открыть Общак",
     ask: {
       title: (name: string, amount: string) => `Ты оплатил ${decline(name, "dat")} ${amount}?`,
-      text: (name: string) => `Ты перешёл в Kaspi. Если перевёл, отметим оплату: ${name} подтвердит, что деньги пришли.`,
+      text: (_name: string) => `Ты перешёл в Kaspi. Если перевёл — долг закроется.`,
       yes: "Да, перевёл",
       no: "Ещё нет",
       done: "отмечено",
     },
     result: {
-      marked: (name: string) => `Отмечено ✓ — ${name} подтвердит`,
+      marked: (name: string) => `Готово ✓ — долг перед ${decline(name, "instr")} закрыт`,
       already: "Уже отмечено ✓",
       stale: "Долг уже закрыт ✓",
       expired: "Время вышло. Открой ссылку и переведи ещё раз.",

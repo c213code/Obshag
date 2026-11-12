@@ -8,7 +8,7 @@ export type NetPurchase = Pick<Purchase, "id" | "payer_id" | "status" | "descrip
 export type NetDirection = "i_pay" | "they_pay" | "even";
 
 /** One open share behind a side of the equation. */
-export type NetItem = { purchase_id: string; description: string; amount: number };
+export type NetItem = { purchase_id: string; description: string; amount: number; created_at: string };
 
 export type PairNet = {
   /** owes(me -> other): open shares where I am the debtor and the other is the payer. */
@@ -24,7 +24,7 @@ export type PairNet = {
   theirItems: NetItem[];
 };
 
-type Debt = { debtor: string; creditor: string; amount: number; purchase_id: string; description: string };
+type Debt = { debtor: string; creditor: string; amount: number; purchase_id: string; description: string; created_at: string };
 
 /** Only open shares of shared purchases count; the payer's own share is never a debt. */
 function openDebts(shares: ReadonlyArray<NetShare>, purchases: ReadonlyArray<NetPurchase>): Debt[] {
@@ -32,12 +32,12 @@ function openDebts(shares: ReadonlyArray<NetShare>, purchases: ReadonlyArray<Net
   return shares.flatMap((s) => {
     const p = byId.get(s.purchase_id);
     if (!p || p.status !== "shared" || s.settled_at !== null || s.debtor_id === p.payer_id) return [];
-    return [{ debtor: s.debtor_id, creditor: p.payer_id, amount: s.amount, purchase_id: p.id, description: p.description }];
+    return [{ debtor: s.debtor_id, creditor: p.payer_id, amount: s.amount, purchase_id: p.id, description: p.description, created_at: p.created_at }];
   });
 }
 
 const biggestFirst = (a: NetItem, b: NetItem) => b.amount - a.amount || a.description.localeCompare(b.description);
-const toItem = (d: Debt): NetItem => ({ purchase_id: d.purchase_id, description: d.description, amount: d.amount });
+const toItem = (d: Debt): NetItem => ({ purchase_id: d.purchase_id, description: d.description, amount: d.amount, created_at: d.created_at });
 
 function pairFromDebts(me: string, other: string, debts: ReadonlyArray<Debt>): PairNet {
   const mine = debts.filter((d) => d.debtor === me && d.creditor === other);

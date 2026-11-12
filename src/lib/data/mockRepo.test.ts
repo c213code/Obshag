@@ -145,7 +145,7 @@ describe("mockRepo seed and persistence", () => {
   });
 });
 
-describe("mockRepo settlements: the recorded set", () => {
+describe("mockRepo settlements: the recorded set (legacy marked rows)", () => {
   async function marked() {
     const storage = memoryStorage();
     const a = createMockRepo({ storage, session: memorySession() });
@@ -153,7 +153,16 @@ describe("mockRepo settlements: the recorded set", () => {
     await a.signIn(SEED_EMAIL, SEED_PASSWORD);
     await b.signIn("aidos@obshak.test", SEED_PASSWORD);
     // seed: Ерасыл paid 6000 (Айдос owes 1500), Айдос paid 2000 (Ерасыл owes 500): Айдос owes Ерасыл 1000 net
-    const s = await b.markSettlement(HOUSEHOLD_ID, ME_ID);
+    const done = await b.markSettlement(HOUSEHOLD_ID, ME_ID);
+    expect(done.status).toBe("confirmed"); // slice 22: the mark is final
+    // a legacy «marked» row (made before slice 22) is put back by hand: the old creditor-confirm path must stay safe
+    const { rev, db } = (await storage.load())!;
+    const row = db.settlements.find((x) => x.id === done.id)!;
+    row.status = "marked";
+    row.confirmed_at = null;
+    for (const sh of db.shares) if (sh.settlement_id === done.id) Object.assign(sh, { settled_at: null, settlement_id: null });
+    await storage.save(db, rev);
+    const s = (await b.listSettlements(HOUSEHOLD_ID)).find((x) => x.id === done.id)!;
     return { storage, a, b, s };
   }
 

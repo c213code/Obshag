@@ -56,7 +56,7 @@ describe("mockRepo pay links (slice 19)", () => {
     expect(await server().payLinkOpen(SECRET, code, true)).toEqual({ state: "expired" });
   });
 
-  it("answering yes marks the settlement; a prompt of another pair is forbidden", async () => {
+  it("answering yes closes the debt (slice 22: final); a prompt of another pair is forbidden", async () => {
     const { as, server, storage } = setup();
     await (await as("erasyl@obshak.test")).remind(SECRET, HOUSEHOLD_ID, AIDOS);
     const [{ code }] = await linkOf(storage);
@@ -66,8 +66,8 @@ describe("mockRepo pay links (slice 19)", () => {
     const other = await danya.openPaidPrompt(HOUSEHOLD_ID, ME);
     await expect(server().payLinkAnswer(SECRET, code, other.id, true)).rejects.toMatchObject({ code: "forbidden" });
     await expect(server().payLinkAnswer(SECRET, code, prompt, true)).resolves.toEqual({ result: "marked", to_name: "Ерасыл" });
-    const marked = (await (await as("aidos@obshak.test")).listSettlements(HOUSEHOLD_ID)).filter((s) => s.status === "marked");
-    expect(marked).toMatchObject([{ from_id: AIDOS, to_id: ME, amount: 1000 }]);
+    const marked = await (await as("aidos@obshak.test")).listSettlements(HOUSEHOLD_ID);
+    expect(marked).toMatchObject([{ from_id: AIDOS, to_id: ME, amount: 1000, status: "confirmed" }]);
     await expect(server().payLinkAnswer(SECRET, code, prompt, true)).resolves.toMatchObject({ result: "already" });
     // the transfer is marked: the link now reads «paid»
     expect(await server().payLinkOpen(SECRET, code, false)).toMatchObject({ state: "paid", amount: 0 });
@@ -96,21 +96,22 @@ describe("mockRepo: a marked transfer counts as paid (slice 19)", () => {
     const ps = await me.listPurchases(HOUSEHOLD_ID);
     const settlements = await me.listSettlements(HOUSEHOLD_ID);
     const shares = ps.flatMap((p) => p.shares);
-    expect(netPair(ME, AIDOS, shares, ps).net).toBe(550);
+    expect(netPair(ME, AIDOS, shares, ps)).toMatchObject({ net: 450, direction: "i_pay" }); // slice 22: the mark closed its shares
     expect(netPair(ME, AIDOS, withoutInFlight(shares, settlements), ps)).toMatchObject({ net: 450, direction: "i_pay" });
   });
 
-  it("the creditor cannot be reminded about a debt that is already in flight", async () => {
+  it("the creditor cannot be reminded about a debt that is already paid", async () => {
     const { as } = setup();
     await (await as("aidos@obshak.test")).markSettlement(HOUSEHOLD_ID, ME);
     await expect((await as("erasyl@obshak.test")).remind(SECRET, HOUSEHOLD_ID, AIDOS)).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("cancelling the mark puts the debt back", async () => {
+  it("a mark cannot be cancelled any more (slice 22): the debt stays closed", async () => {
     const { as } = setup();
     const aidos = await as("aidos@obshak.test");
     const st = await aidos.markSettlement(HOUSEHOLD_ID, ME);
-    await aidos.cancelSettlement(st.id);
-    await expect((await as("erasyl@obshak.test")).remind(SECRET, HOUSEHOLD_ID, AIDOS)).resolves.toMatchObject({ amount: 1000 });
+    await expect(aidos.cancelSettlement(st.id)).rejects.toMatchObject({ code: "invalid" });
+    await expect((await as("erasyl@obshak.test")).remind(SECRET, HOUSEHOLD_ID, AIDOS)).rejects.toMatchObject({ code: "forbidden" });
   });
+
 });

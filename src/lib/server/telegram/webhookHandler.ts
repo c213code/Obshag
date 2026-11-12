@@ -37,7 +37,7 @@ export const text = {
   swapExpired: "Время вышло — запрос сгорел",
   swapStale: "Расписание уже изменилось. Открой Общак",
   swapNotYours: "Этот запрос не тебе",
-  paidMarked: (creditor: string) => `✓ Отметил, ждём подтверждения от ${decline(creditor, "gen")}`,
+  paidMarked: (creditor: string) => `Готово ✓ — долг перед ${decline(creditor, "instr")} закрыт`,
   paidNo: "Ок, напомню позже",
   paidExpired: "Это уже неактуально. Открой Общак",
   paidTooSmall: "Долг уже меньше 100 ₸ — Kaspi столько не переводит. Открой Общак",

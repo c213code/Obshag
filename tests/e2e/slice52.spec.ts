@@ -243,7 +243,7 @@ test.describe("slices 5+2", () => {
       await logIn(page, ME);
       await buy(page, 800, "Чай и печенье", ["Айдос"]);
     });
-    // Айдос opens Kaspi, comes back and says «Да, перевёл» (a marked settlement covers every open share between them)
+    // Айдос opens Kaspi, comes back and says «Да, перевёл» (a settlement covers every open share between them)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
       // slice 19: a net debtor's tile has the «Оплатить» pill (several people to pay: the list, then the person)
@@ -251,7 +251,8 @@ test.describe("slices 5+2", () => {
       await expect(page).toHaveURL(/\/settle(\/[0-9a-f-]{36})?$/);
       if (/\/settle$/.test(page.url())) await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
       await payViaKaspi(page);
-      await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
+      // slice 22: the mark is final, the debt is closed at once and there is nothing to withdraw
+      await expect(page.getByRole("button", { name: "Отменить" })).toHaveCount(0);
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ME);
@@ -277,7 +278,7 @@ test.describe("slices 5+2", () => {
       await expect(rows.filter({ hasText: "Ужин и десерт" })).toHaveCount(1);
       await expect(rows.filter({ hasText: "Продукты" })).toHaveCount(1); // seeded, paid by me
       await expect(rows.filter({ hasText: "Вода" }).first()).toBeVisible(); // seeded, paid by Айдос
-      await expect(rows.filter({ hasText: "Ужин и десерт" }).getByText("0 из 2")).toBeVisible();
+      await expect(rows.filter({ hasText: "Ужин и десерт" }).getByText("1 из 2")).toBeVisible(); // slice 22: Айдос's mark closed his share at once
       await page.screenshot({ path: `${SHOTS}/s52-app-list.png` });
 
       await page.getByRole("button", { name: "Мои", exact: true }).click();
@@ -287,7 +288,8 @@ test.describe("slices 5+2", () => {
       for (const text of await rows.allInnerTexts()) expect(text).toContain("Ты");
 
       await page.getByRole("button", { name: "Должен я", exact: true }).click();
-      await expect(rows.filter({ hasText: "Вода" })).toHaveCount(1);
+      // slice 22: Айдос's mark was final and netted the seeded «Вода» against his share, so nothing is open for me any more
+      await expect(rows.filter({ hasText: "Вода" })).toHaveCount(0);
       await expect(rows.filter({ hasText: "Ужин и десерт" })).toHaveCount(0);
       await expect(rows.filter({ hasText: "Продукты" })).toHaveCount(0);
 
@@ -304,7 +306,7 @@ test.describe("slices 5+2", () => {
       await logIn(page, ME);
       await page.getByRole("link", { name: "Напомнить", exact: true }).click();
       await expect(page).toHaveURL(/\/settle$/);
-      // Даня and Нурик owe me; Айдос's payment is on its way (slice 19: a marked transfer counts as paid), so he is not asked again
+      // Даня and Нурик owe me; Айдос has paid (slice 22: his mark is final), so he is not asked again
       await expect(page.getByRole("button", { name: /^Напомнить: / })).toHaveCount(2);
       await page.screenshot({ path: `${SHOTS}/s52-app-remind-list.png` });
 

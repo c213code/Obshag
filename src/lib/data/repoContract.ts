@@ -213,11 +213,12 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
         });
       });
 
-      it("marks for the server-side net, idempotently, and shows it to both people", async () => {
+      it("slice 22: marking is final: confirmed at once for the server-side net, shown to both people, nothing left to mark", async () => {
         const { a, b, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);
-        expect(s).toMatchObject({ status: "marked", amount: 200, from_id: (await a.getMe())!.id, to_id: meB.id, confirmed_at: null });
-        expect((await a.markSettlement(h.id, meB.id)).id).toBe(s.id);
+        expect(s).toMatchObject({ status: "confirmed", amount: 200, from_id: (await a.getMe())!.id, to_id: meB.id });
+        expect(s.confirmed_at).not.toBeNull();
+        await expect(a.markSettlement(h.id, meB.id)).rejects.toMatchObject({ code: "invalid" }); // the debt is closed
         expect((await a.listSettlements(h.id)).map((x) => x.id)).toEqual([s.id]);
         expect((await b.listSettlements(h.id)).map((x) => x.id)).toEqual([s.id]);
       });
@@ -234,82 +235,72 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
         await expect(a.markSettlement(h.id, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({ code: "invalid" });
       });
 
-      it("only the creditor confirms; the pair is at 0 afterwards and a second confirm is a no-op", async () => {
+      it("marking closes the debt at once; the old confirm is a forbidden / no-op, and a later purchase is not swallowed", async () => {
         const { a, b, meA, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);
+        expect(s).toMatchObject({ status: "confirmed" });
+        expect(s.confirmed_at).not.toBeNull();
         await expect(a.confirmSettlement(s.id)).rejects.toMatchObject({ code: "forbidden" });
         await expect(b.confirmSettlement("00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({ code: "not_found" });
-        const done = await b.confirmSettlement(s.id);
-        expect(done).toMatchObject({ id: s.id, status: "confirmed" });
-        expect(done.confirmed_at).not.toBeNull();
-        const after = await b.listPurchases(h.id);
-        const open = after.flatMap((p) => p.shares.filter((x) => x.settled_at === null));
+        const open = (await b.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null));
         expect(open).toEqual([]);
-        // a purchase made after the confirmation is not swallowed by confirming again
         await tick();
         await b.createPurchase({ household_id: h.id, amount: 1000, description: "Вода", participant_ids: [meA.id, meB.id] });
-        expect(await b.confirmSettlement(s.id)).toEqual(done);
+        expect(await b.confirmSettlement(s.id)).toEqual(s);
         const openNow = (await a.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null));
         expect(openNow).toHaveLength(1);
       });
 
-      it("a purchase created after the mark stays open after the confirm", async () => {
+      it("a purchase created after the mark stays open", async () => {
         const { a, b, meA, meB, h } = await setup();
         await tick();
-        const s = await a.markSettlement(h.id, meB.id);
+        await a.markSettlement(h.id, meB.id);
         await tick();
         await b.createPurchase({ household_id: h.id, amount: 600, description: "После", participant_ids: [meA.id, meB.id] });
-        await b.confirmSettlement(s.id);
         const open = (await a.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null));
         expect(open.map((x) => [x.debtor_id, x.amount])).toEqual([[meA.id, 300]]);
       });
 
-      it("marking records the exact set: a purchase added later stays open, re-marking refreshes set and amount", async () => {
+      it("marking records the exact set; a purchase added later stays open and is a new settlement next time", async () => {
         const { a, b, meA, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);
         expect(s.covered.map((c) => c.amount).sort((x, y) => y - x)).toEqual([2000, 1800]);
         await b.createPurchase({ household_id: h.id, amount: 600, description: "После", participant_ids: [meA.id, meB.id] });
-        // the open mark shows what it recorded until it is asked again
         expect((await a.listSettlements(h.id))[0].covered).toHaveLength(2);
         const again = await a.markSettlement(h.id, meB.id);
-        expect(again.id).toBe(s.id);
-        expect(again).toMatchObject({ amount: 500 });
-        expect(again.covered).toHaveLength(3);
-        await b.confirmSettlement(s.id);
+        expect(again.id).not.toBe(s.id);
+        expect(again).toMatchObject({ amount: 300, status: "confirmed" });
+        expect(again.covered).toHaveLength(1);
         const open = (await a.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null));
         expect(open).toEqual([]);
       });
 
-      it("confirming with a different expected amount is stale and closes nothing", async () => {
+      it("confirming an already final settlement ignores the expected amount (no-op)", async () => {
         const { a, b, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);
-        await expect(b.confirmSettlement(s.id, s.amount + 1)).rejects.toMatchObject({ code: "stale" });
-        expect((await b.confirmSettlement(s.id, s.amount)).status).toBe("confirmed");
+        expect(await b.confirmSettlement(s.id, s.amount + 1)).toEqual(s);
       });
 
       it("limits mark/cancel to 20 calls per user per hour", async () => {
-        const { a, meB, h } = await setup();
-        for (let i = 0; i < 20; i++) await a.markSettlement(h.id, meB.id);
+        const { a, b, meA, meB, h } = await setup();
+        for (let i = 0; i < 20; i++) {
+          await b.createPurchase({ household_id: h.id, amount: 1000, description: "Вода", participant_ids: [meA.id, meB.id] });
+          await a.markSettlement(h.id, meB.id);
+        }
+        await b.createPurchase({ household_id: h.id, amount: 1000, description: "Вода", participant_ids: [meA.id, meB.id] });
         await expect(a.markSettlement(h.id, meB.id)).rejects.toMatchObject({ code: "rate_limited" });
       });
 
-      it("the debtor or the creditor can cancel; a confirmed one cannot be cancelled; strangers cannot", async () => {
+      it("a final settlement cannot be cancelled; strangers cannot touch it", async () => {
         const { a, b, meB, h } = await setup();
         const s = await a.markSettlement(h.id, meB.id);
-        expect((await b.cancelSettlement(s.id)).status).toBe("cancelled");
-        expect((await a.cancelSettlement(s.id)).status).toBe("cancelled"); // twice: no-op
-        await expect(b.confirmSettlement(s.id)).rejects.toMatchObject({ code: "invalid" });
-        const again = await a.markSettlement(h.id, meB.id);
-        expect(again.id).not.toBe(s.id);
+        await expect(b.cancelSettlement(s.id)).rejects.toMatchObject({ code: "invalid" });
+        await expect(a.cancelSettlement(s.id)).rejects.toMatchObject({ code: "invalid" });
         await b.signOut();
         await signIn(b, "o@x.kz", "Чужой", "+77000000000");
         // somebody else's settlement looks exactly like a missing one
-        await expect(b.cancelSettlement(again.id)).rejects.toMatchObject({ code: "not_found" });
-        await expect(b.confirmSettlement(again.id)).rejects.toMatchObject({ code: "not_found" });
-        await b.signOut();
-        await b.signIn("b@x.kz", PASSWORD);
-        await b.confirmSettlement(again.id);
-        await expect(a.cancelSettlement(again.id)).rejects.toMatchObject({ code: "invalid" });
+        await expect(b.cancelSettlement(s.id)).rejects.toMatchObject({ code: "not_found" });
+        await expect(b.confirmSettlement(s.id)).rejects.toMatchObject({ code: "not_found" });
         await expect(a.cancelSettlement("00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({ code: "not_found" });
       });
     });

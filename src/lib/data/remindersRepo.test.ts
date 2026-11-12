@@ -118,7 +118,7 @@ describe("mockRepo custom purchases, delete and edit", () => {
     await expect(repo.createPurchaseCustom({ ...base, household_id: "other", shares: [{ user_id: AIDOS, amount: 6000 }] })).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("deletes an untouched purchase, blocks it after a payment or a marked settlement", async () => {
+  it("deletes an untouched purchase, blocks it after a payment (a mark is final)", async () => {
     const { repo, make } = await setup();
     const p = await repo.createPurchaseCustom({ household_id: HOUSEHOLD_ID, amount: 1000, description: "Чай", shares: [{ user_id: AIDOS, amount: 1000 }] });
     const before = (await repo.listPurchases(HOUSEHOLD_ID)).length;
@@ -130,16 +130,13 @@ describe("mockRepo custom purchases, delete and edit", () => {
     const aidos = await as(make, "aidos@obshak.test");
     await expect(aidos.deletePurchase(q.id)).rejects.toMatchObject({ code: "forbidden" });
     await expect(aidos.updatePurchaseDescription(q.id, "x")).rejects.toMatchObject({ code: "forbidden" });
-    const s = await aidos.markSettlement(HOUSEHOLD_ID, ME);
+    await aidos.markSettlement(HOUSEHOLD_ID, ME); // slice 22: final at once, the paid purchase is locked for good
     await expect(repo.deletePurchase(q.id)).rejects.toMatchObject({ code: "has_payments" });
-    await aidos.cancelSettlement(s.id);
-    await repo.deletePurchase(q.id);
 
     // a seeded purchase whose share Danya has settled
     const seeded = (await repo.listPurchases(HOUSEHOLD_ID)).find((x) => x.description === "Продукты")!;
     const danya = await as(make, "danya@obshak.test");
-    const m = await danya.markSettlement(HOUSEHOLD_ID, ME);
-    await repo.confirmSettlement(m.id);
+    await danya.markSettlement(HOUSEHOLD_ID, ME);
     await expect(repo.deletePurchase(seeded.id)).rejects.toMatchObject({ code: "has_payments" });
   });
 

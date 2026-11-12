@@ -266,7 +266,7 @@ test.describe("slice 3: netting and settlement", () => {
     });
   });
 
-  test("«Да, перевёл» marks once, shows the wait, and the creditor sees «Подтверди оплату»", async ({ browser, baseURL }) => {
+  test("«Да, перевёл» is final (slice 22): the debt is closed for the debtor at once and nobody has to confirm", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous test");
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
@@ -276,66 +276,38 @@ test.describe("slice 3: netting and settlement", () => {
       await expect(page.getByRole("button", { name: "Я оплатил" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
       await markPaidSaved(page);
-      await expect(page.getByTestId("waiting")).toContainText("Ждём подтверждения от Айдоса");
-      await expect(page.getByRole("button", { name: "Отменить" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Я оплатил" })).toHaveCount(0);
-      // slice 19: the transfer in flight counts as paid, so there is nothing left to transfer while the creditor confirms
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
+      await expect(page.getByTestId("waiting")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Отменить" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: /^Перевести / })).toHaveCount(0);
       await page.screenshot({ path: `${SHOTS}/s3-app-pay-4-waiting.png` });
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toBeVisible();
-      const rows = page.getByTestId("incoming-row");
-      await expect(rows).toHaveCount(1); // one settlement
-      await expect(rows.first()).toContainText(`${BORIS.name} отметил оплату ${money(200)}`);
-      // it sits above «Последние покупки»
-      const above = await page.getByRole("heading", { name: "Подтверди оплату" }).boundingBox();
-      const below = await page.getByRole("heading", { name: "Последние покупки" }).boundingBox();
-      expect(above!.y).toBeLessThan(below!.y);
+      // the creditor has nothing to confirm: no section, no row
+      await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toHaveCount(0);
+      await expect(page.getByTestId("incoming-row")).toHaveCount(0);
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
       await page.screenshot({ path: `${SHOTS}/s3-app-main-incoming.png` });
     });
-    // the debtor's Главная waits too, and reloading the pair screen keeps the wait (persisted, not just local state)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
-      const waiting = page.getByTestId("waiting-row");
-      await expect(page.getByRole("heading", { name: "Ждём подтверждения" })).toBeVisible();
-      await expect(waiting).toHaveCount(1);
-      await expect(waiting).toContainText(ADAM.name);
-      await expect(waiting).toContainText(`оплата ${money(200)} отмечена`);
-      await page.screenshot({ path: `${SHOTS}/s3-app-main-waiting.png` });
-      await waiting.click();
-      await expect(page).toHaveURL(new RegExp(`/settle/${adamId}$`));
-      await page.reload();
-      await expect(page.getByTestId("waiting")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Ждём подтверждения" })).toHaveCount(0);
+      await expect(page.getByTestId("waiting-row")).toHaveCount(0);
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await page.goto(`/settle/${adamId}`);
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
+      await page.reload(); // persisted, not just local state
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
     });
   });
 
-  test("«Получил» plays the ✓, settles the pair and both see «Все в расчёте»", async ({ browser, baseURL }) => {
+  test("the paid pair is settled for both: purchases «1 из 1», «Все в расчёте» everywhere", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous tests");
     await withPhone(browser, baseURL, async (adam) => {
       await logIn(adam.page, ADAM);
-      const row = adam.page.getByTestId("incoming-row");
-      await expect(row).toHaveCount(1);
-      await expect(adam.page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ })).toBeVisible();
-      await adam.page.getByRole("heading", { name: "Подтверди оплату" }).scrollIntoViewIfNeeded();
-      await adam.page.screenshot({ path: `${SHOTS}/s3-app-poluchil-0.png` });
-      const button = row.locator("button"); // aria-hidden once it has shrunk away
-      await expect(button).toHaveText("Получил");
-      const saved = savedToStore(adam.page);
-      await button.click();
-      await expect(row).toHaveAttribute("data-received", "true");
-      await adam.page.screenshot({ path: `${SHOTS}/s3-app-poluchil-1-mid.png` });
-      // the button shrank away and the progress shows «все скинули»
-      await expect(row.getByTestId("received-progress")).toHaveText("все скинули");
-      await expect(button).toHaveCSS("opacity", "0");
-      await adam.page.screenshot({ path: `${SHOTS}/s3-app-poluchil-2-end.png` });
-      await saved; // the confirmation is on the server before this phone goes away
-
-      // balances went to 0 at once, and the row leaves after the animation
       await expect(adam.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
       await expect(adam.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
-      await expect(adam.page.getByRole("heading", { name: "Подтверди оплату" })).toHaveCount(0, { timeout: 4000 });
       // «N из M скинули»: both purchases are fully paid now
       for (const text of ["Интернет", "Картошка"]) {
         await expect(adam.page.getByTestId("purchase-row").filter({ hasText: text })).toContainText("1 из 1");
@@ -344,7 +316,6 @@ test.describe("slice 3: netting and settlement", () => {
       await expect(adam.page.getByTestId("settle-empty")).toContainText("Все в расчёте");
       await adam.page.screenshot({ path: `${SHOTS}/s3-app-settle-empty.png` });
     });
-    // it is persisted: Ерасыл sees it too
     await withPhone(browser, baseURL, async (boris) => {
       await logIn(boris.page, BORIS);
       await expect(boris.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
@@ -357,7 +328,7 @@ test.describe("slice 3: netting and settlement", () => {
     });
   });
 
-  test("a refused «Получил» takes the ✓ back instead of pretending it worked", async ({ browser, baseURL }) => {
+  test("a second purchase after the mark is a new debt; marking it closes it again, the creditor never confirms", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous tests");
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
@@ -367,52 +338,34 @@ test.describe("slice 3: netting and settlement", () => {
       await logIn(page, BORIS);
       await page.goto(`/settle/${adamId}`);
       await waitHydrated(page);
+      await expect(page.getByTestId("equation")).toHaveText(`200−0=200${NBSP}₸`);
       await markPaidSaved(page);
-      await expect(page.getByTestId("waiting")).toBeVisible();
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      const row = page.getByTestId("incoming-row");
-      await expect(row).toHaveCount(1);
-      // the save is refused: the confirmation fails, so no ✓ may stay
-      await page.route("**/api/mock-store", (route) => (route.request().method() === "PUT" ? route.fulfill({ status: 500 }) : route.continue()));
-      await row.getByRole("button", { name: "Получил" }).click();
-      await expect(page.locator("[role='alert']:not(#__next-route-announcer__)")).toContainText("Не получилось подтвердить");
-      await expect(row).toHaveAttribute("data-received", "false");
-      await expect(row.getByRole("button", { name: "Получил" })).toBeVisible();
-      await expect(row.getByTestId("received-progress")).not.toHaveText("все скинули");
-      await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toBeVisible();
-      await page.screenshot({ path: `${SHOTS}/s3-app-poluchil-refused.png` });
+      await expect(page.getByTestId("incoming-row")).toHaveCount(0);
+      await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
+      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
     });
   });
 
-  test("cancel: «Отменить» withdraws the mark and the debtor can pay again; a stranger's id goes back to the list", async ({
-    browser,
-    baseURL,
-  }) => {
+  test("a final mark has no «Отменить»; a stranger's id goes back to the list", async ({ browser, baseURL }) => {
     test.skip(!adamId, "needs the previous tests");
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, ADAM);
+      await buy(page, 400, "Перец", [BORIS.name]); // Ерасыл owes 200 again, left open for the next test
+    });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
       await page.goto(`/settle/${adamId}`);
       await waitHydrated(page);
-      // the open «Соль» mark from the previous test is still marked: cancel it first, so this test starts clean
-      await page.getByRole("button", { name: "Отменить" }).click();
+      await expect(page.getByRole("button", { name: "Отменить" })).toHaveCount(0);
       await expect(page.getByTestId("waiting")).toHaveCount(0);
       await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
       // one-sided: no netting, one arrow, no caption
       await expect(page.getByTestId("equation")).toHaveText(`200−0=200${NBSP}₸`);
       await expect(page.getByTestId("scene-caption")).toHaveCount(0);
-
-      // «Да, перевёл» marks again; «Отменить» withdraws the mark and Kaspi stays available
-      await markPaidSaved(page);
-      await expect(page.getByTestId("waiting")).toBeVisible();
-      const cancel = page.getByRole("button", { name: "Отменить" });
-      await expect(cancel).toBeVisible();
-      const saved = savedToStore(page);
-      await cancel.click();
-      await saved;
-      await expect(page.getByTestId("waiting")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: /^Перевести / })).toBeVisible();
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
@@ -451,19 +404,13 @@ test.describe("slice 3: netting and settlement", () => {
       await logIn(page, BORIS);
       await page.goto(`/settle/${adamId}`);
       await markPaidSaved(page);
-      await expect(page.getByTestId("waiting")).toBeVisible();
+      await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
     });
-    // Айдос opens the same screen: the row to confirm is right there, and «Получил» plays the ✓ and ends in «Все в расчёте»
+    // Айдос opens the same screen: nothing to confirm, the pair is closed
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
       await page.goto(`/settle/${adamId}`);
-      const row = page.getByTestId("incoming-row");
-      await expect(row).toContainText(`${BORIS.name} отметил оплату ${money(200)}`);
-      const saved = savedToStore(page);
-      await row.getByRole("button", { name: "Получил" }).click();
-      await expect(row).toHaveAttribute("data-received", "true");
-      await expect(row.getByTestId("received-progress")).toHaveText("все скинули");
-      await saved;
+      await expect(page.getByTestId("incoming-row")).toHaveCount(0);
       await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте", { timeout: 5000 });
     });
   });

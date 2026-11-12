@@ -227,6 +227,26 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     subscriptions: subscriptionsOf(db, debtor),
   });
 
+  /** SQL private.finalize_settlement: close exactly what was recorded at the mark (shares settled, status confirmed). */
+  const finalizeIn = (db: MockDb, s: Settlement, expectedAmount?: number): void => {
+    if (s.status === "confirmed") return;
+    if (s.status !== "marked") throw new RepoError("invalid", "Settlement is not open");
+    if (expectedAmount !== undefined && expectedAmount !== s.amount) {
+      throw new RepoError("stale", "The amounts changed since the payment was marked");
+    }
+    const shares = householdShares(db, s.household_id);
+    const purchases = householdPurchases(db, s.household_id);
+    // the books must still match what was recorded at the mark; otherwise nothing is closed
+    if (isStale(s, shares, purchases)) throw new RepoError("stale", "The amounts changed since the payment was marked");
+    const at = now().toISOString();
+    for (const share of coveredShares(s, shares, purchases)) {
+      share.settled_at = at;
+      share.settlement_id = s.id;
+    }
+    s.status = "confirmed";
+    s.confirmed_at = at;
+  };
+
   /** SQL private.mark_settlement_for: the marked settlement of `id` -> `toUserId` (idempotent per pair). */
   const markIn = (db: MockDb, id: Uuid, householdId: Uuid, toUserId: Uuid): Settlement => {
     if (!householdId || !toUserId || !isMember(db, householdId, id)) throw new RepoError("forbidden", "Not a member of this household");
@@ -242,6 +262,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       .sort((a, b) => b.marked_at.localeCompare(a.marked_at) || a.id.localeCompare(b.id))[0];
     if (open) {
       record(db, open);
+      finalizeIn(db, open); // slice 22: the debtor's mark is final
       countSettlementOp(db, id);
       return structuredClone(open);
     }
@@ -262,6 +283,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     };
     record(db, created);
     db.settlements.push(created);
+    finalizeIn(db, created); // slice 22: the debtor's mark is final
     countSettlementOp(db, id);
     return structuredClone(created);
   };
@@ -797,22 +819,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       return tx((db): Settlement => {
         const s = findSettlement(db, settlementId, id);
         if (s.to_id !== id) throw new RepoError("forbidden", "Only the creditor can confirm");
-        if (s.status === "confirmed") return structuredClone(s);
-        if (s.status !== "marked") throw new RepoError("invalid", "Settlement is not open");
-        if (expectedAmount !== undefined && expectedAmount !== s.amount) {
-          throw new RepoError("stale", "The amounts changed since the payment was marked");
-        }
-        const shares = householdShares(db, s.household_id);
-        const purchases = householdPurchases(db, s.household_id);
-        // the books must still match what was recorded at the mark; otherwise nothing is closed
-        if (isStale(s, shares, purchases)) throw new RepoError("stale", "The amounts changed since the payment was marked");
-        const at = now().toISOString();
-        for (const share of coveredShares(s, shares, purchases)) {
-          share.settled_at = at;
-          share.settlement_id = s.id;
-        }
-        s.status = "confirmed";
-        s.confirmed_at = at;
+        finalizeIn(db, s, expectedAmount);
         return structuredClone(s);
       });
     },

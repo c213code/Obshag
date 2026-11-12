@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKind, formatTime, formatWhen } from "./date";
+import { dayKind, formatDayMonthShort, formatTime, formatWhen } from "./date";
 
 const labels = { today: (t: string) => `сегодня ${t}`, yesterday: (t: string) => `вчера ${t}` };
 const now = new Date(2026, 10, 7, 12, 0);
@@ -17,5 +17,14 @@ describe("date helpers", () => {
     expect(formatWhen(at(7, 18, 40), labels, now)).toBe("сегодня 18:40");
     expect(formatWhen(at(6, 9, 5), labels, now)).toBe("вчера 09:05");
     expect(formatWhen(at(3, 18, 40), labels, now)).toMatch(/^3 нояб\.? 18:40$/);
+  });
+});
+
+describe("formatDayMonthShort", () => {
+  it("is the Almaty calendar day with a short month, no dot", () => {
+    expect(formatDayMonthShort("2026-11-10T08:00:00Z")).toBe("10 нояб");
+    expect(formatDayMonthShort("2026-05-09T21:30:00Z")).toBe("10 мая"); // 02:30 on the 10th in Almaty
+    expect(formatDayMonthShort("2026-01-01T00:00:00Z")).toBe("1 янв");
+    expect(formatDayMonthShort("nope")).toBe("");
   });
 });

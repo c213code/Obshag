@@ -26,3 +26,15 @@ export function formatWhen(iso: string, labels: { today: (t: string) => string; 
   if (kind === "yesterday") return labels.yesterday(t);
   return `${dayMonthShort.format(new Date(iso))} ${t}`;
 }
+
+const SHORT_MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "нояб", "дек"];
+const almatyDate = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Almaty", day: "numeric", month: "numeric" });
+
+/** "10 нояб" (Asia/Almaty, month abbreviations as in the Telegram reminder); "" for an invalid date. */
+export function formatDayMonthShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = almatyDate.formatToParts(d);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return `${get("day")} ${SHORT_MONTHS[get("month") - 1] ?? ""}`;
+}
