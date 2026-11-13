@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Avatar, type AvatarColor } from "@/components/ui/Avatar";
+import { ActionRow } from "./ActionRow";
+import { CalendarIcon } from "@/components/ui/icons";
 import { Pill } from "@/components/ui/Pill";
 import { Sheet } from "@/components/ui/Sheet";
 import { ru } from "@/lib/i18n/ru";
@@ -15,18 +17,23 @@ export function MemberSheet({
   name,
   color,
   isAdmin,
+  canManage,
   error,
   busy,
   onAction,
+  onAway,
 }: {
   open: boolean;
   onClose: () => void;
   name: string;
   color: AvatarColor;
   isAdmin: boolean;
+  /** I am an admin: role change and removal are shown. «В отъезде…» is for every member. */
+  canManage: boolean;
   error: string | null;
   busy: boolean;
   onAction: (action: MemberAction) => void;
+  onAway: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
   const close = () => {
@@ -40,6 +47,9 @@ export function MemberSheet({
           <Avatar name={name} color={color} size={44} decorative />
           <h2 className="text-headline">{name}</h2>
         </div>
+        <ActionRow testId="member-away" icon={<CalendarIcon size={20} />} title={ru.flat.awayFor.action} caption={ru.flat.awayFor.actionCaption} onClick={onAway} />
+        {canManage ? (
+          <>
         <Pill variant="on" size="lg" disabled={busy} onClick={() => onAction(isAdmin ? "remove_admin" : "make_admin")} className="w-full" data-testid="member-role">
           {isAdmin ? ru.flat.member.removeAdmin : ru.flat.member.makeAdmin}
         </Pill>
@@ -58,6 +68,8 @@ export function MemberSheet({
             {ru.flat.member.remove}
           </Pill>
         )}
+          </>
+        ) : null}
         {error ? (
           <p role="alert" data-testid="member-error" className="px-1 text-label text-orange">
             {error}

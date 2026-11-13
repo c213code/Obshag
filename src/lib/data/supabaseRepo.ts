@@ -648,6 +648,12 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       if (error) throw mapDbError(error);
     },
 
+    async setMemberAway(householdId, userId, until) {
+      if (until !== null && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new RepoError("invalid", "Invalid date");
+      const { error } = await client.rpc("set_member_away", { p_household: householdId, p_user: userId, p_until: until });
+      if (error) throw mapDbError(error);
+    },
+
     ...createSupabaseDuty(client, { ok, mapDbError }),
     ...createSupabasePaid(client, { ok, mapDbError }),
   };

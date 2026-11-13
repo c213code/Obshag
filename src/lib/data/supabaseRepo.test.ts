@@ -209,6 +209,20 @@ describe("supabaseRepo", () => {
     ]);
   });
 
+  it("setMemberAway calls set_member_away, refuses a malformed date, maps errors", async () => {
+    const f = fakeClient();
+    const repo = createSupabaseRepo(f.client);
+    await repo.setMemberAway("h1", "u2", "2026-12-01");
+    await repo.setMemberAway("h1", "u2", null);
+    expect(f.calls).toEqual([
+      { fn: "set_member_away", args: { p_household: "h1", p_user: "u2", p_until: "2026-12-01" } },
+      { fn: "set_member_away", args: { p_household: "h1", p_user: "u2", p_until: null } },
+    ]);
+    await expect(repo.setMemberAway("h1", "u2", "tomorrow")).rejects.toMatchObject({ code: "invalid" });
+    const bad = createSupabaseRepo(fakeClient({ rpc: { set_member_away: { data: null, error: { code: "23514", message: "invalid date" } } } }).client);
+    await expect(bad.setMemberAway("h1", "u2", "2026-12-01")).rejects.toBeInstanceOf(RepoError);
+  });
+
   it("join: null result and RPC errors are the same generic failure", async () => {
     const nullResult = createSupabaseRepo(fakeClient({ rpc: { join_household: { data: null, error: null } } }).client);
     const blank = createSupabaseRepo(fakeClient({ rpc: { join_household: { data: { id: null }, error: null } } }).client);

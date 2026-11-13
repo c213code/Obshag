@@ -214,6 +214,8 @@ export interface Repo {
   rotateInviteCode(householdId: Uuid): Promise<Household>;
   /** Myself: away until a date ('YYYY-MM-DD', today or later) or null = at home. */
   setAway(householdId: Uuid, until: string | null): Promise<void>;
+  /** Any active housemate marks an active housemate (or themself) away until a date, or null = at home. */
+  setMemberAway(householdId: Uuid, userId: Uuid, until: string | null): Promise<void>;
 
   // ---- «Очередь»
   /** The household's active duties with their rotation (members read). */

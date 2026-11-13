@@ -18,6 +18,7 @@ import { avatarColorFor } from "../avatars";
 import { useHouseholdCards } from "../home/useHouseholdCards";
 import { ActionRow } from "./ActionRow";
 import { AwaySheet } from "./AwaySheet";
+import { MemberAwaySheet } from "./MemberAwaySheet";
 import { InviteCard } from "./InviteCard";
 import { MemberSheet, type MemberAction } from "./MemberSheet";
 import { ProfileSheet } from "./ProfileSheet";
@@ -46,6 +47,7 @@ export function FlatScreen() {
   const [sheet, setSheet] = useState<"away" | "profile" | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [memberAwayOpen, setMemberAwayOpen] = useState(false);
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -192,7 +194,7 @@ export function FlatScreen() {
           );
           return (
             <li key={m.user_id} data-testid={`member-${m.profile.display_name}`}>
-              {iAmAdmin && !isMe ? (
+              {!isMe ? (
                 <button
                   type="button"
                   aria-label={`${m.profile.display_name}: ${ru.flat.member.rowHint}`}
@@ -290,9 +292,20 @@ export function FlatScreen() {
         name={picked?.profile.display_name ?? ""}
         color={picked ? avatarColorFor(picked.profile, me.id) : "blue"}
         isAdmin={picked?.role === "admin"}
+        canManage={iAmAdmin}
         error={memberError}
         busy={memberBusy}
         onAction={(a) => void doMemberAction(a)}
+        onAway={() => {
+          setMemberOpen(false);
+          setMemberAwayOpen(true);
+        }}
+      />
+      <MemberAwaySheet
+        member={picked ? { id: picked.user_id, name: picked.profile.display_name, away_until: picked.away_until } : null}
+        open={memberAwayOpen}
+        onClose={() => setMemberAwayOpen(false)}
+        onSaved={() => refresh({ silent: true })}
       />
       <AwaySheet open={sheet === "away"} onClose={() => setSheet(null)} today={today} current={away} busy={busy} error={awayError} onSave={(u) => void saveAway(u)} />
       <ProfileSheet open={sheet === "profile"} onClose={() => setSheet(null)} initialName={me.display_name} initialPhone={me.kaspi_phone} initialTelegram={me.telegram_username ?? null} telegramLinked={me.telegram_linked === true} onTelegramChanged={() => void refresh({ silent: true })} onSave={saveProfile} />

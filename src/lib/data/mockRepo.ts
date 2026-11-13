@@ -1232,6 +1232,21 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
       });
     },
 
+    async setMemberAway(householdId, userId, until) {
+      const id = uid();
+      await tx((db) => {
+        const active = (u: string) => db.members.find((x) => x.household_id === householdId && x.user_id === u && x.active);
+        const target = active(userId);
+        if (!active(id) || !target) throw new RepoError("forbidden", "Not a member of this household");
+        if (until !== null) {
+          const today = almatyDay(now());
+          const max = new Date(Date.parse(`${today.date}T00:00:00Z`) + 366 * DAY_MS).toISOString().slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || until < today.date || until > max) throw new RepoError("invalid", "Invalid date");
+        }
+        target.away_until = until;
+      });
+    },
+
     ...createMockDuty({ tx, read, uid, now, requireSecret, subscriptionsOf }),
     ...createMockPaid({ tx, uid, uidOrNull: () => session.get(), now, requireSecret, subscriptionsOf, markIn }),
   };

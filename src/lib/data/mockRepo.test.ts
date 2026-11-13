@@ -10,6 +10,23 @@ repoContract("mockRepo", async () => {
   return [createMockRepo({ storage, session: memorySession() }), createMockRepo({ storage, session: memorySession() })];
 });
 
+describe("mockRepo setMemberAway", () => {
+  it("a housemate marks another away and back home; strangers and bad dates are refused", async () => {
+    const repo = createMockRepo();
+    await repo.signIn(SEED_EMAIL, SEED_PASSWORD);
+    const members = await repo.listMembers(HOUSEHOLD_ID);
+    const other = members.find((m) => m.user_id !== ME_ID)!;
+    const until = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    await repo.setMemberAway(HOUSEHOLD_ID, other.user_id, until);
+    expect((await repo.listMembers(HOUSEHOLD_ID)).find((m) => m.user_id === other.user_id)?.away_until).toBe(until);
+    await repo.setMemberAway(HOUSEHOLD_ID, other.user_id, null);
+    expect((await repo.listMembers(HOUSEHOLD_ID)).find((m) => m.user_id === other.user_id)?.away_until).toBeNull();
+    await expect(repo.setMemberAway(HOUSEHOLD_ID, other.user_id, "2001-01-01")).rejects.toMatchObject({ code: "invalid" });
+    await expect(repo.setMemberAway(HOUSEHOLD_ID, "nobody", until)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(repo.setMemberAway("no-house", other.user_id, until)).rejects.toMatchObject({ code: "forbidden" });
+  });
+});
+
 describe("mockRepo seed and persistence", () => {
   it("signs the seeded user into the demo household with four members", async () => {
     const repo = createMockRepo();

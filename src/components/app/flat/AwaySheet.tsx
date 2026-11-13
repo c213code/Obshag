@@ -14,6 +14,7 @@ export function AwaySheet({
   busy,
   error,
   onSave,
+  target,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,10 +24,15 @@ export function AwaySheet({
   busy: boolean;
   error: string | null;
   onSave: (until: string | null) => void;
+  /** Somebody else (a housemate who is out of town): their name is in the texts. Omitted = myself. */
+  target?: { id: string; name: string };
 }) {
+  const t = target
+    ? { title: ru.flat.awayFor.title(target.name), label: ru.flat.awayFor.label, hint: ru.flat.awayFor.hint, clear: ru.flat.awayFor.clear(target.name) }
+    : { title: ru.flat.away.title, label: ru.flat.away.label, hint: ru.flat.away.hint, clear: ru.flat.away.clear };
   const [value, setValue] = useState(current && current >= today ? current : "");
   return (
-    <Sheet open={open} onClose={onClose} label={ru.flat.away.title} expandedClassName="max-w-[358px] p-4">
+    <Sheet open={open} onClose={onClose} label={t.title} expandedClassName="max-w-[358px] p-4">
       <form
         className="flex flex-col gap-3"
         onSubmit={(e) => {
@@ -34,9 +40,9 @@ export function AwaySheet({
           if (value && value >= today) onSave(value);
         }}
       >
-        <h2 className="px-1 text-headline">{ru.flat.away.title}</h2>
+        <h2 className="px-1 text-headline">{t.title}</h2>
         <label className="flex flex-col gap-2">
-          <span className="pl-[6px] text-caption">{ru.flat.away.label}</span>
+          <span className="pl-[6px] text-caption">{t.label}</span>
           <input
             type="date"
             name="away_until"
@@ -46,13 +52,13 @@ export function AwaySheet({
             className="h-[58px] rounded-pill border border-card-2 bg-card px-5 font-medium text-text outline-none focus:border-lime"
           />
         </label>
-        <p className="px-1 text-caption">{error ?? ru.flat.away.hint}</p>
+        <p className="px-1 text-caption">{error ?? t.hint}</p>
         <Pill type="submit" variant="lime" size="lg" disabled={busy || !value || value < today} className="w-full">
           {ru.flat.away.save}
         </Pill>
         {current ? (
           <Pill variant="on" size="lg" disabled={busy} onClick={() => onSave(null)} className="w-full">
-            {ru.flat.away.clear}
+            {t.clear}
           </Pill>
         ) : null}
       </form>
