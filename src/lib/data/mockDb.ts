@@ -160,6 +160,7 @@ export const mockDbSchema = z.object({
     .max(5000)
     .optional(),
   dutyDone: z.array(z.object({ duty_id: uuid, day: z.string().max(10), user_id: uuid, done_at: iso })).max(5000).optional(),
+  dutyChain: z.array(z.object({ duty_id: uuid, day: z.string().max(10), user_id: uuid })).max(20000).optional(),
   swapRequests: z.array(swapRequest).max(5000).optional(),
   dutyEvents: z.array(dutyEvent).max(5000).optional(),
   dutyMorningLog: z.array(z.object({ duty_id: uuid, day: z.string().max(10) })).max(5000).optional(),

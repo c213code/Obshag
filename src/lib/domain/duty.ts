@@ -57,15 +57,66 @@ export type DutyState = {
   roster: ReadonlyArray<RosterEntry>;
   overrides: ReadonlyMap<string, { user_id: string; source: "swap" | "admin" }>;
   done: ReadonlyMap<string, string>;
+  /** Stored queue days (duty_chain): day -> who the chain gave it to. Fixed history; absent = not locked yet. */
+  chain?: ReadonlyMap<string, string>;
   today: string;
 };
 
 export type Resolved = { user_id: string; source: DutySource; plain: string };
 
+const availableOn = (roster: ReadonlyArray<RosterEntry>, userId: string, day: string): boolean => {
+  const m = roster.find((r) => r.user_id === userId);
+  return !!m && m.active && (m.away_until === null || m.away_until < day);
+};
+
 /**
- * An override wins; then a recorded «приготовил»; else rotation[(day - start) mod n]. From today on a member who is away
- * (away_until >= day) or inactive is skipped: the next available one in rotation order takes the day. Past days use the
- * plain rotation. Everybody away: the plain rotation stands. Before the start date nobody has the day (null).
+ * The queue walks (mirror of private.duty_chain_walk): chain(d) = the next member after chain(d-1) in rotation order who is
+ * active and not away on d; everybody unavailable = the plain rotation[(d - start) mod n]. It continues from the last stored
+ * chain day (with none: the plain rotation before yesterday, then the walk) and returns the days after it through `through`.
+ * Stores nothing.
+ */
+export function walkChain(state: Pick<DutyState, "duty" | "roster" | "chain" | "today">, through: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const order = state.duty.order;
+  const n = order.length;
+  if (n === 0) return out;
+  const start = state.duty.start_date;
+  let lastDay: string | null = null;
+  for (const k of state.chain?.keys() ?? []) if (lastDay === null || k > lastDay) lastDay = k;
+  let day = start;
+  let pos = n - 1;
+  // no stored day yet: the days before yesterday are the plain rotation, the walk starts at yesterday
+  const plainBefore = lastDay === null ? addDays(state.today, -1) : null;
+  if (lastDay !== null) {
+    day = addDays(lastDay, 1);
+    const at = order.indexOf(state.chain!.get(lastDay)!);
+    pos = at >= 0 ? at : (((dayDiff(lastDay, start) % n) + n) % n);
+  }
+  if (day < start) day = start;
+  while (day <= through) {
+    let pick = plainBefore !== null && day < plainBefore ? dayDiff(day, start) % n : -1;
+    for (let i = 1; i <= n && pick < 0; i++) {
+      const c = (pos + i) % n;
+      if (availableOn(state.roster, order[c], day)) {
+        pick = c;
+        break;
+      }
+    }
+    if (pick < 0) pick = dayDiff(day, start) % n;
+    out.set(day, order[pick]);
+    pos = pick;
+    day = addDays(day, 1);
+  }
+  return out;
+}
+
+/** The days a lock through `through` would store (what private.duty_chain_lock writes). */
+export const lockChain = walkChain;
+
+/**
+ * An override wins; then a recorded «приготовил»; else the queue: a stored chain day is fixed, a past day without one shows
+ * the plain rotation[(day - start) mod n], today and later walk from the last stored day (see walkChain). «skip» marks a day
+ * the original rotation gave to somebody who is away. Before the start date nobody has the day (null).
  */
 export function resolveDay(state: DutyState, day: string): Resolved | null {
   const o = state.overrides.get(day);
@@ -75,17 +126,15 @@ export function resolveDay(state: DutyState, day: string): Resolved | null {
   const order = state.duty.order;
   const n = order.length;
   if (n === 0 || day < state.duty.start_date) return null;
-  const idx = dayDiff(day, state.duty.start_date) % n;
-  const plain = order[idx];
-  if (day < state.today) return { user_id: plain, source: "rotation", plain };
-  for (let i = 0; i < n; i++) {
-    const cand = order[(idx + i) % n];
-    const m = state.roster.find((r) => r.user_id === cand);
-    if (m && m.active && (m.away_until === null || m.away_until < day)) {
-      return { user_id: cand, source: i === 0 ? "rotation" : "skip", plain };
-    }
+  const plain = order[dayDiff(day, state.duty.start_date) % n];
+  let cand = state.chain?.get(day) ?? null;
+  if (cand === null) {
+    if (day < state.today) return { user_id: plain, source: "rotation", plain };
+    cand = walkChain(state, day).get(day) ?? null;
   }
-  return { user_id: plain, source: "rotation", plain };
+  cand ??= plain;
+  const skipped = cand !== plain && !availableOn(state.roster, plain, day);
+  return { user_id: cand, source: skipped ? "skip" : "rotation", plain };
 }
 
 /** The earlier of the two days at 10:00 Asia/Almaty (UTC+5), as an ISO instant. */

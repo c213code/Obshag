@@ -118,7 +118,7 @@ describe("mockRepo custom purchases, delete and edit", () => {
     await expect(repo.createPurchaseCustom({ ...base, household_id: "other", shares: [{ user_id: AIDOS, amount: 6000 }] })).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("deletes an untouched purchase, blocks it after a payment (a mark is final)", async () => {
+  it("deletes an untouched purchase; after a payment the payer may still delete it and the paid money comes back as a «Возврат» (slice 24)", async () => {
     const { repo, make } = await setup();
     const p = await repo.createPurchaseCustom({ household_id: HOUSEHOLD_ID, amount: 1000, description: "Чай", shares: [{ user_id: AIDOS, amount: 1000 }] });
     const before = (await repo.listPurchases(HOUSEHOLD_ID)).length;
@@ -131,13 +131,17 @@ describe("mockRepo custom purchases, delete and edit", () => {
     await expect(aidos.deletePurchase(q.id)).rejects.toMatchObject({ code: "forbidden" });
     await expect(aidos.updatePurchaseDescription(q.id, "x")).rejects.toMatchObject({ code: "forbidden" });
     await aidos.markSettlement(HOUSEHOLD_ID, ME); // slice 22: final at once, the paid purchase is locked for good
-    await expect(repo.deletePurchase(q.id)).rejects.toMatchObject({ code: "has_payments" });
+    await repo.deletePurchase(q.id);
+    const refund = (await repo.listPurchases(HOUSEHOLD_ID)).find((x) => x.description === "↩︎ Возврат: Кофе")!;
+    expect(refund).toMatchObject({ payer_id: AIDOS, amount: 1000 });
+    expect(refund.shares.find((x) => x.debtor_id === ME)).toMatchObject({ amount: 1000, settled_at: null });
 
     // a seeded purchase whose share Danya has settled
     const seeded = (await repo.listPurchases(HOUSEHOLD_ID)).find((x) => x.description === "Продукты")!;
     const danya = await as(make, "danya@obshak.test");
     await danya.markSettlement(HOUSEHOLD_ID, ME);
-    await expect(repo.deletePurchase(seeded.id)).rejects.toMatchObject({ code: "has_payments" });
+    await repo.deletePurchase(seeded.id);
+    expect((await repo.listPurchases(HOUSEHOLD_ID)).some((x) => x.id === seeded.id)).toBe(false);
   });
 
   it("edits the description (payer only, 1..200)", async () => {

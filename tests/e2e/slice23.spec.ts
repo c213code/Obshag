@@ -15,10 +15,17 @@ type Phone = { context: BrowserContext; page: Page; errors: string[] };
 type Stored = { version: number; rev: number; db: Record<string, Array<Record<string, unknown>>> };
 
 /** The Asia/Almaty date n days from now, 'YYYY-MM-DD' (the app's own definition of today). */
-const almaty = (n: number) => new Date(Date.now() + 5 * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
+// The page clock is frozen to the Wednesday (12:00 Almaty) of the current week, so the week grid never depends on the weekday of the run.
+const FROZEN = (() => {
+  const a = new Date(Date.now() + 5 * 3600_000);
+  const dow = (a.getUTCDay() + 6) % 7; // 0 = Monday
+  return Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate() - dow + 2, 7, 0, 0);
+})();
+const almaty = (n: number) => new Date(FROZEN + 5 * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
 
 async function newPhone(browser: Browser, baseURL: string | undefined): Promise<Phone> {
   const context = await browser.newContext({ ...devices["iPhone 15"], baseURL, serviceWorkers: "block" });
+  await context.clock.setFixedTime(FROZEN);
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => {
@@ -105,6 +112,11 @@ test.describe("slice 23: в отъезде за соседа", () => {
       await expect(tomorrow).toHaveAttribute("data-user", C.id);
       await expect(tomorrow.getByRole("img", { name: "в отъезде" })).toBeVisible();
       await expect(page.getByTestId("order-person").filter({ hasText: B.name })).toContainText(`в отъезде до ${Number(back.slice(8, 10))}`);
+      // slice 24: the queue walks, so nobody cooks two days in a row (Чингиз had the skipped day AND his own next one before)
+      const users = await page.getByTestId("week-cell").evaluateAll((els) => els.map((e) => e.getAttribute("data-user") ?? ""));
+      const assigned = users.filter((u) => u !== "");
+      expect(assigned.length).toBeGreaterThanOrEqual(2);
+      for (let i = 1; i < assigned.length; i++) expect(assigned[i]).not.toBe(assigned[i - 1]);
       await page.screenshot({ path: "gan-harness/screenshots/s23-away-for.png", fullPage: true });
 
       // Квартира → neighbour → «В отъезде…» reaches the same sheet; «Бота дома» clears it

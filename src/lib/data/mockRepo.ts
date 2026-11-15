@@ -14,6 +14,7 @@ import {
   tengeSchema,
 } from "@/lib/domain/schemas";
 import { almatyDay } from "@/lib/domain/almaty";
+import { addDays } from "@/lib/domain/duty";
 import { isAway } from "@/lib/domain/away";
 import { coveredShares, isStale, netPair, pairShares, withoutInFlight } from "@/lib/domain/netting";
 import { splitEqual } from "@/lib/domain/split";
@@ -31,7 +32,7 @@ import {
 } from "./repo";
 import { MockConflictError, type MockStorage, type StoredMock } from "./mockDb";
 import { createSeed, SEED_EMAIL, type MockDb } from "./seed";
-import { createMockDuty } from "./mockDuty";
+import { createMockDuty, lockHouseholdChains } from "./mockDuty";
 import { createMockPaid } from "./mockPaid";
 import { writeSharesWithOrders } from "./mockOrders";
 import { isAccumulating, isTransferable } from "@/lib/domain/minTransfer";
@@ -694,9 +695,41 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (!p || !isMember(db, p.household_id, id) || (p.status !== "shared" && p.payer_id !== id)) throw new RepoError("not_found", "Purchase not found");
         const admin = p.status === "shared" && db.members.some((m) => m.household_id === p.household_id && m.user_id === id && m.active && m.role === "admin");
         if (p.payer_id !== id && !admin) throw new RepoError("forbidden", "Only the payer or an admin can delete");
-        const paid = db.shares.some((s) => s.purchase_id === p.id && s.settled_at !== null && s.debtor_id !== p.payer_id);
-        const covered = db.settlements.some((s) => s.status !== "cancelled" && s.covered.some((c) => c.purchase_id === p.id));
-        if (paid || covered) throw new RepoError("has_payments", "Something was already paid for this purchase");
+        // slice24: the payer (or an admin) may delete a shared purchase after people paid. Every settled non-payer share becomes
+        // a «↩︎ Возврат» purchase (that debtor paid, the old payer owes it back); the pair netting does the rest.
+        if (p.status === "shared") {
+          const title = p.description.trim() || p.merchant?.trim() || "Покупка";
+          const createdAt = now().toISOString();
+          const settled = db.shares
+            .filter((s) => s.purchase_id === p.id && s.debtor_id !== p.payer_id && s.settled_at !== null && s.amount > 0)
+            .sort((a, b) => a.debtor_id.localeCompare(b.debtor_id));
+          for (const s of settled) {
+            const refund: Purchase = {
+              id: newId(),
+              household_id: p.household_id,
+              payer_id: s.debtor_id,
+              amount: s.amount,
+              description: `↩︎ Возврат: ${title}`.slice(0, 200),
+              merchant: null,
+              source: "manual",
+              status: "shared",
+              created_at: createdAt,
+            };
+            db.purchases.push(refund);
+            db.shares.push(
+              { purchase_id: refund.id, debtor_id: p.payer_id, amount: s.amount, settled_at: null, settlement_id: null },
+              { purchase_id: refund.id, debtor_id: s.debtor_id, amount: 0, settled_at: createdAt, settlement_id: null },
+            );
+          }
+          for (const st of db.settlements) {
+            if (!st.covered.some((c) => c.purchase_id === p.id)) continue;
+            st.covered = st.covered.filter((c) => c.purchase_id !== p.id);
+            if (st.status !== "marked") continue;
+            const total = st.covered.reduce((sum, c) => sum + (c.debtor_id === st.from_id ? c.amount : -c.amount), 0);
+            if (total <= 0) st.status = "cancelled";
+            else st.amount = total;
+          }
+        }
         db.purchases = db.purchases.filter((x) => x.id !== p.id);
         db.shares = db.shares.filter((s) => s.purchase_id !== p.id);
         if (db.purchaseOrders) db.purchaseOrders = db.purchaseOrders.filter((o) => o.purchase_id !== p.id);
@@ -1228,6 +1261,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           const max = new Date(Date.parse(`${today.date}T00:00:00Z`) + 366 * DAY_MS).toISOString().slice(0, 10);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || until < today.date || until > max) throw new RepoError("invalid", "Invalid date");
         }
+        lockHouseholdChains(db, householdId, addDays(almatyDay(now()).date, -1), almatyDay(now()).date);
         m.away_until = until;
       });
     },
@@ -1243,6 +1277,7 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
           const max = new Date(Date.parse(`${today.date}T00:00:00Z`) + 366 * DAY_MS).toISOString().slice(0, 10);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || until < today.date || until > max) throw new RepoError("invalid", "Invalid date");
         }
+        lockHouseholdChains(db, householdId, addDays(almatyDay(now()).date, -1), almatyDay(now()).date);
         target.away_until = until;
       });
     },

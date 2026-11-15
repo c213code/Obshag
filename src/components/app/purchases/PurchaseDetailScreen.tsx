@@ -269,7 +269,12 @@ export function PurchaseDetailScreen() {
         </p>
       ) : null}
       {canDelete(purchase, me.id, members[purchase.household_id]) && !editing ? (
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-2">
+          {confirming && paidAny ? (
+            <p data-testid="delete-paid-note" className="text-center text-caption">
+              {ru.detail.deletePaidNote}
+            </p>
+          ) : null}
           <AnimatePresence initial={false} mode="popLayout">
             {confirming ? (
               <m.div

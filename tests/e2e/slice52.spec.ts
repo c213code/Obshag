@@ -238,7 +238,7 @@ test.describe("slices 5+2", () => {
     expect(s.db.purchases.find((p) => p.description === "Вода на выброс")).toBeUndefined();
   });
 
-  test("delete is blocked once a payment is on its way: the row comes back with a reason", async ({ browser, baseURL, request }) => {
+  test("the author can delete a paid purchase: the money comes back to the debtor as a «Возврат» purchase (slice 24)", async ({ browser, baseURL, request }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ME);
       await buy(page, 800, "Чай и печенье", ["Айдос"]);
@@ -259,14 +259,27 @@ test.describe("slices 5+2", () => {
       await page.getByRole("link", { name: "Покупки", exact: true }).click();
       await page.getByRole("link", { name: /Чай и печенье/ }).click();
       await page.getByRole("button", { name: "Удалить покупку" }).click();
+      await expect(page.getByTestId("delete-paid-note")).toHaveText("За неё уже платили — эти деньги вернутся им в долгах.");
+      await page.screenshot({ path: `${SHOTS}/s52-app-delete-paid.png` });
       await page.getByRole("button", { name: "Удалить", exact: true }).click();
       await expect(page).toHaveURL(/\/purchases$/);
-      await expect(page.getByText("Нельзя удалить: по этой покупке уже есть оплата.")).toBeVisible();
-      await expect(page.getByRole("link", { name: /Чай и печенье/ })).toBeVisible(); // rolled back
-      await page.screenshot({ path: `${SHOTS}/s52-app-delete-blocked.png` });
+      await expect(page.getByText("Нельзя удалить: по этой покупке уже есть оплата.")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /Чай и печенье/ })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /Возврат: Чай и печенье/ })).toBeVisible();
+    });
+    // the refund's author deletes it again, so the shared mock household is back to even for the next tests
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, AIDOS);
+      await page.getByRole("link", { name: "Покупки", exact: true }).click();
+      await page.getByRole("link", { name: /Возврат: Чай и печенье/ }).click();
+      await page.getByRole("button", { name: "Удалить покупку" }).click();
+      await page.getByRole("button", { name: "Удалить", exact: true }).click();
+      await expect(page).toHaveURL(/\/purchases$/);
+      await expect(page.getByRole("link", { name: /Возврат: Чай и печенье/ })).toHaveCount(0);
     });
     const s = await readStore(request);
-    expect(s.db.purchases.find((p) => p.description === "Чай и печенье")).toBeDefined();
+    expect(s.db.purchases.find((p) => p.description === "Чай и печенье")).toBeUndefined();
+    expect(s.db.purchases.find((p) => p.description === "↩︎ Возврат: Чай и печенье")).toBeUndefined();
   });
 
   test("Покупки tab: grouped by day, filters Все / Мои / Должен я", async ({ browser, baseURL }) => {

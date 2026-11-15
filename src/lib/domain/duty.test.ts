@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DutyDay } from "@/lib/data/types";
 import {
   addDays, buildMonth, buildWeek, dayDiff, daysInMonth, effectiveStatus, isoDow, longDay, monthStats, monthTitle, neighbours,
-  nextDayOf, nextLabel, resolveDay, swapExpiresAt, timeLeft, toneMap, weekStart, type DutyState,
+  lockChain, nextDayOf, nextLabel, resolveDay, walkChain, swapExpiresAt, timeLeft, toneMap, weekStart, type DutyState,
 } from "./duty";
 
 const A = "a", B = "b", C = "c";
@@ -39,8 +39,9 @@ describe("resolveDay", () => {
   });
   it("skips an away or inactive member from today on, the plain rotation stands for the past and when all are away", () => {
     const away = state({ roster: [{ user_id: A, active: true, away_until: null }, { user_id: B, active: true, away_until: "2026-11-12" }, { user_id: C, active: true, away_until: null }] });
-    expect(resolveDay(away, "2026-11-12")).toMatchObject({ user_id: C, source: "skip", plain: B }); // B's day, B is away until the 12th
-    expect(resolveDay(away, "2026-11-13")?.source).toBe("rotation");
+    // the queue walks from yesterday: 11th B is away -> C, 12th (B's plain day, still away) -> the next after C is A
+    expect(resolveDay(away, "2026-11-12")).toMatchObject({ user_id: A, source: "skip", plain: B });
+    expect(resolveDay(away, "2026-11-13")).toMatchObject({ user_id: B, source: "rotation" });
     expect(resolveDay(away, "2026-11-09")).toMatchObject({ user_id: B, source: "rotation" }); // past: no skipping
     const inactive = state({ roster: [{ user_id: A, active: false, away_until: null }, { user_id: B, active: true, away_until: null }, { user_id: C, active: true, away_until: null }] });
     expect(resolveDay(inactive, "2026-11-11")).toMatchObject({ user_id: B, source: "skip", plain: A });
@@ -51,6 +52,61 @@ describe("resolveDay", () => {
     const s = state({ overrides: new Map([["2026-11-11", { user_id: C, source: "admin" as const }]]), done: new Map([["2026-11-10", C], ["2026-11-11", A]]) });
     expect(resolveDay(s, "2026-11-11")).toMatchObject({ user_id: C, source: "admin" });
     expect(resolveDay(s, "2026-11-10")).toMatchObject({ user_id: C, source: "rotation" });
+  });
+});
+
+describe("the queue walks (slice 24)", () => {
+  const four = ["m0", "m1", "m2", "m3"];
+  const live = (over: Partial<DutyState> = {}): DutyState => ({
+    duty: { start_date: "2026-11-10", order: four },
+    roster: four.map((user_id) => ({ user_id, active: true, away_until: user_id === "m0" ? "2026-11-16" : null })),
+    overrides: new Map(),
+    done: new Map(),
+    today: "2026-11-15",
+    ...over,
+  });
+  const days = (s: DutyState, from: string, n: number) => Array.from({ length: n }, (_, i) => resolveDay(s, addDays(from, i))?.user_id);
+
+  it("A1: nobody away -> the chain is the plain rotation for 30 days", () => {
+    const s = live({ roster: four.map((user_id) => ({ user_id, active: true, away_until: null })) });
+    days(s, "2026-11-10", 30).forEach((u, i) => expect(u).toBe(four[i % 4]));
+    // also once the chain is stored day by day
+    const chain = new Map(lockChain(s, "2026-11-20"));
+    days({ ...s, chain }, "2026-11-10", 30).forEach((u, i) => expect(u).toBe(four[i % 4]));
+  });
+  it("A2: the live scenario, locked like the backfill does", () => {
+    const stored = lockChain(live(), "2026-11-15"); // plain up to the 13th, the 14th and 15th walked
+    expect([...stored.values()]).toEqual(["m0", "m1", "m2", "m3", "m1", "m2"]);
+    const s = live({ chain: stored });
+    expect(days(s, "2026-11-14", 5)).toEqual(["m1", "m2", "m3", "m0", "m1"]);
+    const all = days(s, "2026-11-10", 12);
+    for (let i = 1; i < all.length; i++) expect(all[i]).not.toBe(all[i - 1]);
+    expect(resolveDay(s, "2026-11-14")).toMatchObject({ user_id: "m1", source: "skip", plain: "m0" });
+    expect(resolveDay(s, "2026-11-15")).toMatchObject({ user_id: "m2", source: "rotation" });
+  });
+  it("A2b: without any stored row the same days come out of the walk from yesterday", () => {
+    expect(days(live(), "2026-11-15", 4)).toEqual(["m2", "m3", "m0", "m1"]);
+    expect(resolveDay(live(), "2026-11-14")?.user_id).toBe("m0"); // a past day without a row: the plain rotation
+  });
+  it("A3: a later away change leaves locked days alone and moves the unlocked ones", () => {
+    const stored = lockChain(live(), "2026-11-15");
+    const changed = live({ chain: stored, roster: four.map((user_id) => ({ user_id, active: true, away_until: user_id === "m3" ? "2026-11-20" : null })) });
+    expect(days(changed, "2026-11-10", 6)).toEqual(["m0", "m1", "m2", "m3", "m1", "m2"]);
+    expect(days(changed, "2026-11-16", 3)).toEqual(["m0", "m1", "m2"]); // m3 away: skipped
+  });
+  it("A4: overrides and done show on their day without moving the chain", () => {
+    const stored = lockChain(live(), "2026-11-15");
+    const s = live({ chain: stored, overrides: new Map([["2026-11-17", { user_id: "m3", source: "swap" as const }]]), done: new Map([["2026-11-15", "m1"]]) });
+    expect(days(s, "2026-11-15", 5)).toEqual(["m1", "m3", "m3", "m1", "m2"]); // done on the 15th, the chain gave the 16th to m3, an override the 17th to m3 again
+    expect(resolveDay(s, "2026-11-17")).toMatchObject({ user_id: "m3", source: "swap" });
+    expect(walkChain(s, "2026-11-18").get("2026-11-17")).toBe("m0"); // the chain itself is untouched
+  });
+  it("everybody away: the plain rotation stands; an inactive member is never picked", () => {
+    const all = live({ today: "2026-11-10", roster: four.map((user_id) => ({ user_id, active: true, away_until: "2026-12-31" })) });
+    expect(walkChain(all, "2026-11-13").size).toBe(4);
+    expect(days({ ...all, chain: walkChain(all, "2026-11-13") }, "2026-11-10", 4)).toEqual(four);
+    const gone = live({ roster: four.map((user_id) => ({ user_id, active: user_id !== "m2", away_until: null })) });
+    expect(days(gone, "2026-11-15", 4).includes("m2")).toBe(false);
   });
 });
 

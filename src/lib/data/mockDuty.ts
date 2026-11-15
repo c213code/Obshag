@@ -8,6 +8,7 @@ import {
   dayOfMonth,
   isoDow,
   resolveDay,
+  lockChain,
   swapExpiresAt,
   type DutyState,
 } from "@/lib/domain/duty";
@@ -63,6 +64,28 @@ const invalid = (m = "Invalid input") => new RepoError("invalid", m);
 const forbidden = () => new RepoError("forbidden", "Not allowed");
 const denied = (code: "busy" | "stale" | "not_assignee" | "past_day" | "future_day" | "locked" | "expired") => new RepoError(code, code);
 
+/** private.duty_chain_lock: stores the queue days of one duty through `through` (idempotent). */
+export function lockDutyChain(db: MockDb, d: Duty, through: string, today: string): void {
+  const chain = (db.dutyChain ??= []);
+  const state: DutyState = {
+    duty: d,
+    roster: db.members.filter((m) => m.household_id === d.household_id).map((m) => ({ user_id: m.user_id, active: m.active, away_until: m.away_until })),
+    overrides: new Map(),
+    done: new Map(),
+    chain: new Map(chain.filter((c) => c.duty_id === d.id).map((c) => [c.day, c.user_id])),
+    today,
+  };
+  if (d.order.length === 0) return;
+  for (const [day, user_id] of lockChain(state, through)) chain.push({ duty_id: d.id, day, user_id });
+}
+
+/** private.duty_chain_lock_household: before an away change, freeze every day-rotation duty of the household. */
+export function lockHouseholdChains(db: MockDb, householdId: Uuid, through: string, today: string): void {
+  for (const d of db.duties ?? []) {
+    if (d.household_id === householdId && d.active && (d.kind === "cooking" || d.kind === "custom") && d.order.length > 0) lockDutyChain(db, d, through, today);
+  }
+}
+
 /** In-memory twin of the slice 14 SQL (duties, schedule, swaps, done, the morning run). Rules and error codes match 0012. */
 export function createMockDuty(ctx: Ctx): MockDutyApi {
   const today = () => almatyDay(ctx.now()).date;
@@ -86,6 +109,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
     roster: db.members.filter((m) => m.household_id === d.household_id).map((m) => ({ user_id: m.user_id, active: m.active, away_until: m.away_until })),
     overrides: new Map((db.dutyOverrides ?? []).filter((o) => o.duty_id === d.id).map((o) => [o.day, { user_id: o.user_id, source: o.source }])),
     done: new Map((db.dutyDone ?? []).filter((x) => x.duty_id === d.id).map((x) => [x.day, x.user_id])),
+    chain: new Map((db.dutyChain ?? []).filter((c) => c.duty_id === d.id).map((c) => [c.day, c.user_id])),
     today: today(),
   });
   const assignee = (db: MockDb, d: Duty, day: string): Uuid | null => resolveDay(stateOf(db, d), day)?.user_id ?? null;
@@ -438,6 +462,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
         const t = today();
         if (!ISO_DAY.test(day) || day > t) throw denied("future_day");
         if (day < addDays(t, -1) || (day === addDays(t, -1) && almatyHour() >= DONE_LOCK_HOUR)) throw denied("locked");
+        lockDutyChain(db, d, day, t);
         if (assignee(db, d, day) !== id) throw denied("not_assignee");
         const done = (db.dutyDone ??= []);
         if (!done.some((x) => x.duty_id === d.id && x.day === day)) done.push({ duty_id: d.id, day, user_id: id, done_at: ctx.now().toISOString() });
@@ -522,6 +547,7 @@ export function createMockDuty(ctx: Ctx): MockDutyApi {
           if (!d.active || d.order.length === 0 || d.kind === "trash" || d.kind === "water") continue;
           if ((db.dutyMorningLog ?? []).some((l) => l.duty_id === d.id && l.day === t)) continue;
           db.dutyMorningLog!.push({ duty_id: d.id, day: t });
+          lockDutyChain(db, d, t, t);
           const cook = assignee(db, d, t);
           if (!cook) continue;
           const next = assignee(db, d, addDays(t, 1));

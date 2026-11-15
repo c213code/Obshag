@@ -16,10 +16,17 @@ type Phone = { context: BrowserContext; page: Page; errors: string[] };
 type Stored = { version: number; rev: number; db: Record<string, Array<Record<string, unknown>>> };
 
 /** The Asia/Almaty date n days from now, 'YYYY-MM-DD' (the app's own definition of today). */
-const almaty = (n: number) => new Date(Date.now() + 5 * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
+// The page clock is frozen to the Wednesday (12:00 Almaty) of the current week, so the week grid never depends on the weekday of the run.
+const FROZEN = (() => {
+  const a = new Date(Date.now() + 5 * 3600_000);
+  const dow = (a.getUTCDay() + 6) % 7; // 0 = Monday
+  return Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate() - dow + 2, 7, 0, 0);
+})();
+const almaty = (n: number) => new Date(FROZEN + 5 * 3600_000 + n * 86_400_000).toISOString().slice(0, 10);
 
 async function newPhone(browser: Browser, baseURL: string | undefined): Promise<Phone> {
   const context = await browser.newContext({ ...devices["iPhone 15"], baseURL, serviceWorkers: "block" });
+  await context.clock.setFixedTime(FROZEN);
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => {

@@ -533,6 +533,7 @@ export const ru = {
     nobodyOwes: "Все скинули или никто не должен",
     delete: "Удалить покупку",
     deleteAsk: "Точно удалить?",
+    deletePaidNote: "За неё уже платили — эти деньги вернутся им в долгах.",
     deleteConfirm: "Удалить",
     deleteCancel: "Отмена",
     deleting: "Удаляем…",

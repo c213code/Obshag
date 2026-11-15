@@ -38,6 +38,8 @@ export type MockDb = {
   duties?: Duty[];
   dutyOverrides?: Array<{ duty_id: string; day: string; user_id: string; source: "swap" | "admin"; reason: string | null }>;
   dutyDone?: Array<{ duty_id: string; day: string; user_id: string; done_at: string }>;
+  /** Queue days frozen by the chain lock (public.duty_chain). */
+  dutyChain?: Array<{ duty_id: string; day: string; user_id: string }>;
   swapRequests?: SwapRequest[];
   /** duty_events (Мусор / Вода) */
   dutyEvents?: DutyEvent[];
