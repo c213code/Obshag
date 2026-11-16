@@ -63,6 +63,7 @@ type Stored = {
     members: Array<{ user_id: string; reminders_enabled?: boolean }>;
     pushSubscriptions: Array<Record<string, string>>;
     reminderLog?: unknown[];
+    settlements: Array<{ from_id: string; to_id: string; amount: number; status: string }>;
   };
 };
 async function readStore(request: APIRequestContext): Promise<Stored> {
@@ -238,7 +239,7 @@ test.describe("slices 5+2", () => {
     expect(s.db.purchases.find((p) => p.description === "Вода на выброс")).toBeUndefined();
   });
 
-  test("the author can delete a paid purchase: the money comes back to the debtor as a «Возврат» purchase (slice 24)", async ({ browser, baseURL, request }) => {
+  test("the author can delete a paid purchase: it just disappears, no refund purchase (slice 25)", async ({ browser, baseURL, request }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ME);
       await buy(page, 800, "Чай и печенье", ["Айдос"]);
@@ -259,27 +260,50 @@ test.describe("slices 5+2", () => {
       await page.getByRole("link", { name: "Покупки", exact: true }).click();
       await page.getByRole("link", { name: /Чай и печенье/ }).click();
       await page.getByRole("button", { name: "Удалить покупку" }).click();
-      await expect(page.getByTestId("delete-paid-note")).toHaveText("За неё уже платили — эти деньги вернутся им в долгах.");
+      await expect(page.getByTestId("delete-paid-note")).toHaveText("Покупка удалится полностью, долги пересчитаются.");
       await page.screenshot({ path: `${SHOTS}/s52-app-delete-paid.png` });
       await page.getByRole("button", { name: "Удалить", exact: true }).click();
       await expect(page).toHaveURL(/\/purchases$/);
       await expect(page.getByText("Нельзя удалить: по этой покупке уже есть оплата.")).toHaveCount(0);
       await expect(page.getByRole("link", { name: /Чай и печенье/ })).toHaveCount(0);
-      await expect(page.getByRole("link", { name: /Возврат: Чай и печенье/ })).toBeVisible();
-    });
-    // the refund's author deletes it again, so the shared mock household is back to even for the next tests
-    await withPhone(browser, baseURL, async ({ page }) => {
-      await logIn(page, AIDOS);
-      await page.getByRole("link", { name: "Покупки", exact: true }).click();
-      await page.getByRole("link", { name: /Возврат: Чай и печенье/ }).click();
-      await page.getByRole("button", { name: "Удалить покупку" }).click();
-      await page.getByRole("button", { name: "Удалить", exact: true }).click();
-      await expect(page).toHaveURL(/\/purchases$/);
-      await expect(page.getByRole("link", { name: /Возврат: Чай и печенье/ })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /Возврат/ })).toHaveCount(0);
     });
     const s = await readStore(request);
     expect(s.db.purchases.find((p) => p.description === "Чай и печенье")).toBeUndefined();
     expect(s.db.purchases.find((p) => p.description === "↩︎ Возврат: Чай и печенье")).toBeUndefined();
+  });
+
+  test("the creditor marks «Айдос перевёл мне» -> «Да, получил» -> the debt is closed (slice 25)", async ({ browser, baseURL, request }) => {
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, ME);
+      await buy(page, 800, "Лепёшки", ["Айдос"]); // Айдос owes 400
+      await page.goto("/settle");
+      await page.getByTestId("settle-owes-me-row").filter({ hasText: "Айдос" }).getByRole("link").click();
+      await expect(page).toHaveURL(/\/settle\/[0-9a-f-]{36}$/);
+      await expect(page.getByTestId("remind-pair")).toBeVisible(); // «Напомнить» stays
+      await page.getByTestId("received-pair").click();
+      const sheet = page.getByTestId("received-sheet");
+      await expect(sheet).toContainText(/Айдос перевёл тебе 400\s₸\?/);
+      await page.screenshot({ path: `${SHOTS}/s52-app-received.png` });
+      const saved = savedToStore(page);
+      await page.getByTestId("received-confirm").click();
+      await saved;
+      await expect(page.getByText("Готово ✓ — долг закрыт")).toBeVisible();
+    });
+    const s = await readStore(request);
+    const aidos = userId(s, AIDOS.email);
+    const me = userId(s, ME.email);
+    expect(s.db.settlements.some((x) => x.from_id === aidos && x.to_id === me && x.status === "confirmed" && x.amount === 400)).toBe(true);
+    expect(s.db.shares.filter((x) => x.debtor_id === aidos && x.settled_at === null && x.amount > 0)).toEqual([]);
+    // clean up the purchase so the shared mock household stays even
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, ME);
+      await page.getByRole("link", { name: "Покупки", exact: true }).click();
+      await page.getByRole("link", { name: /Лепёшки/ }).click();
+      await page.getByRole("button", { name: "Удалить покупку" }).click();
+      await page.getByRole("button", { name: "Удалить", exact: true }).click();
+      await expect(page).toHaveURL(/\/purchases$/);
+    });
   });
 
   test("Покупки tab: grouped by day, filters Все / Мои / Должен я", async ({ browser, baseURL }) => {

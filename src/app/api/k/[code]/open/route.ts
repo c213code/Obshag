@@ -4,8 +4,8 @@ import { getPayLinkDeps } from "@/lib/server/reminderDeps";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** `after()` runs inside the route's duration: the ~150 s wait before the bot asks needs more than the default (must be a literal; same as /api/settle/opened). */
-export const maxDuration = 170;
+/** `after()` runs inside the route's duration: the ~20 s wait before the bot asks needs more than the default (must be a literal; same as /api/settle/opened). */
+export const maxDuration = 40;
 
 /** «Скопировать номер и открыть Kaspi» on /k/<code>: records the prompt of the link's pair, asks «ты перевёл?» later. No body is read. */
 export async function POST(_request: Request, ctx: { params: Promise<{ code: string }> }) {

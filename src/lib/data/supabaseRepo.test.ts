@@ -273,6 +273,21 @@ describe("supabaseRepo", () => {
     await expect(refused.writeOffSmall("h1", "u2")).rejects.toMatchObject({ code: "not_small" });
   });
 
+  it("markReceived calls mark_received with the household and the debtor, and maps its errors", async () => {
+    const row = { id: "s1", household_id: "h1", from_id: "u2", to_id: "u1", amount: 200, status: "confirmed", marked_at: "t", confirmed_at: "t", kind: "transfer" };
+    const { client, calls } = fakeClient({
+      rpc: { mark_received: { data: row, error: null } },
+      tables: { settlement_shares: { data: [], error: null } },
+    });
+    const out = await createSupabaseRepo(client).markReceived("h1", "u2");
+    expect(out).toMatchObject({ status: "confirmed", amount: 200 });
+    expect(calls).toEqual([{ fn: "mark_received", args: { p_household: "h1", p_from: "u2" } }]);
+    const nothing = createSupabaseRepo(fakeClient({ rpc: { mark_received: { data: null, error: { code: "23514", message: "nothing_owed" } } } }).client);
+    await expect(nothing.markReceived("h1", "u2")).rejects.toMatchObject({ code: "invalid" });
+    const small = createSupabaseRepo(fakeClient({ rpc: { mark_received: { data: null, error: { code: "P0001", message: "too_small" } } } }).client);
+    await expect(small.markReceived("h1", "u2")).rejects.toMatchObject({ code: "too_small" });
+  });
+
   it("settlements: RPC names and arguments (no amount is ever sent), the read query, and error mapping", async () => {
     const row = { id: "s1", household_id: "h1", from_id: "u1", to_id: "u2", amount: 200, status: "marked", marked_at: "t", confirmed_at: null };
     const { client, calls, queries } = fakeClient({

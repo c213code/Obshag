@@ -80,7 +80,7 @@ describe("mockRepo «Ты перевёл?»", () => {
     const p = await aidos.openPaidPrompt(HOUSEHOLD_ID, ME);
     await expect(aidos.paidPromptNotice("wrong", p.id)).rejects.toMatchObject({ code: "unauthenticated" });
     await expect(aidos.paidPromptNotice(SECRET, p.id)).resolves.toEqual({ ask: false });
-    advance(150_000);
+    advance(20_000);
     await expect(aidos.paidPromptNotice(SECRET, p.id)).resolves.toMatchObject({ ask: true, prompt_id: p.id, to_user: ME, to_name: "Ерасыл", amount: 1000 });
     await expect(aidos.paidPromptNotice(SECRET, p.id)).resolves.toEqual({ ask: false });
     await expect((await as("danya@obshak.test")).paidPromptNotice(SECRET, p.id)).rejects.toMatchObject({ code: "forbidden" });

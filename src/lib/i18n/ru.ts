@@ -533,7 +533,7 @@ export const ru = {
     nobodyOwes: "Все скинули или никто не должен",
     delete: "Удалить покупку",
     deleteAsk: "Точно удалить?",
-    deletePaidNote: "За неё уже платили — эти деньги вернутся им в долгах.",
+    deletePaidNote: "Покупка удалится полностью, долги пересчитаются.",
     deleteConfirm: "Удалить",
     deleteCancel: "Отмена",
     deleting: "Удаляем…",
@@ -630,6 +630,18 @@ export const ru = {
       writeOffFailed: "Не получилось списать. Попробуй ещё раз.",
     },
     openKaspi: "Открыть Kaspi",
+    /** Slice 25: the creditor records «X перевёл мне». */
+    markedByMe: {
+      button: (name: string) => `${name} перевёл мне`,
+      confirmTitle: (name: string, amount: string) => `${name} перевёл тебе ${amount}?`,
+      confirmText: "Долг закроется — так же, как если бы он отметил сам.",
+      confirm: "Да, получил",
+      cancel: "Отмена",
+      done: "Готово ✓ — долг закрыт",
+      nothingOwed: "Этот сосед тебе сейчас ничего не должен. Список обновлён.",
+      tooSmall: "Долг меньше 100 ₸ — его можно только списать.",
+      failed: "Не получилось отметить. Попробуй ещё раз.",
+    },
     /** Kaspi cannot transfer less than 100 ₸: such a debt only accumulates until the next purchases, or the creditor writes it off. */
     small: {
       /** Muted label next to the amount. */

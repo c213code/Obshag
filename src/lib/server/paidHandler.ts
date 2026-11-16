@@ -6,10 +6,10 @@ import { paidOpenedBodySchema } from "@/lib/domain/schemas";
 import type { PushSender } from "./push";
 import type { InlineKeyboard, TelegramApi } from "./telegram/api";
 
-/** How long the prompt waits before the bot asks (the database insists on at least 120 s). */
-export const ASK_DELAY_MS = 150_000;
+/** How long the prompt waits before the bot asks (the database insists on at least 15 s). */
+export const ASK_DELAY_MS = 20_000;
 /** The route's maxDuration (seconds; the literal lives in app/api/settle/opened/route.ts): the delayed job runs inside `after()`, which the platform caps with it. */
-export const ROUTE_MAX_DURATION_S = 170;
+export const ROUTE_MAX_DURATION_S = 40;
 
 export type PaidDeps = {
   repo: Pick<Repo, "openPaidPrompt" | "paidPromptNotice">;

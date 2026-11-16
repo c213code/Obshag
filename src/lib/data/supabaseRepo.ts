@@ -457,6 +457,11 @@ export function createSupabaseRepo(client: SupabaseClient): Repo {
       return withCovered({ ...row, covered: await recordedShares(row.id) });
     },
 
+    async markReceived(householdId, fromUserId) {
+      const row = ok<Omit<Settlement, "covered">>(await client.rpc("mark_received", { p_household: householdId, p_from: fromUserId }));
+      return withCovered({ ...row, covered: await recordedShares(row.id) });
+    },
+
     async confirmSettlement(settlementId, expectedAmount) {
       const row = ok<Omit<Settlement, "covered">>(
         await client.rpc("confirm_settlement", {

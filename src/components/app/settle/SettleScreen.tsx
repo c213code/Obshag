@@ -33,6 +33,7 @@ import { PairScene } from "./PairScene";
 import { useHeldIncoming } from "./useHeldIncoming";
 import { useKaspiCopy } from "./useKaspiCopy";
 import { usePaidPrompt } from "./usePaidPrompt";
+import { ReceivedButton } from "./ReceivedButton";
 import { WriteOffButton } from "./WriteOffButton";
 import { useSettleData, type Incoming } from "./useSettleData";
 
@@ -299,7 +300,10 @@ export function SettleScreen() {
               <ExternalIcon size={18} strokeWidth={2.2} />
             </Pill>
           ) : pendingOnly ? null : (
-            <RemindButton householdId={data.householdId} debtorId={userId} name={name} variant="on" size="pay" className="flex-1" testId="remind-pair" />
+            <>
+              <RemindButton householdId={data.householdId} debtorId={userId} name={name} variant="on" size="pay" className="flex-1" testId="remind-pair" />
+              <ReceivedButton householdId={data.householdId} fromId={userId} name={name} amount={pair.net} size="pay" className="flex-1" testId="received-pair" />
+            </>
           )}
         </BottomActions>
       ) : null}

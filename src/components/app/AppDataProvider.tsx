@@ -74,6 +74,8 @@ export type AppActions = {
   answerPaid(promptId: string, yes: boolean): Promise<PaidAnswer | null>;
   /** Creditor only: «Списать 75 ₸». Optimistic: the pair's open shares show as settled at once; rolled back with a notice on failure. */
   writeOff(householdId: string, debtorId: string): Promise<boolean>;
+  /** Creditor only: «{Имя} перевёл мне». Resolves true when the debt closed (a notice says so, or why not). */
+  markReceived(householdId: string, fromUserId: string): Promise<boolean>;
   /** «Получил»: optimistic confirm; the covered shares show as settled at once. Rolled back with a notice on failure. */
   confirmReceived(settlementId: string): Promise<boolean>;
   /** «Отменить» (by the debtor) or declining an incoming mark (by the creditor). */
@@ -697,6 +699,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     },
     [repo, settlementTracker, patchSettlements, refresh, scheduleRefresh],
   );
+  const markReceived = useCallback(
+    async (householdId: string, fromUserId: string): Promise<boolean> => {
+      try {
+        await repo.markReceived(householdId, fromUserId);
+        if (alive.current) {
+          setNotice(ru.settle.markedByMe.done);
+          await refresh({ silent: true });
+        }
+        return true;
+      } catch (e) {
+        if (alive.current) {
+          const code = e instanceof RepoError ? e.code : null;
+          setNotice(
+            code === "invalid" ? ru.settle.markedByMe.nothingOwed : code === "too_small" ? ru.settle.markedByMe.tooSmall : code === "rate_limited" ? ru.settle.errors.rateLimited : ru.settle.markedByMe.failed,
+          );
+          void refresh({ silent: true });
+        }
+        return false;
+      }
+    },
+    [repo, refresh],
+  );
+
   const confirmReceived = useCallback((id: string) => changeSettlement(id, "confirmed"), [changeSettlement]);
   const cancelSettlement = useCallback((id: string) => changeSettlement(id, "cancelled"), [changeSettlement]);
 
@@ -760,8 +785,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   const actions = useMemo<AppActions>(
-    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
-    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
+    () => ({ setActiveId, switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, markReceived, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice }),
+    [switchHousehold, refresh, refreshMembers, signOut, addPurchase, deletePurchase, editDescription, editPurchase, setRemindersEnabled, markPaid, answerPaid, writeOff, markReceived, confirmReceived, cancelSettlement, resolvePending, showNotice, dismissNotice],
   );
 
   const stage = useMemo(

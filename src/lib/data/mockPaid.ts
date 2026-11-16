@@ -25,7 +25,7 @@ export type MockPaidApi = Pick<
 /** A pending prompt older than this is expired (lazily, on read). */
 export const PROMPT_TTL_MS = 30 * 60_000;
 /** paid_prompt_notice only asks once the prompt is at least this old. */
-export const PROMPT_ASK_AFTER_MS = 120_000;
+export const PROMPT_ASK_AFTER_MS = 15_000;
 
 /** In-memory twin of the slice 17 SQL (0015). Rules and error codes match it. */
 export function createMockPaid(ctx: Ctx): MockPaidApi {

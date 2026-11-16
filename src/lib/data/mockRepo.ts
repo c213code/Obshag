@@ -695,32 +695,8 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
         if (!p || !isMember(db, p.household_id, id) || (p.status !== "shared" && p.payer_id !== id)) throw new RepoError("not_found", "Purchase not found");
         const admin = p.status === "shared" && db.members.some((m) => m.household_id === p.household_id && m.user_id === id && m.active && m.role === "admin");
         if (p.payer_id !== id && !admin) throw new RepoError("forbidden", "Only the payer or an admin can delete");
-        // slice24: the payer (or an admin) may delete a shared purchase after people paid. Every settled non-payer share becomes
-        // a «↩︎ Возврат» purchase (that debtor paid, the old payer owes it back); the pair netting does the rest.
+        // slice25: a deleted purchase simply disappears (no automatic refund). Settled shares go with it; confirmed settlements stay as history.
         if (p.status === "shared") {
-          const title = p.description.trim() || p.merchant?.trim() || "Покупка";
-          const createdAt = now().toISOString();
-          const settled = db.shares
-            .filter((s) => s.purchase_id === p.id && s.debtor_id !== p.payer_id && s.settled_at !== null && s.amount > 0)
-            .sort((a, b) => a.debtor_id.localeCompare(b.debtor_id));
-          for (const s of settled) {
-            const refund: Purchase = {
-              id: newId(),
-              household_id: p.household_id,
-              payer_id: s.debtor_id,
-              amount: s.amount,
-              description: `↩︎ Возврат: ${title}`.slice(0, 200),
-              merchant: null,
-              source: "manual",
-              status: "shared",
-              created_at: createdAt,
-            };
-            db.purchases.push(refund);
-            db.shares.push(
-              { purchase_id: refund.id, debtor_id: p.payer_id, amount: s.amount, settled_at: null, settlement_id: null },
-              { purchase_id: refund.id, debtor_id: s.debtor_id, amount: 0, settled_at: createdAt, settlement_id: null },
-            );
-          }
           for (const st of db.settlements) {
             if (!st.covered.some((c) => c.purchase_id === p.id)) continue;
             st.covered = st.covered.filter((c) => c.purchase_id !== p.id);
@@ -845,6 +821,20 @@ export function createMockRepo(opts: MockRepoOptions = {}): Repo {
     async markSettlement(householdId, toUserId) {
       const id = uid();
       return tx((db) => markIn(db, id, householdId, toUserId));
+    },
+
+    async markReceived(householdId, fromUserId) {
+      const id = uid();
+      return tx((db) => {
+        if (!householdId || !fromUserId || !isMember(db, householdId, id)) throw new RepoError("forbidden", "Not a member of this household");
+        if (fromUserId === id) throw new RepoError("invalid", "Cannot settle with yourself");
+        if (!isMember(db, householdId, fromUserId)) throw new RepoError("invalid", "Counterparty is not an active member");
+        // slice 25: only when that person owes me, and at least the Kaspi minimum
+        const pair = netPair(fromUserId, id, openShares(db, householdId), householdPurchases(db, householdId));
+        if (pair.direction !== "i_pay") throw new RepoError("invalid", "Nothing is owed");
+        if (isAccumulating(pair.net)) throw new RepoError("too_small", "Below the Kaspi minimum");
+        return markIn(db, fromUserId, householdId, id);
+      });
     },
 
     async confirmSettlement(settlementId, expectedAmount) {

@@ -223,6 +223,31 @@ export function repoContract(name: string, makeRepos: () => Promise<[Repo, Repo]
         expect((await b.listSettlements(h.id)).map((x) => x.id)).toEqual([s.id]);
       });
 
+      it("slice 25: the creditor marks «перевёл мне» -> the same final settlement; not owed / yourself / outsider are refused", async () => {
+        const { a, b, meA, meB, h } = await setup(); // A owes B 200
+        await expect(a.markReceived(h.id, meB.id)).rejects.toMatchObject({ code: "invalid" }); // A is the debtor
+        await expect(b.markReceived(h.id, meB.id)).rejects.toMatchObject({ code: "invalid" }); // yourself
+        const s = await b.markReceived(h.id, meA.id);
+        expect(s).toMatchObject({ status: "confirmed", amount: 200, from_id: meA.id, to_id: meB.id });
+        expect((await a.listPurchases(h.id)).flatMap((p) => p.shares.filter((x) => x.settled_at === null && x.amount > 0))).toEqual([]);
+        await expect(b.markReceived(h.id, meA.id)).rejects.toMatchObject({ code: "invalid" }); // closed
+        await b.signOut();
+        await signIn(b, "o@x.kz", "Чужой", "+77000000000");
+        await expect(b.markReceived(h.id, meA.id)).rejects.toMatchObject({ code: "forbidden" });
+      });
+
+      it("slice 25: «перевёл мне» below the Kaspi minimum is too_small (write it off instead)", async () => {
+        const [a, b] = await makeRepos();
+        await signIn(a, "a@x.kz", "Ерасыл", "+77001234567");
+        await signIn(b, "b@x.kz", "Айдос", "+77007654321");
+        const meA = (await a.getMe())!;
+        const meB = (await b.getMe())!;
+        const h = await a.createHousehold("Квартира");
+        await b.joinHousehold(h.invite_code);
+        await b.createPurchase({ household_id: h.id, amount: 150, description: "Хлеб", participant_ids: [meA.id, meB.id] });
+        await expect(b.markReceived(h.id, meA.id)).rejects.toMatchObject({ code: "too_small" });
+      });
+
       it("refuses to mark when you do not owe, with yourself, or as an outsider", async () => {
         const { a, b, meA, meB, h } = await setup();
         await expect(b.markSettlement(h.id, meA.id)).rejects.toMatchObject({ code: "invalid" }); // B is the creditor

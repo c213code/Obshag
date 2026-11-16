@@ -53,6 +53,7 @@ const MIGRATIONS = [
   "0020_slice22_small_dates_noconfirm.sql",
   "0021_slice23_away_for.sql",
   "0022_slice24_queue_shift_delete_paid.sql",
+  "0023_slice25_plain_delete_received.sql",
 ];
 const FAKE_TG = `
   create schema net;
@@ -298,27 +299,20 @@ describe("B. the author deletes a purchase after people paid", () => {
     expect(await texts()).toEqual(["🗑 Нурдаулет удалил «нан» — 3 000 ₸"]);
   });
 
-  it("B2: delete after a debtor paid -> one «↩︎ Возврат» purchase debtor -> payer, pair_net reversed, one 🗑 post", async () => {
+  it("B2 (slice 25): delete after a debtor paid -> the purchase just disappears, no refund, 🗑 post without «Вернётся»", async () => {
     const id = await buy(A, 3000, [A, B, C]); // B and C owe A 1000 each
     await as(B);
     await db.query(`select public.mark_settlement($1, $2)`, [hh, A]); // B pays A 1000
     expect(await net(B, A)).toBe(0);
-    expect(await net(C, A)).toBe(1000);
     await clearPosts();
     await as(A);
     await db.query(`select public.delete_purchase($1)`, [id]);
-    const ps = await purchases();
-    expect(ps).toHaveLength(1);
-    expect(ps[0]).toMatchObject({ payer_id: B, amount: 1000, description: "↩︎ Возврат: нан", status: "shared" });
-    expect(await net(A, B)).toBe(1000); // A owes B back
-    expect(await net(C, A)).toBe(0); // C's unpaid share is gone
-    expect(await texts()).toEqual(["🗑 Нурдаулет удалил «нан» — 3 000 ₸\nВернётся: Нурбол 1 000 ₸"]);
+    expect(await purchases()).toHaveLength(0);
+    expect(await net(A, B)).toBe(0);
+    expect(await net(C, A)).toBe(0);
+    expect(await texts()).toEqual(["🗑 Нурдаулет удалил «нан» — 3 000 ₸"]);
     await admin();
     expect((await db.query(`select 1 from public.settlements`)).rows).toHaveLength(1); // the settlement stays as history
-    // the refund's author can delete it as well (no payments on it)
-    await as(B);
-    await db.query(`select public.delete_purchase($1)`, [ps[0].id]);
-    expect(await purchases()).toHaveLength(0);
   });
 
   it("B3: a stranger cannot delete, a plain housemate cannot, an admin still can; anon surface stays 13", async () => {
@@ -330,7 +324,7 @@ describe("B. the author deletes a purchase after people paid", () => {
     await as(A); // A is the admin, not the payer; A has paid B, so there is a payment
     await db.query(`select public.mark_settlement($1, $2)`, [hh, B]);
     await db.query(`select public.delete_purchase($1)`, [id]);
-    expect((await purchases()).map((p) => p.description)).toEqual(["↩︎ Возврат: нан"]);
+    expect(await purchases()).toHaveLength(0);
     await as(null, "anon");
     await expect(db.query(`select public.delete_purchase($1)`, [id])).rejects.toThrow();
     await admin();

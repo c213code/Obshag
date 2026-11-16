@@ -90,13 +90,13 @@ export async function getPaidDeps(request: Request, headers: Record<string, stri
   const session = await getSessionRepo(request, headers);
   if (!session) return null;
   const mock = getPublicEnv().NEXT_PUBLIC_DATA_MODE === "mock";
-  // mock mode (E2E): no 150 s timer holding the server; the notice then finds the prompt too young and sends nothing
+  // mock mode (E2E): no 20 s timer holding the server; the notice then finds the prompt too young and sends nothing
   return { ...session, push: getPushSender(), telegram: mock ? null : getTelegramApi(), ...(mock ? { wait: () => Promise.resolve() } : {}) };
 }
 
 /**
  * Dependencies of the pay link page and /api/k/<code>/*: NO session (the roommates open the link from the Telegram group),
- * the anon-key server repo and the server secret. In mock mode (E2E) there is no 150 s timer and the bot is never called.
+ * the anon-key server repo and the server secret. In mock mode (E2E) there is no 20 s timer and the bot is never called.
  */
 export function getPayLinkDeps(): PayLinkDeps | null {
   const server = getServerRepo();

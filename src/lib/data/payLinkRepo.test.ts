@@ -78,7 +78,7 @@ describe("mockRepo pay links (slice 19)", () => {
     await (await as("erasyl@obshak.test")).remind(SECRET, HOUSEHOLD_ID, AIDOS);
     const [{ code }] = await linkOf(storage);
     const open = (await server().payLinkOpen(SECRET, code, true)) as { prompt_id: string };
-    advance(150_000);
+    advance(20_000);
     await expect(server().paidPromptNotice(SECRET, open.prompt_id)).resolves.toMatchObject({ ask: true, to_name: "Ерасыл", amount: 1000 });
   });
 });

@@ -152,6 +152,12 @@ export interface Repo {
    * the pair). forbidden = not a creditor / nothing owed, not_small = the net is 100 ₸ or more.
    */
   writeOffSmall(householdId: Uuid, debtorId: Uuid): Promise<Settlement>;
+  /**
+   * Slice 25: the creditor records that `fromUserId` sent the money (the same final settlement the debtor's mark makes).
+   * invalid = nothing owed to you by that person (or yourself), too_small = under the Kaspi minimum (write it off instead),
+   * forbidden = not a member.
+   */
+  markReceived(householdId: Uuid, fromUserId: Uuid): Promise<Settlement>;
   /** The debtor or the creditor withdraws a `marked` settlement (cancelling twice is a no-op). */
   cancelSettlement(settlementId: Uuid): Promise<Settlement>;
 

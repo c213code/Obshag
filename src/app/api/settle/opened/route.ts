@@ -4,8 +4,8 @@ import { getPaidDeps } from "@/lib/server/reminderDeps";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** `after()` runs inside the route's duration: the ~150 s wait before the question needs more than the default (must be a literal; ROUTE_MAX_DURATION_S mirrors it). */
-export const maxDuration = 170;
+/** `after()` runs inside the route's duration: the ~20 s wait before the question needs more than the default (must be a literal; ROUTE_MAX_DURATION_S mirrors it). */
+export const maxDuration = 40;
 
 const MAX_BODY_BYTES = 1024;
 

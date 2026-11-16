@@ -37,9 +37,9 @@ describe("body schema", () => {
     }
   });
   it("the wait fits inside the route's maxDuration", () => {
-    expect(ASK_DELAY_MS).toBeGreaterThanOrEqual(120_000);
+    expect(ASK_DELAY_MS).toBe(20_000); // slice 25: the DM comes ~20 s after Kaspi opens (the DB gate is 15 s)
     expect(ASK_DELAY_MS / 1000).toBeLessThan(ROUTE_MAX_DURATION_S);
-    expect(ROUTE_MAX_DURATION_S).toBeLessThanOrEqual(180);
+    expect(ROUTE_MAX_DURATION_S).toBe(40);
     // Next needs a literal in the route file; it must say the same number
     const route = readFileSync(join(process.cwd(), "src/app/api/settle/opened/route.ts"), "utf8");
     expect(route).toMatch(new RegExp(`export const maxDuration = ${ROUTE_MAX_DURATION_S};`));
