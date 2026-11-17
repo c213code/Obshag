@@ -4,7 +4,7 @@ import type { MockDb } from "./seed";
 import type { Purchase, Uuid } from "./types";
 
 /**
- * The mock twin of private.insert_shares_with_orders (0016): validates the orders and the participants, then writes
+ * The mock twin of private.insert_shares_with_orders (0016, check_orders 0024: the payer may have one own part): validates the orders and the participants, then writes
  * purchase_orders and the shares (equal part of the rest + own orders). Throws `invalid` like the SQL's 23514 / 23503.
  */
 export function writeSharesWithOrders(

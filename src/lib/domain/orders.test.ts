@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanOrders, deriveEqual, draftsToOrders, orderSplit, ordersToDrafts } from "./orders";
+import { cleanOrders, deriveEqual, draftsToOrders, orderSplit, ordersToDrafts, splitMine, withMine } from "./orders";
 
 const [A, B, V, G] = ["a", "b", "v", "g"];
 
@@ -34,11 +34,46 @@ describe("orderSplit (mirror of 0016)", () => {
     expect(r.shares.reduce((s, x) => s + x.amount, 0)).toBe(7777);
   });
   it("issues", () => {
-    expect(orderSplit(3000, [A, B], [{ user_id: A, amount: 5 }], A).issue).toBe("payer");
+    expect(orderSplit(3000, [A, B], [{ user_id: A, amount: 5 }, { user_id: A, amount: 5 }], A).issue).toBe("payer");
+    expect(orderSplit(1000, [A, B, V, G], [{ user_id: A, amount: 997 }], A).issue).toBe("rest_small");
     expect(orderSplit(1000, [A, B, V, G], [{ user_id: G, amount: 998 }], A).issue).toBe("rest_small");
     expect(orderSplit(1000, [A, B], [{ user_id: G, amount: 1000 }], A).issue).toBe("too_big");
     expect(orderSplit(1000, [], [{ user_id: G, amount: 1 }], A).issue).toBe("no_participants");
     expect(orderSplit(1000, [A, B], Array.from({ length: 21 }, () => ({ user_id: G, amount: 1 })), A).issue).toBe("too_many");
+  });
+});
+
+describe("«Из них моё» (mirror of 0024)", () => {
+  it("3000, моё 1000, four people: 500 each owed, the payer 1500 settled", () => {
+    const r = orderSplit(3000, [A, B, V, G], [{ user_id: A, amount: 1000 }], A);
+    expect(r.issue).toBeNull();
+    expect(r.each).toEqual({ min: 500, max: 500 });
+    expect(r.shares).toEqual([
+      { debtor_id: A, amount: 1500, settled: true },
+      { debtor_id: B, amount: 500, settled: false },
+      { debtor_id: V, amount: 500, settled: false },
+      { debtor_id: G, amount: 500, settled: false },
+    ]);
+  });
+  it("a payer outside the participants keeps only his part, settled", () => {
+    const r = orderSplit(3000, [B, V], [{ user_id: A, amount: 1000 }], A);
+    expect(r.shares).toContainEqual({ debtor_id: A, amount: 1000, settled: true });
+    expect(r.shares.reduce((s, x) => s + x.amount, 0)).toBe(3000);
+  });
+  it("withMine adds the payer's order first; empty or 0 adds nothing; splitMine reverses it", () => {
+    const others = [{ user_id: G, amount: 400, note: null }];
+    expect(withMine(others, A, "1 000")).toEqual([{ user_id: A, amount: 1000, note: null }, ...others]);
+    expect(withMine(others, A, "")).toEqual(others);
+    expect(withMine(others, A, "0")).toEqual(others);
+    expect(splitMine(withMine(others, A, "1000"), A)).toEqual({ mine: "1000", others });
+    expect(splitMine(others, A)).toEqual({ mine: "", others });
+  });
+  it("deriveEqual recognises a purchase with моё", () => {
+    const orders = [{ user_id: A, amount: 1000, note: null }, { user_id: G, amount: 300, note: null }];
+    const shares = orderSplit(3000, [A, B, V, G], orders, A).shares.map((s) => ({ debtor_id: s.debtor_id, amount: s.amount }));
+    const r = deriveEqual({ payer_id: A, amount: 3000, shares, orders });
+    expect(r?.participants).toEqual([A, B, V, G]);
+    expect(r?.orders).toEqual(orders);
   });
 });
 

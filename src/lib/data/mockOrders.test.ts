@@ -38,13 +38,29 @@ describe("mock orders (twin of 0016)", () => {
     expect((await me.listPurchases(HOUSEHOLD_ID)).find((x) => x.id === p.id)?.orders).toHaveLength(1);
   });
 
-  it("rejects an order by the payer, a rest below the participants, and stores nothing", async () => {
+  it("rejects two payer parts, a rest below the participants, and stores nothing", async () => {
     const me = await setup().as(ME);
     const before = (await me.listPurchases(HOUSEHOLD_ID)).length;
     const base = { household_id: HOUSEHOLD_ID, description: "x", participant_ids: [ME, AIDOS, DANYA, NURDA] };
-    await expect(me.createPurchase({ ...base, amount: 3000, orders: [{ user_id: ME, amount: 500 }] })).rejects.toMatchObject({ code: "invalid" });
+    await expect(me.createPurchase({ ...base, amount: 3000, orders: [{ user_id: ME, amount: 500 }, { user_id: ME, amount: 500 }] })).rejects.toMatchObject({ code: "invalid" });
+    await expect(me.createPurchase({ ...base, amount: 1000, orders: [{ user_id: ME, amount: 997 }] })).rejects.toMatchObject({ code: "invalid" });
     await expect(me.createPurchase({ ...base, amount: 1000, orders: [{ user_id: NURDA, amount: 998 }] })).rejects.toMatchObject({ code: "invalid" });
     expect((await me.listPurchases(HOUSEHOLD_ID)).length).toBe(before);
+  });
+
+  it("«Из них моё» (slice 26): 3000, моё 1000, four people -> 500 each owed, the payer's 1500 settled", async () => {
+    const me = await setup().as(ME);
+    const p = await me.createPurchase({
+      household_id: HOUSEHOLD_ID,
+      amount: 3000,
+      description: "Чек",
+      participant_ids: [ME, AIDOS, DANYA, NURDA],
+      orders: [{ user_id: ME, amount: 1000, note: null }],
+    });
+    expect([ME, AIDOS, DANYA, NURDA].map((u) => amountOf(p, u))).toEqual([1500, 500, 500, 500]);
+    expect(p.shares.find((s) => s.debtor_id === ME)?.settled_at).not.toBeNull();
+    expect(p.shares.filter((s) => s.settled_at === null)).toHaveLength(3);
+    expect(p.orders).toEqual([{ purchase_id: p.id, user_id: ME, amount: 1000, note: null }]);
   });
 
   it("resolves a pending capture as shared with orders", async () => {
@@ -65,7 +81,7 @@ describe("mock orders (twin of 0016)", () => {
     await expect(aidos.updatePurchase(p.id, { amount: 3000, description: "x", payer_id: ME, participant_ids: [ME, AIDOS] })).rejects.toMatchObject({ code: "forbidden" });
 
     // a bad edit leaves the purchase untouched
-    await expect(me.updatePurchase(p.id, { amount: 3000, description: "x", payer_id: AIDOS, participant_ids: [ME, AIDOS], orders: [{ user_id: AIDOS, amount: 10 }] })).rejects.toMatchObject({ code: "invalid" });
+    await expect(me.updatePurchase(p.id, { amount: 3000, description: "x", payer_id: AIDOS, participant_ids: [ME, AIDOS], orders: [{ user_id: AIDOS, amount: 10 }, { user_id: AIDOS, amount: 10 }] })).rejects.toMatchObject({ code: "invalid" });
     const still = (await me.listPurchases(HOUSEHOLD_ID)).find((x) => x.id === p.id)!;
     expect(still.payer_id).toBe(ME);
     expect(still.shares).toHaveLength(4);

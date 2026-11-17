@@ -21,9 +21,10 @@ export type OrderSplit = {
 };
 
 /**
- * Mirror of private.insert_shares_with_orders (0016): rest = total - orders is split like splitEqual among the participants,
- * every person's share = equal part + own orders. A person who ordered need not be a participant. The payer cannot order
- * from himself, and the rest must give every participant at least 1 tenge.
+ * Mirror of private.insert_shares_with_orders (0016) + check_orders (0024): rest = total - orders is split like splitEqual
+ * among the participants, every person's share = equal part + own orders. A person who ordered need not be a participant.
+ * The payer may have ONE order of his own («Из них моё»): it lands in his settled share, nobody owes it. The rest must give
+ * every participant at least 1 tenge.
  */
 export function orderSplit(total: number, participantIds: ReadonlyArray<string>, orders: ReadonlyArray<OrderInput>, payerId: string): OrderSplit {
   const ordersTotal = orders.reduce((s, o) => s + o.amount, 0);
@@ -31,7 +32,7 @@ export function orderSplit(total: number, participantIds: ReadonlyArray<string>,
   const n = participantIds.length;
   const empty = (issue: OrderIssue): OrderSplit => ({ rest, ordersTotal, shares: [], each: { min: 0, max: 0 }, issue });
   if (orders.length > MAX_ORDERS) return empty("too_many");
-  if (orders.some((o) => o.user_id === payerId)) return empty("payer");
+  if (orders.filter((o) => o.user_id === payerId).length > 1) return empty("payer");
   if (orders.some((o) => !Number.isInteger(o.amount) || o.amount < 1)) return empty("empty");
   if (n < 1) return empty("no_participants");
   if (!Number.isInteger(total) || total < 1 || rest < 1) return empty("too_big");
@@ -42,10 +43,25 @@ export function orderSplit(total: number, participantIds: ReadonlyArray<string>,
   const equal = splitEqual(rest, participantIds, payerId);
   const shares = equal.map((s) => ({ debtor_id: s.debtor_id, amount: s.amount + (byPerson.get(s.debtor_id) ?? 0), settled: s.settled }));
   for (const [user, amount] of byPerson) {
-    if (!participantIds.includes(user)) shares.push({ debtor_id: user, amount, settled: false });
+    if (!participantIds.includes(user)) shares.push({ debtor_id: user, amount, settled: user === payerId });
   }
   const min = Math.floor(rest / n);
   return { rest, ordersTotal, shares, each: { min, max: rest % n === 0 ? min : min + 1 }, issue: null };
+}
+
+/**
+ * «Из них моё»: the payer's own part of the receipt, typed as text. It is sent as an order with user_id = payer (note null),
+ * first in the list; an empty or 0 amount adds nothing.
+ */
+export function withMine(orders: ReadonlyArray<OrderInput>, payerId: string, mineText: string): OrderInput[] {
+  const amount = parseAmountText(mineText) ?? 0;
+  return amount > 0 ? [{ user_id: payerId, amount, note: null }, ...orders] : [...orders];
+}
+
+/** The reverse of withMine for a saved purchase: the payer's part as text and everybody else's orders. */
+export function splitMine(orders: ReadonlyArray<OrderInput>, payerId: string): { mine: string; others: OrderInput[] } {
+  const own = orders.filter((o) => o.user_id === payerId).reduce((s, o) => s + o.amount, 0);
+  return { mine: own > 0 ? String(own) : "", others: orders.filter((o) => o.user_id !== payerId) };
 }
 
 /** Rows with an amount of 0 (not filled in yet) are dropped before sending; the note is trimmed, empty becomes null. */
@@ -91,7 +107,7 @@ export function deriveEqual(p: {
   orders?: ReadonlyArray<{ user_id: string; amount: number; note?: string | null }>;
 }): { participants: string[]; orders: OrderInput[] } | null {
   const orders: OrderInput[] = (p.orders ?? []).map((o) => ({ user_id: o.user_id, amount: o.amount, note: o.note ?? null }));
-  if (orders.some((o) => o.user_id === p.payer_id)) return null;
+  if (orders.filter((o) => o.user_id === p.payer_id).length > 1) return null;
   const ordered = new Map<string, number>();
   for (const o of orders) ordered.set(o.user_id, (ordered.get(o.user_id) ?? 0) + o.amount);
   const parts = p.shares.map((s) => ({ id: s.debtor_id, part: s.amount - (ordered.get(s.debtor_id) ?? 0) }));

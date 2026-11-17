@@ -10,7 +10,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { customSplit } from "@/lib/domain/customSplit";
 import { MAX_AMOUNT, createPurchaseCustomSchema, createPurchaseSchema } from "@/lib/domain/schemas";
 import { perPersonRange } from "@/lib/domain/split";
-import { draftsToOrders, orderSplit, type OrderDraft } from "@/lib/domain/orders";
+import { draftsToOrders, orderSplit, withMine, type OrderDraft } from "@/lib/domain/orders";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
@@ -40,6 +40,7 @@ export function NewPurchaseScreen() {
   const [mode, setMode] = useState<"equal" | "custom">("equal");
   const [texts, setTexts] = useState<Readonly<Record<string, string>>>({});
   const [drafts, setDrafts] = useState<OrderDraft[]>([]);
+  const [mine, setMine] = useState("");
 
   // A neighbour may have joined since Главная loaded: fetch the roster again whenever this screen opens.
   useEffect(() => {
@@ -55,8 +56,10 @@ export function NewPurchaseScreen() {
   const n = participantIds.length;
 
   const custom = mode === "custom";
-  // «+ Заказ» only goes with the equal split: the orders come off the total first, the rest is split equally
-  const { orders, incomplete } = draftsToOrders(custom ? [] : drafts);
+  // «+ Заказ» and «Из них моё» only go with the equal split: they come off the total first, the rest is split equally
+  const typed = draftsToOrders(custom ? [] : drafts);
+  const incomplete = typed.incomplete;
+  const orders = custom ? typed.orders : withMine(typed.orders, me.id, mine);
   const withOrders = orders.length > 0;
   const osplit = withOrders ? orderSplit(amount ?? 0, participantIds, orders, me.id) : null;
   const range = osplit && !osplit.issue ? osplit.each : perPersonRange(amount ?? 0, n);
@@ -218,7 +221,7 @@ export function NewPurchaseScreen() {
                 ))}
             </div>
           ) : null}
-          {!custom ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} split={osplit} /> : null}
+          {!custom ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} mine={mine} onMineChange={setMine} split={osplit} /> : null}
           {debtors === 0 ? (
             <p role="status" className="pl-[6px] text-label text-orange">
               {others.length === 0 ? ru.purchase.aloneInFlat : ru.purchase.pickDebtor}

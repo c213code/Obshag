@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/Sheet";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
 import { perPersonRange } from "@/lib/domain/split";
-import { draftsToOrders, orderSplit, type OrderDraft } from "@/lib/domain/orders";
+import { draftsToOrders, orderSplit, withMine, type OrderDraft } from "@/lib/domain/orders";
 import { OrdersEditor } from "../purchase/OrdersEditor";
 import { ru } from "@/lib/i18n/ru";
 import { useAppActions, useAppData } from "../AppDataProvider";
@@ -88,7 +88,10 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
 
   const roster = held ? (members[held.household_id] ?? []) : [];
   const [drafts, setDrafts] = useState<OrderDraft[]>([]);
-  const { orders, incomplete } = draftsToOrders(drafts);
+  const [mine, setMine] = useState("");
+  const typed = draftsToOrders(drafts);
+  const incomplete = typed.incomplete;
+  const orders = held ? withMine(typed.orders, held.payer_id, mine) : typed.orders;
   const osplit = held && orders.length > 0 ? orderSplit(held.amount, roster.map((m) => m.user_id), orders, held.payer_id) : null;
   const per = held ? (osplit && !osplit.issue ? osplit.each.min : perPersonRange(held.amount, roster.length).min) : 0;
   const ordersBlock = incomplete || !!osplit?.issue;
@@ -167,7 +170,7 @@ export function PendingScreen({ id, choice }: { id: string; choice: Choice | nul
             busy={busy}
             canShare={roster.length > 0 && !ordersBlock}
             error={error}
-            extra={me ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} split={osplit} /> : null}
+            extra={me ? <OrdersEditor roster={roster} meId={me.id} payerId={me.id} drafts={drafts} onChange={setDrafts} mine={mine} onMineChange={setMine} split={osplit} /> : null}
           />
         </Sheet>
       ) : null}

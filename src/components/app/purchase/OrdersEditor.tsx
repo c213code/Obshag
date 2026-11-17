@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { CloseIcon, PlusIcon } from "@/components/ui/icons";
 import type { MemberWithProfile } from "@/lib/data/repo";
@@ -26,6 +27,8 @@ const issueText: Record<OrderIssue, string | null> = {
 
 /**
  * «+ Заказ» under the participants: personal orders inside a shared purchase. One row = who (chips) + amount + a note.
+ * Above the rows, «Из них моё»: the payer's own part of the receipt (sent as the payer's order, see withMine); the person
+ * picker never offers the payer, so this field is the only way to enter it.
  * The preview line shows the equal part and what the people with orders pay in total. Pure view, the parent owns the rows.
  */
 export function OrdersEditor({
@@ -34,6 +37,8 @@ export function OrdersEditor({
   payerId,
   drafts,
   onChange,
+  mine,
+  onMineChange,
   split,
 }: {
   roster: ReadonlyArray<MemberWithProfile>;
@@ -41,11 +46,15 @@ export function OrdersEditor({
   payerId: string;
   drafts: ReadonlyArray<OrderDraft>;
   onChange: (next: OrderDraft[]) => void;
+  /** «Из них моё» as typed (digits only, "" = none). */
+  mine: string;
+  onMineChange: (next: string) => void;
   /** The live result of orderSplit for the complete rows; null while nothing is ordered. */
   split: OrderSplit | null;
 }) {
+  const mineId = useId();
   const candidates = roster.filter((m) => m.user_id !== payerId);
-  if (candidates.length === 0 && drafts.length === 0) return null;
+  if (candidates.length === 0 && drafts.length === 0 && mine === "") return null;
   const patch = (key: string, p: Partial<OrderDraft>) => onChange(drafts.map((d) => (d.key === key ? { ...d, ...p } : d)));
   const nameOf = (id: string) => roster.find((m) => m.user_id === id)?.profile.display_name ?? ru.main.formerMember;
 
@@ -56,6 +65,34 @@ export function OrdersEditor({
 
   return (
     <div className="flex flex-col gap-2" data-testid="orders">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className={label} id={`${mineId}-label`}>
+            {ru.orders.mine}
+          </span>
+          <label className="flex w-[132px] shrink-0 items-center gap-1 rounded-pill border border-card-2 bg-card-2 py-[9px] pr-4 pl-4 focus-within:border-lime">
+            <input
+              aria-labelledby={`${mineId}-label`}
+              aria-describedby={`${mineId}-hint`}
+              data-testid="mine-amount"
+              inputMode="numeric"
+              autoComplete="off"
+              enterKeyHint="next"
+              placeholder="0"
+              value={mine === "" ? "" : formatNumber(Number(mine))}
+              onChange={(e) => onMineChange(sanitizeAmountText(e.target.value))}
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-right font-rounded text-[17px] font-bold tabular-nums outline-none placeholder:text-muted/50"
+            />
+            <span aria-hidden="true" className="text-muted">
+              ₸
+            </span>
+          </label>
+        </div>
+        <p id={`${mineId}-hint`} className="pl-[6px] text-caption">
+          {ru.orders.mineHint}
+        </p>
+      </div>
+
       <AnimatePresence initial={false}>
         {drafts.map((d, i) => (
           <m.div

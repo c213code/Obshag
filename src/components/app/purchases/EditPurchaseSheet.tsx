@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pill } from "@/components/ui/Pill";
 import type { MemberWithProfile } from "@/lib/data/repo";
 import type { UiPurchase } from "@/lib/data/purchaseTracker";
-import { deriveEqual, draftsToOrders, orderSplit, ordersToDrafts, type OrderDraft } from "@/lib/domain/orders";
+import { deriveEqual, draftsToOrders, orderSplit, ordersToDrafts, splitMine, withMine, type OrderDraft } from "@/lib/domain/orders";
 import { MAX_AMOUNT } from "@/lib/domain/schemas";
 import { formatNumber, formatTenge } from "@/lib/format/money";
 import { ru } from "@/lib/i18n/ru";
@@ -36,15 +36,20 @@ export function EditPurchaseSheet({
 }) {
   const { editPurchase, showNotice } = useAppActions();
   const initial = deriveEqual(purchase);
+  const initialOrders = splitMine(initial?.orders ?? [], purchase.payer_id);
   const [amount, setAmount] = useState<number | null>(purchase.amount);
   const [what, setWhat] = useState(purchase.description);
   const [payer, setPayer] = useState(purchase.payer_id);
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(initial?.participants ?? []));
-  const [drafts, setDrafts] = useState<OrderDraft[]>(() => ordersToDrafts(initial?.orders ?? []));
+  const [drafts, setDrafts] = useState<OrderDraft[]>(() => ordersToDrafts(initialOrders.others));
+  // «Из них моё» belongs to whoever is the payer: changing the payer moves it to the new one
+  const [mine, setMine] = useState(initialOrders.mine);
   const [busy, setBusy] = useState(false);
 
   const participantIds = roster.map((m) => m.user_id).filter((id) => picked.has(id));
-  const { orders, incomplete } = draftsToOrders(drafts);
+  const typed = draftsToOrders(drafts);
+  const incomplete = typed.incomplete;
+  const orders = withMine(typed.orders, payer, mine);
   const split = orderSplit(amount ?? 0, participantIds, orders, payer);
   const overLimit = amount !== null && amount > MAX_AMOUNT;
   const hasOrders = orders.length > 0;
@@ -125,7 +130,7 @@ export function EditPurchaseSheet({
               />
             ))}
           </div>
-          <OrdersEditor roster={roster} meId={meId} payerId={payer} drafts={drafts} onChange={setDrafts} split={hasOrders ? split : null} />
+          <OrdersEditor roster={roster} meId={meId} payerId={payer} drafts={drafts} onChange={setDrafts} mine={mine} onMineChange={setMine} split={hasOrders ? split : null} />
           {!hasOrders && amount && participantIds.length > 0 && !split.issue ? (
             <p className="pl-[6px] text-caption">{ru.orders.preview(split.each.min === split.each.max ? formatTenge(split.each.min) : `${formatNumber(split.each.min)}–${formatTenge(split.each.max)}`)}</p>
           ) : null}

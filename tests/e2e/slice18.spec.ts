@@ -138,6 +138,42 @@ test.describe("slice 18: заказы, кто платил, правка", () =>
     });
   });
 
+  test("slice 26: «Из них моё» comes off before the split; the detail shows «Моё», each other person owes 500", async ({ browser, baseURL }) => {
+    const title = "Чек с моим";
+    await withPhone(browser, baseURL, async ({ page }) => {
+      await logIn(page, A);
+      await page.goto("/purchases/new");
+      await page.getByLabel("Сумма", { exact: true }).fill("3000");
+      await page.getByLabel("Что купили").fill(title);
+      await expect(page.getByText("Эта часть не делится — только твоё")).toBeVisible();
+      await page.getByTestId("mine-amount").fill("1000");
+      await expect(page.getByTestId("orders-preview")).toContainText(`Каждому ${money(500)}`);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: "gan-harness/screenshots/s26-form-mine.png" });
+
+      const saved = savedToStore(page);
+      await page.getByRole("button", { name: "Поделить" }).click();
+      await saved;
+      await expect(page).toHaveURL(/\/$/);
+
+      await page.getByRole("link", { name: "Покупки", exact: true }).click();
+      await page.getByRole("link", { name: new RegExp(title) }).click();
+      await expect(page.getByTestId("purchase-title")).toHaveText(title);
+      await expect(page.getByTestId("purchase-mine")).toHaveText(`Моё: ${money(1000)}`);
+      await expect(page.getByTestId("purchase-orders")).toHaveCount(0);
+      const rows = page.getByTestId("payment-row");
+      await expect(rows).toHaveCount(3);
+      for (const who of [B, C, D]) await expect(rows.filter({ hasText: who.name })).toContainText(money(500));
+      await page.screenshot({ path: "gan-harness/screenshots/s26-detail-mine.png" });
+
+      // the edit sheet keeps the payer's part in its own field
+      await page.getByRole("button", { name: "Изменить" }).click();
+      const sheet = page.getByTestId("edit-purchase-sheet");
+      await expect(sheet.getByTestId("mine-amount")).toHaveValue(/^1\D?000$/);
+      await expect(sheet.getByTestId("order-row")).toHaveCount(0);
+    });
+  });
+
   test("Вода «Кто платил?»: the partner pays, the queue still records who went", async ({ browser, baseURL }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, A);

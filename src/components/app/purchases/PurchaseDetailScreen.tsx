@@ -75,6 +75,9 @@ export function PurchaseDetailScreen() {
   const lo = Math.min(...amounts);
   const hi = Math.max(...amounts);
   const orders = purchase.orders ?? [];
+  // «Из них моё» (slice 26): the payer's own part is not a «+ заказ» row, it is one caption line
+  const others = orders.filter((o) => o.user_id !== purchase.payer_id);
+  const payerPart = orders.filter((o) => o.user_id === purchase.payer_id).reduce((sum, o) => sum + o.amount, 0);
   // an equal split with orders: the chip shows the equal part, not «свои суммы»
   const derived = deriveEqual(purchase);
   const eachSplit = derived && orders.length > 0 ? orderSplit(purchase.amount, derived.participants, derived.orders, purchase.payer_id) : null;
@@ -198,14 +201,20 @@ export function PurchaseDetailScreen() {
         </p>
       ) : null}
 
-      {orders.length > 0 ? (
+      {payerPart > 0 ? (
+        <p data-testid="purchase-mine" className="px-[6px] text-label">
+          {`${isPayer ? ru.detail.mine : ru.detail.mineOf(payerName ?? "")}: ${formatTenge(payerPart)}`}
+        </p>
+      ) : null}
+
+      {others.length > 0 ? (
         <section aria-label={ru.detail.ordersTitle} data-testid="purchase-orders" className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between px-[6px]">
             <h2 className="text-headline">{ru.detail.ordersTitle}</h2>
             <span className="text-label">{ru.detail.ordersCaption}</span>
           </div>
           <ul className="flex flex-col gap-2">
-            {orders.map((o, i) => {
+            {others.map((o, i) => {
               const name = o.user_id === me.id ? ru.main.you : (roster.get(o.user_id)?.profile.display_name ?? ru.main.formerMember);
               return (
                 <li key={`${o.user_id}-${i}`} data-testid="purchase-order" className="flex items-center justify-between gap-3 rounded-md bg-card px-4 py-3">

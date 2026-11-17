@@ -57,7 +57,7 @@ export type NewPurchase = {
   description: string;
   merchant?: string | null;
   participant_ids: ReadonlyArray<Uuid>;
-  /** «+ Заказ»: personal orders; their sum comes off the total before the equal split (never by the payer). */
+  /** «+ Заказ»: personal orders; their sum comes off the total before the equal split (the payer has at most one: «Из них моё»). */
   orders?: ReadonlyArray<{ user_id: Uuid; amount: number; note?: string | null }>;
 };
 
