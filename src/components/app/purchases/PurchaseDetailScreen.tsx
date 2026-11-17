@@ -98,11 +98,7 @@ export function PurchaseDetailScreen() {
   // my open share is under the Kaspi minimum: it is not asked for on its own, it joins the next settlement
   const mine = purchase.status === "shared" && !isPayer ? purchase.shares.find((s) => s.debtor_id === me.id) : undefined;
   const myShare = mine && mine.settled_at === null && isAccumulating(mine.amount) ? mine : null;
-  // my share is still open: pay the payer from here (the transfer is the pair's net, so the other purchases between us count too)
-  const open = mine && mine.settled_at === null && mine.settlement_id === null && mine.amount > 0 && !isInFlight(mine, marked) ? mine : null;
-  const pair = open && settle ? settle.pairWith(purchase.payer_id) : null;
-  const canPay = pair !== null && pair.direction === "i_pay" && !isAccumulating(pair.net) && roster.get(purchase.payer_id)?.active === true;
-  const nettedOut = pair !== null && pair.direction !== "i_pay";
+  // slice 27: no pay button here — paying happens from Главная's «К оплате» and the reminder's button
   const writeoffs = new Map((settlements[purchase.household_id] ?? []).filter((x) => x.kind === "writeoff").map((x) => [x.id, x]));
 
   const startEdit = () => {
@@ -245,9 +241,7 @@ export function PurchaseDetailScreen() {
               const received = s.settled_at !== null;
               const extra = uneven || orders.length > 0 ? ` · ${formatTenge(s.amount)}` : "";
               const writtenOff = s.settlement_id ? writeoffs.get(s.settlement_id) : undefined;
-              // slice 19: money already sent and marked, the payer has not confirmed it yet
-              const sent = !received && isInFlight(s, marked);
-              const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : sent ? `${ru.detail.sentWaiting}${extra}` : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
+              const caption = writtenOff ? ru.detail.writtenOff(formatTenge(s.amount)) : received ? `${ru.detail.received(formatWhen(s.settled_at ?? "", { today: (t) => t, yesterday: (t) => t }))}${extra}` : `${ru.detail.waiting}${extra}`;
               return (
                 <li key={s.debtor_id}>
                   <PaymentRow
@@ -255,7 +249,7 @@ export function PurchaseDetailScreen() {
                     color={m ? avatarColorFor(m.profile, me.id) : "brown"}
                     received={received}
                     caption={caption}
-                    action={isPayer && m && !sent && !(settle && isAccumulating(settle.pairWith(s.debtor_id).net)) ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
+                    action={isPayer && m && !(settle && isAccumulating(settle.pairWith(s.debtor_id).net)) ? <RemindButton householdId={purchase.household_id} debtorId={s.debtor_id} name={name} testId={`remind-${s.debtor_id}`} /> : null}
                   />
                 </li>
               );
@@ -265,18 +259,6 @@ export function PurchaseDetailScreen() {
       ) : null}
 
       <div className="flex-1" />
-      {canPay && pair ? (
-        <div className="flex flex-col items-center gap-2" data-testid="detail-pay">
-          <PillLink href={`/settle/${purchase.payer_id}`} prefetch={false} variant="lime" size="lg" className="w-full" data-testid="detail-pay-link">
-            {ru.detail.payTo(payerName ?? "", formatTenge(pair.net))}
-          </PillLink>
-          {pair.net !== open?.amount ? <span className="text-center text-caption">{ru.detail.payNetted}</span> : null}
-        </div>
-      ) : nettedOut ? (
-        <p data-testid="detail-netted" className="rounded-md border border-hairline bg-card px-4 py-3 text-caption">
-          {ru.detail.nettedOut(payerName ?? "")}
-        </p>
-      ) : null}
       {canDelete(purchase, me.id, members[purchase.household_id]) && !editing ? (
         <div className="flex flex-col items-center gap-2">
           {confirming && paidAny ? (

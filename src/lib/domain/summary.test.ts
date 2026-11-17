@@ -13,14 +13,32 @@ describe("householdSummary", () => {
   it("counts housemates who are even with me", () => {
     const shares = [share("me", 1500, true), share("a", 1500), share("b", 1500, true), share("c", 1500)];
     const s = householdSummary("me", [{ user_id: "me" }, { user_id: "a" }, { user_id: "b" }, { user_id: "c" }], shares, purchases);
-    expect(s).toEqual({ balance: { owe: 0, owed: 3000, net: 3000 }, evenWith: 1, others: 3 });
+    expect(s).toEqual({ balance: { owe: 0, owed: 3000, net: 3000 }, evenWith: 1, others: 3, hero: { kind: "owed", amount: 3000 }, payTo: null });
   });
   it("is all even when alone", () => {
     expect(householdSummary("me", [{ user_id: "me" }], [], [])).toEqual({
       balance: { owe: 0, owed: 0, net: 0 },
       evenWith: 0,
       others: 0,
+      hero: { kind: "even" },
+      payTo: null,
     });
+  });
+  it("the hero counts payable pairs only: owe first, under 100 ₸ ignored, a departed neighbour never payable", () => {
+    const ps = [
+      { id: "p1", payer_id: "a", status: "shared" as const, description: "x", created_at: "2026-11-03T00:00:00Z" },
+      { id: "p2", payer_id: "me", status: "shared" as const, description: "y", created_at: "2026-11-03T00:00:00Z" },
+      { id: "p3", payer_id: "gone", status: "shared" as const, description: "z", created_at: "2026-11-03T00:00:00Z" },
+    ];
+    const shares = [
+      { purchase_id: "p1", debtor_id: "me", amount: 300, settled_at: null },
+      { purchase_id: "p2", debtor_id: "b", amount: 50, settled_at: null },
+      { purchase_id: "p3", debtor_id: "me", amount: 900, settled_at: null },
+    ];
+    const s = householdSummary("me", [{ user_id: "me" }, { user_id: "a" }, { user_id: "b" }], shares, ps);
+    expect(s.hero).toEqual({ kind: "owe", amount: 300 });
+    expect(s.payTo).toBe("a");
+    expect(s.balance).toEqual({ owe: 1200, owed: 50, net: -1150 });
   });
 });
 

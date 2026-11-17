@@ -206,7 +206,15 @@ export const ru = {
     appName: "Общак",
     notifications: "Уведомления",
     profile: "Профиль и квартира",
-    balance: "Баланс",
+    /** Slice 27: the hero card's one number (payable pairs only). */
+    hero: {
+      owe: "Ты должен",
+      owed: "Тебе должны",
+      even: "Всё ровно",
+      pay: "Оплатить",
+      payAria: (amount: string) => `Оплатить ${amount}`,
+      remind: "Напомнить",
+    },
     inSettle: (paid: number, total: number) => `${paid} из ${total}`,
     inSettleLabel: (paid: number, total: number) => `В расчёте ${paid} из ${total} соседей`,
     quick: { purchase: "Покупка", remind: "Напомнить", settle: "Расчёт", monthly: "Ежемесячно", soon: "скоро" },
@@ -242,17 +250,6 @@ export const ru = {
     today: "сегодня",
     yesterday: "вчера",
     bento: {
-      owed: "Тебе должны",
-      /** Slice 19: the tile of a net debtor. */
-      youOwe: "Ты должен",
-      pay: "Оплатить",
-      owedCaption: (amount: string) => `тебе должны ${amount}`,
-      payAria: (amount: string) => `Оплатить ${amount}`,
-      iOwe: (amount: string) => `ты должен ${amount}`,
-      remind: "Напомнить",
-      accruing: (amount: string) => `копится ${amount}`,
-      settleAria: "Расчёт: тебе должны",
-      settleAriaDebtor: "Расчёт: ты должен",
       monthly: "Ежемесячно",
       monthlyEmpty: "Коммуналка и аренда сами делятся каждый месяц",
       add: "Добавить",
@@ -525,12 +522,7 @@ export const ru = {
     received: (time: string) => `получено · ${time}`,
     receivedLabel: "Получено",
     waiting: "ждём",
-    /** Slice 19: the money is sent and marked, the payer has not confirmed it yet. */
-    sentWaiting: "перевёл · ждём подтверждения",
     /** Under the Kaspi minimum: the share is not asked for separately. */
-    payTo: (name: string, amount: string) => `Оплатить ${name} · ${amount}`,
-    payNetted: "Сумма с учётом всех ваших общих покупок",
-    nettedOut: (name: string) => `Платить не нужно: ${name} должен тебе больше — долги взаимно зачтены`,
     smallShare: (amount: string) => `Твоя доля ${amount} — добавится к следующему расчёту (Kaspi переводит от 100 ₸)`,
     writtenOff: (amount: string) => `Списано ${amount}`,
     youOwe: "с тебя",
@@ -648,8 +640,6 @@ export const ru = {
     },
     /** Kaspi cannot transfer less than 100 ₸: such a debt only accumulates until the next purchases, or the creditor writes it off. */
     small: {
-      /** Muted label next to the amount. */
-      label: "копится",
       /** Pair screen, I owe. */
       iOweNote: (amount: string) => `${amount} — меньше 100 ₸, Kaspi не переведёт. Копится до следующих покупок`,
       /** Pair screen, they owe me. */
@@ -659,8 +649,6 @@ export const ru = {
       confirmText: "Долг закроется без перевода.",
       confirm: "Списать",
       cancel: "Отмена",
-      /** Row caption on the list. */
-      listCaption: (amount: string) => `${amount} · копится`,
       writtenOff: (amount: string) => `Списано ${amount}`,
     },
   },

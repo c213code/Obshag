@@ -203,14 +203,12 @@ test.describe("slices 5+2", () => {
       await expect(page.getByRole("button", { name: "Изменить" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Удалить покупку" })).toHaveCount(0);
       await expect(page.getByRole("button", { name: /Напомнить/ })).toHaveCount(0);
-      // the debtor pays from the purchase itself: «Оплатить Ерасыл · N ₸» → the pair's settle screen (or a note when netted out)
-      await expect(page.getByTestId("detail-pay").or(page.getByTestId("detail-netted"))).toBeVisible();
-      await page.screenshot({ path: `${SHOTS}/s19-detail-pay.png` });
-      if (await page.getByTestId("detail-pay").isVisible()) {
-        await expect(page.getByTestId("detail-pay-link")).toContainText(`Оплатить ${ME.name}`);
-        await page.getByTestId("detail-pay-link").click();
-        await expect(page).toHaveURL(/\/settle\/[0-9a-f-]+$/);
-      }
+      // slice 27: no pay pill and no netting note on the purchase — paying is Главная's «К оплате» and the reminder's button
+      await expect(page.getByTestId("detail-pay")).toHaveCount(0);
+      await expect(page.getByTestId("detail-netted")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: /^Оплатить/ })).toHaveCount(0);
+      await expect(page.getByText("ждём подтверждения")).toHaveCount(0);
+      await page.screenshot({ path: `${SHOTS}/s27-detail-no-pay.png` });
     });
   });
 
@@ -247,10 +245,12 @@ test.describe("slices 5+2", () => {
     // Айдос opens Kaspi, comes back and says «Да, перевёл» (a settlement covers every open share between them)
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, AIDOS);
-      // slice 19: a net debtor's tile has the «Оплатить» pill (several people to pay: the list, then the person)
-      await page.getByTestId("bento-pay").click();
-      await expect(page).toHaveURL(/\/settle(\/[0-9a-f-]{36})?$/);
-      if (/\/settle$/.test(page.url())) await page.getByRole("link", { name: /Рассчитаться с Ерасылом/ }).click();
+      // slice 27: the hero's «Оплатить» opens the one person to pay; with several it scrolls to «К оплате» (pay Ерасыл there)
+      const pay = page.getByTestId("hero-pay");
+      if ((await pay.getAttribute("href")) !== null) await pay.click();
+      else await page.getByTestId("to-pay-row").filter({ hasText: ME.name }).getByTestId("to-pay-go").click();
+      await expect(page).toHaveURL(/\/settle\/[0-9a-f-]{36}$/);
+      await expect(page.getByRole("heading", { name: /Расчёт с Ерасылом/ })).toBeVisible();
       await payViaKaspi(page);
       // slice 22: the mark is final, the debt is closed at once and there is nothing to withdraw
       await expect(page.getByRole("button", { name: "Отменить" })).toHaveCount(0);

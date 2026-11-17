@@ -55,8 +55,9 @@ export function SettleListScreen() {
           {counterparties.map((c) => {
             const member = data.memberOf(c.userId);
             const amount = formatTenge(c.net);
+            // under the Kaspi minimum: the same caption, just muted (slice 27: no «копится» wording)
             const small = isAccumulating(c.net);
-            const caption = small ? ru.settle.small.listCaption(amount) : c.direction === "i_pay" ? ru.settle.iOwe(amount) : ru.settle.theyOwe(amount);
+            const caption = c.direction === "i_pay" ? ru.settle.iOwe(amount) : ru.settle.theyOwe(amount);
             if (!member) {
               // left the household: the debt is still real and still counted, but there is no screen to settle it on
               return (
@@ -66,7 +67,7 @@ export function SettleListScreen() {
                     avatarColor="brown"
                     title={ru.settle.departedName}
                     caption={`${caption} · ${ru.settle.departedRow}`}
-                    captionTone={c.direction === "i_pay" ? "orange" : "lime"}
+                    captionTone={small ? "muted" : c.direction === "i_pay" ? "orange" : "lime"}
                   />
                 </li>
               );

@@ -127,11 +127,11 @@ test.describe("slice 19: перевод в пути, «Оплатить», «�
   test("the debtor's home: «Ты должен 450» (not 300), «Оплатить» and «К оплате» → «Перевести» opens the Kaspi screen", async ({ browser, baseURL }) => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, D);
-      const tile = page.getByTestId("bento-owed");
-      await expect(tile).toContainText("Ты должен");
-      await expect(page.getByTestId("bento-owe-amount")).toHaveText(`450${NBSP}₸`);
-      await expect(page.getByTestId("bento-owed-caption")).toHaveText(`тебе должны 0${NBSP}₸`);
-      await expect(page.getByTestId("bento-pay")).toHaveText("Оплатить");
+      // slice 27: the hero carries the one number and «Оплатить»
+      const hero = page.getByTestId("balance-card-front");
+      await expect(hero.getByTestId("hero-label")).toHaveText("Ты должен");
+      await expect(hero.getByTestId("hero-amount")).toHaveText(`450${NBSP}₸`);
+      await expect(page.getByTestId("hero-pay")).toHaveText("Оплатить");
 
       const section = page.getByTestId("to-pay-section");
       await expect(section.getByRole("heading", { name: "К оплате" })).toBeVisible();
@@ -147,7 +147,7 @@ test.describe("slice 19: перевод в пути, «Оплатить», «�
       await expect(page.getByTestId("kaspi-bar")).toBeVisible();
       await page.goto("/");
       await hydrated(page);
-      await page.getByTestId("bento-pay").click();
+      await page.getByTestId("hero-pay").click();
       await expect(page).toHaveURL(new RegExp(`/settle/${C.id}$`)); // one person to pay: straight to their screen
     });
   });
@@ -165,7 +165,8 @@ test.describe("slice 19: перевод в пути, «Оплатить», «�
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, C);
       // the home of the creditor: 450 is owed to him, and his own pending 150 does not reduce it
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(`450${NBSP}₸`);
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(`450${NBSP}₸`);
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Тебе должны");
       await expect(page.getByTestId("waiting-row")).toContainText(`${D.name}`);
       await page.goto(`/settle/${D.id}`);
       await hydrated(page);

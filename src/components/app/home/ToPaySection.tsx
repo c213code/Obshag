@@ -11,13 +11,14 @@ import { usePresenceList } from "@/lib/motion/presence";
 import { ru } from "@/lib/i18n/ru";
 import { avatarColorFor } from "../avatars";
 import { useAppData } from "../AppDataProvider";
+import { TO_PAY_ID } from "./HeroAction";
 import { useSettleData } from "../settle/useSettleData";
 
 const MAX_WHAT = 2;
 
 /**
- * «К оплате»: one row per person I owe a transferable net (100 ₸ and up), with a lime «Перевести» that opens their screen
- * (the Kaspi bar is there). A person I already marked a transfer to is not here: they wait in «Ждём подтверждения».
+ * «К оплате»: the one place to pay (slice 27). One row per person I owe a transferable net (100 ₸ and up), with a lime
+ * «Перевести» that opens their screen (the Kaspi bar is there). Smaller nets are not listed. A person I already marked a transfer to is not here: they wait in «Ждём подтверждения».
  * Renders nothing when there is nobody to pay.
  */
 export function ToPaySection() {
@@ -44,7 +45,7 @@ export function ToPaySection() {
   if (!data || !me || entries.length === 0) return null;
 
   return (
-    <section aria-labelledby="to-pay-title" data-testid="to-pay-section" className="flex flex-col gap-3">
+    <section id={TO_PAY_ID} aria-labelledby="to-pay-title" data-testid="to-pay-section" className="flex scroll-mt-6 flex-col gap-3">
       <h2 id="to-pay-title" className="text-headline">
         {ru.main.toPay.title}
       </h2>

@@ -40,9 +40,9 @@ const payerOptions = [
 ] as const satisfies ReadonlyArray<{ value: Payer; label: string }>;
 
 const stackCards: ReadonlyArray<BalanceCardData> = [
-  { id: "kv", name: "Квартира 42", paid: 2, total: 4, balance: 7550, tone: "lime" },
-  { id: "dacha", name: "Дача", paid: 1, total: 3, balance: -1200, tone: "orange" },
-  { id: "trip", name: "Поездка", paid: 3, total: 5, balance: 3400, tone: "periwinkle" },
+  { id: "kv", name: "Квартира 42", paid: 2, total: 4, hero: { kind: "owed", amount: 7550 }, tone: "lime" },
+  { id: "dacha", name: "Дача", paid: 1, total: 3, hero: { kind: "owe", amount: 1200 }, tone: "orange" },
+  { id: "trip", name: "Поездка", paid: 3, total: 5, hero: { kind: "even" }, tone: "periwinkle" },
 ];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

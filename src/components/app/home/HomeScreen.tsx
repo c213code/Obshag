@@ -8,6 +8,7 @@ import { useAppActions, useAppData, useAppDerived } from "../AppDataProvider";
 import { Screen } from "../Screen";
 import { Bento } from "./Bento";
 import { DutyTile } from "./DutyTile";
+import { heroAction } from "./HeroAction";
 import { HomeHeader } from "./HomeHeader";
 import { IncomingSection } from "./IncomingSection";
 import { PendingSection } from "./PendingSection";
@@ -17,7 +18,10 @@ import { WaitingSection } from "./WaitingSection";
 
 const NONE_BILLS: Bill[] = [];
 
-/** Главная, per bento mockup: header (flat pill, bell, avatar), card stack, bento grid, Последние покупки. */
+/**
+ * Главная, per bento mockup: header (flat pill, bell, avatar), card stack, bento grid, Последние покупки. Slice 27: the
+ * front card carries the one money number and its action; «К оплате» below is the one place to pay.
+ */
 export function HomeScreen() {
   const { me, members, purchases, bills, activeId } = useAppData();
   const { switchHousehold } = useAppActions();
@@ -46,9 +50,9 @@ export function HomeScreen() {
       <HomeHeader name={me.display_name} flats={flats} activeId={activeId} onSwitch={switchHousehold} unread={0} />
       <PendingSection purchases={data.ps} />
       <div className="-mt-2">
-        <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} />
+        <CardStack cards={cards} frontId={activeId ?? undefined} onFrontChange={onFrontChange} frontAction={heroAction} />
       </div>
-      <Bento owed={active.balance.owed} owe={active.balance.owe} bills={activeBills} purchases={data.ps} meId={me.id} />
+      <Bento bills={activeBills} purchases={data.ps} meId={me.id} />
       <ToPaySection />
       <DutyTile />
       <IncomingSection />

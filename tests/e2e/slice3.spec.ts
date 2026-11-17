@@ -181,20 +181,22 @@ test.describe("slice 3: netting and settlement", () => {
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
       await buy(page, 4000, "Интернет", [BORIS.name]);
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(2000));
-      // «Расчёт» is a real link now, and the «Подтверди оплату» section is absent when nothing was marked
-      await expect(page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ })).toBeVisible();
-      await expect(page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ })).toBeVisible();
+      // slice 27: the hero is the one number — «Тебе должны 2 000 ₸» with «Напомнить» (to the settle list)
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Тебе должны");
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(2000));
+      await expect(page.getByTestId("hero-remind")).toHaveAttribute("href", "/settle");
+      // the «Подтверди оплату» section is absent when nothing was marked
       await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
     });
     // Ерасыл pays 3 600 for both: Айдос owes 1 800
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
       await buy(page, 3600, "Картошка", [ADAM.name]);
-      // Главная nets per person now: 2 000 against 1 800 is "ты должен 200" (slice 19: the tile of a net debtor reads «Ты должен»)
-      await expect(page.getByTestId("bento-owe-amount")).toHaveText(money(200));
-      await expect(page.getByTestId("bento-owed")).toContainText("Ты должен");
-      await expect(page.getByTestId("bento-owed-amount")).toHaveCount(0);
+      // Главная nets per person: 2 000 against 1 800 is «Ты должен 200» on the hero (slice 27), with «Оплатить»
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Ты должен");
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(200));
+      await expect(page.getByTestId("hero-pay")).toBeVisible();
+      await expect(page.getByTestId("hero-remind")).toHaveCount(0);
     });
   });
 
@@ -202,7 +204,7 @@ test.describe("slice 3: netting and settlement", () => {
     await withPhone(browser, baseURL, async ({ page, context }) => {
       await logIn(page, BORIS);
       await page.screenshot({ path: `${SHOTS}/s3-app-main.png` });
-      await page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ }).click();
+      await page.getByTestId("hero-pay").click();
       // exactly one counterparty: straight to the person
       await expect(page).toHaveURL(/\/settle\/[0-9a-f-]{36}$/);
       adamId = page.url().split("/").pop() ?? "";
@@ -287,14 +289,14 @@ test.describe("slice 3: netting and settlement", () => {
       // the creditor has nothing to confirm: no section, no row
       await expect(page.getByRole("heading", { name: "Подтверди оплату" })).toHaveCount(0);
       await expect(page.getByTestId("incoming-row")).toHaveCount(0);
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
       await page.screenshot({ path: `${SHOTS}/s3-app-main-incoming.png` });
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
       await expect(page.getByRole("heading", { name: "Ждём подтверждения" })).toHaveCount(0);
       await expect(page.getByTestId("waiting-row")).toHaveCount(0);
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
       await page.goto(`/settle/${adamId}`);
       await expect(page.getByTestId("settle-empty")).toContainText("Все в расчёте");
       await page.reload(); // persisted, not just local state
@@ -306,20 +308,19 @@ test.describe("slice 3: netting and settlement", () => {
     test.skip(!adamId, "needs the previous tests");
     await withPhone(browser, baseURL, async (adam) => {
       await logIn(adam.page, ADAM);
-      await expect(adam.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
-      await expect(adam.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await expect(adam.page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
       // «N из M скинули»: both purchases are fully paid now
       for (const text of ["Интернет", "Картошка"]) {
         await expect(adam.page.getByTestId("purchase-row").filter({ hasText: text })).toContainText("1 из 1");
       }
-      await adam.page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ }).click();
+      // «Всё ровно» has no action (slice 27); the list itself still says so
+      await adam.page.goto("/settle");
       await expect(adam.page.getByTestId("settle-empty")).toContainText("Все в расчёте");
       await adam.page.screenshot({ path: `${SHOTS}/s3-app-settle-empty.png` });
     });
     await withPhone(browser, baseURL, async (boris) => {
       await logIn(boris.page, BORIS);
-      await expect(boris.page.getByText(`ты должен ${money(0)}`)).toBeVisible();
-      await expect(boris.page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await expect(boris.page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
       await expect(boris.page.getByTestId("waiting-row")).toHaveCount(0);
       await boris.page.goto(`/settle/${adamId}`);
       await expect(boris.page.getByTestId("settle-empty")).toContainText("Все в расчёте");
@@ -346,7 +347,7 @@ test.describe("slice 3: netting and settlement", () => {
       await logIn(page, ADAM);
       await expect(page.getByTestId("incoming-row")).toHaveCount(0);
       await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(0));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
     });
   });
 
@@ -369,7 +370,8 @@ test.describe("slice 3: netting and settlement", () => {
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(200));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(200));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Тебе должны");
       await expect(page.getByText("Подтверди оплату")).toHaveCount(0);
       await expect(page.getByTestId("incoming-row")).toHaveCount(0);
     });
@@ -387,7 +389,7 @@ test.describe("slice 3: netting and settlement", () => {
     // Айдос is the creditor: the list stays (it carries the «Напомнить» pill), the pair screen has a live «Напомнить»
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, ADAM);
-      await page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ }).click();
+      await page.getByTestId("hero-remind").click();
       await expect(page).toHaveURL(/\/settle$/);
       await expect(page.getByRole("button", { name: /^Напомнить: / })).toBeEnabled();
       await page.getByRole("link", { name: /Рассчитаться с / }).click();
@@ -439,7 +441,10 @@ test.describe("slice 3: netting and settlement", () => {
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, BORIS);
-      await page.getByRole("link", { name: /^Расчёт: (тебе должны|ты должен)/ }).click();
+      // he owes one person (Айдос 700) and is owed by another: «Оплатить» goes straight to Айдос, so open the list itself
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(700));
+      await expect(page.getByTestId("hero-pay")).toHaveAttribute("href", new RegExp(`/settle/${adamId}$`));
+      await page.goto("/settle");
       await expect(page).toHaveURL(/\/settle$/);
       const list = page.getByRole("list", { name: "Расчёт" });
       const rows = list.getByRole("link");

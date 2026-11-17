@@ -1,7 +1,9 @@
 import { memo } from "react";
 import { Avatar, type AvatarColor } from "./Avatar";
+import { CheckIcon } from "./icons";
 import { Money } from "./Money";
 import { cx } from "./cx";
+import type { HeroState } from "@/lib/domain/hero";
 import { ru } from "@/lib/i18n/ru";
 
 /** Shared by BalanceCard and CardStack so the stack's geometry always matches the card. */
@@ -16,7 +18,10 @@ export type BalanceCardData = {
   name: string;
   paid: number;
   total: number;
-  balance: number;
+  /** Slice 27: the one number — what I owe, else what I am owed (payable pairs only), else «Всё ровно». */
+  hero: HeroState;
+  /** The one person «Оплатить» opens directly (null: several, the «К оплате» list). */
+  payTo?: string | null;
   tone?: CardTone;
   /** Housemates shown as overlapped dots (max 4). */
   people?: ReadonlyArray<BalanceCardPerson>;
@@ -33,20 +38,48 @@ const toneClass: Record<CardTone, { sun: string; light: string; me: string }> = 
   periwinkle: { sun: "bg-card-sun-periwinkle", light: "fill-card-window-periwinkle", me: "!bg-periwinkle !text-on-periwinkle" },
 };
 
+/** The middle of the card: «Ты должен» / «Тебе должны» + the amount, or «Всё ровно» with a check in the flat's tone. */
+function Hero({ hero, tone, balanceId }: { hero: HeroState; tone: string; balanceId?: string }) {
+  if (hero.kind === "even") {
+    return (
+      <div className="relative flex items-center gap-[10px]" data-testid="hero-even">
+        <span aria-hidden="true" className={cx("flex size-[30px] shrink-0 items-center justify-center rounded-full", tone)}>
+          <CheckIcon size={18} strokeWidth={2.4} />
+        </span>
+        <span id={balanceId} data-testid="hero-label" className="font-rounded text-[30px] leading-[1.1] font-bold tracking-[-0.02em]">
+          {ru.main.hero.even}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="relative flex flex-col gap-1">
+      <span data-testid="hero-label" className="text-label text-night-muted">
+        {hero.kind === "owe" ? ru.main.hero.owe : ru.main.hero.owed}
+      </span>
+      <Money id={balanceId} data-testid="hero-amount" value={hero.amount} className="text-display" />
+    </div>
+  );
+}
+
 /** Night-sky card: paper-cut hill layers, house silhouettes with lit windows and a sun in the flat's tone. */
 export const BalanceCard = memo(function BalanceCard({
   data,
   className,
   balanceId,
+  hideChip,
 }: {
   data: BalanceCardData;
   className?: string;
   balanceId?: string;
+  /** The stack puts an action in the chip's place (the front card on Главная). */
+  hideChip?: boolean;
 }) {
   const tone = toneClass[data.tone ?? "lime"];
   return (
     <div
       style={{ height: CARD_HEIGHT }}
+      data-hero={data.hero.kind}
       className={cx("relative flex flex-col justify-between overflow-hidden rounded-lg bg-night-sky p-5 text-night-text", className)}
     >
       <span aria-hidden="true" className={cx("pointer-events-none absolute top-[78px] right-[64px] size-[56px] rounded-full", tone.sun)} />
@@ -75,16 +108,13 @@ export const BalanceCard = memo(function BalanceCard({
       </svg>
       <div className="relative flex items-center justify-between">
         <p className="text-headline">{data.name}</p>
-        {data.total > 0 ? (
+        {data.total > 0 && !hideChip ? (
           <span aria-label={data.chipLabel} className="rounded-pill bg-current/10 px-[10px] py-1 text-label">
             {ru.common.members(data.paid, data.total)}
           </span>
         ) : null}
       </div>
-      <div className="relative flex flex-col gap-1">
-        <span className="text-label text-night-muted">{ru.main.balance}</span>
-        <Money id={balanceId} value={data.balance} sign className="text-display" />
-      </div>
+      <Hero hero={data.hero} tone={tone.me} balanceId={balanceId} />
       <div className="relative flex items-center justify-between">
         <div className="flex">
           {(data.people ?? []).slice(0, 4).map((p, i) => (

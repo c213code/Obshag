@@ -325,12 +325,14 @@ test.describe("slice 4: Apple Pay capture", () => {
       await expect(row).toContainText("Продукты");
       await expect(row).toContainText("Ты · сегодня"); // the row shows payer · day (the merchant lives on the detail screen)
       await expect(row).toContainText(money(6000));
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Тебе должны");
     });
     await withPhone(browser, baseURL, async ({ page }) => {
       await logIn(page, MATE);
       await expect(page.getByTestId("purchase-row").first()).toContainText("Продукты");
-      await expect(page.getByTestId("bento-owe-amount")).toHaveText(money(3000));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Ты должен");
     });
   });
 
@@ -367,7 +369,7 @@ test.describe("slice 4: Apple Pay capture", () => {
       await expect(page.getByTestId("purchase-row").first()).toContainText("Продукты");
       await expect(page.getByText("Кофе с собой")).toHaveCount(0);
       await expect(page.getByText("Coffee Boom")).toHaveCount(0);
-      await expect(page.getByTestId("bento-owe-amount")).toHaveText(money(3000)); // personal purchases never create debt
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000)); // personal purchases never create debt
     });
   });
 

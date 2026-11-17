@@ -101,15 +101,16 @@ test.describe("slice 13: Kaspi minimum", () => {
       await saved;
       await expect(page).toHaveURL(/\/$/);
 
-      // Главная: the amount accumulates, nothing is claimable, no «Напомнить»
-      await expect(page.getByTestId("bento-owed-amount")).toHaveText(/^0\s₸$/);
-      await expect(page.getByTestId("bento-accruing")).toContainText("копится");
-      await expect(page.getByTestId("bento-owed").getByText("Напомнить", { exact: true })).toHaveCount(0);
+      // Главная (slice 27): pairs under 100 ₸ are not shown at all — «Всё ровно», no number, no «Напомнить», no «копится»
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-even")).toBeVisible();
+      await expect(page.getByTestId("hero-remind")).toHaveCount(0);
+      await expect(page.getByText(/копится/)).toHaveCount(0);
 
-      // the list: three people, each «копится», each with «Списать», no «Напомнить»
+      // the list: three people, each with «Списать», no «Напомнить»; the amount is muted, no «копится» wording
       await page.goto("/settle");
       await expect(page.getByTestId("settle-owes-me-row")).toHaveCount(3);
-      await expect(page.getByTestId("settle-owes-me-row").first()).toContainText("копится");
+      await expect(page.getByTestId("settle-owes-me-row").first()).toContainText(/тебе должен \d+\s₸/);
+      await expect(page.getByTestId("settle-owes-me-row").first()).not.toContainText("копится");
       await expect(page.getByRole("button", { name: /^Списать \d+/ })).toHaveCount(3);
       await expect(page.getByRole("button", { name: "Напомнить" })).toHaveCount(0);
 

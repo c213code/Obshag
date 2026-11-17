@@ -183,7 +183,10 @@ test.describe("slice 1: first end-to-end path", () => {
       await expect(page).toHaveURL(/\/$/);
       await expect(page.getByRole("link", { name: "Профиль и квартира, Ерасыл" })).toBeVisible();
       await expect(page.getByTestId("card-stack")).toHaveAttribute("data-front", "Квартира 42");
-      await expect(page.getByText(`ты должен ${money(0)}`)).toBeVisible();
+      // slice 27: nothing to pay either way: the hero reads «Всё ровно», no number, no action
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-even")).toHaveText("Всё ровно");
+      await expect(page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveCount(0);
+      await expect(page.getByTestId("card-action")).toHaveCount(0);
       await expect(page.getByText("Пока пусто — добавь первую покупку")).toBeVisible();
       // one household: the decorative peek layers are still there, the "N из M" chip is not (nobody to count)
       await expect(page.getByTestId("stack-peek")).toHaveCount(2);
@@ -191,8 +194,8 @@ test.describe("slice 1: first end-to-end path", () => {
       // no unread notifications in slice 1: the bell keeps its slot but shows no dot
       await expect(page.getByRole("button", { name: "Уведомления" })).toBeDisabled();
       expect(await page.getByRole("button", { name: "Уведомления" }).locator("span.bg-orange").count()).toBe(0);
-      // bento: «Тебе должны», the monthly tile (empty state) and «Траты» with six week bars, the current one in the accent
-      await expect(page.getByTestId("bento-owed")).toBeVisible();
+      // bento (slice 27): no money tile any more — the monthly tile (empty state) and «Траты» with six week bars share one row
+      await expect(page.getByTestId("bento-owed")).toHaveCount(0);
       await expect(page.getByTestId("bento-bill")).toContainText("Ежемесячно");
       await expect(page.getByTestId("spending-bar")).toHaveCount(6);
       await expect(page.locator('[data-testid="spending-bar"][data-current="true"]')).toHaveCount(1);
@@ -331,11 +334,13 @@ test.describe("slice 1: first end-to-end path", () => {
         const firstRow = one.page.getByTestId("purchase-row").first();
         await expect(firstRow).toContainText("Хлеб, картошка");
         await expect(firstRow).toContainText(money(6000));
-        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
+        await expect(one.page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
         release();
         await saved;
-        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
-        await expect(one.page.getByText(`+${money(3000)}`).first()).toBeVisible();
+        // slice 27: the hero is the one number — «Тебе должны 3 000 ₸» with a «Напомнить» link
+        await expect(one.page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Тебе должны");
+        await expect(one.page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
+        await expect(one.page.getByTestId("hero-remind")).toBeVisible();
         await expect(firstRow).toContainText("0 из 1");
         // the optimistic row turning into the real one must never render twice
         await expectSingleRowFor(one.page, "Хлеб, картошка");
@@ -343,15 +348,16 @@ test.describe("slice 1: first end-to-end path", () => {
 
         // user 2 sees the debt
         await two.page.reload();
-        // slice 19: a net debtor's tile reads «Ты должен» with «Оплатить»
-        await expect(two.page.getByTestId("bento-owe-amount")).toHaveText(money(3000));
-        await expect(two.page.getByTestId("bento-owed-caption")).toHaveText(`тебе должны ${money(0)}`);
+        // slice 27: a debtor's hero reads «Ты должен» with a lime «Оплатить»
+        await expect(two.page.getByTestId("balance-card-front").getByTestId("hero-label")).toHaveText("Ты должен");
+        await expect(two.page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
+        await expect(two.page.getByTestId("hero-pay")).toHaveText("Оплатить");
         await expect(two.page.getByTestId("purchase-row").first()).toContainText("Хлеб, картошка");
 
         // the new purchase is still there after a reload for user 1 (persisted)
         await one.page.reload();
         await expect(one.page.getByTestId("purchase-row").first()).toContainText("Хлеб, картошка");
-        await expect(one.page.getByTestId("bento-owed-amount")).toHaveText(money(3000));
+        await expect(one.page.getByTestId("balance-card-front").getByTestId("hero-amount")).toHaveText(money(3000));
         await expectSingleRowFor(one.page, "Хлеб, картошка", 300);
       });
     });

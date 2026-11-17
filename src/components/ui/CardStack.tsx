@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { css, useReducedMotionSafe, useTapLock } from "@/lib/motion";
 import { ru } from "@/lib/i18n/ru";
 import { BalanceCard, CARD_HEIGHT, type BalanceCardData } from "./BalanceCard";
@@ -29,12 +29,18 @@ export const CardStack = memo(function CardStack({
   cards,
   frontId,
   onFrontChange,
+  frontAction,
 }: {
   cards: ReadonlyArray<BalanceCardData>;
   /** Which card starts in front (e.g. the one the page below it is showing). */
   frontId?: string;
   /** Called with the id of the card that came to the front. */
   onFrontChange?: (id: string) => void;
+  /**
+   * An action for the front card (slice 27: Главная's «Оплатить» / «Напомнить»). It sits in the chip's place, top right,
+   * next to the card rather than inside it: the front card is a button, and a link must not live inside a button.
+   */
+  frontAction?: (card: BalanceCardData) => ReactNode;
 }) {
   const n = cards.length;
   const [offset, setOffset] = useState(() => Math.max(0, cards.findIndex((c) => c.id === frontId)));
@@ -125,6 +131,7 @@ export const CardStack = memo(function CardStack({
           transition: `transform ${slidingFront ? SLIDE_MS / 1000 : 0.6}s ${css.smooth}, opacity ${slidingFront ? SLIDE_MS / 1000 : 0.6}s ${css.smooth}`,
         };
         const balanceId = `${hintId}-balance-${card.id}`;
+        const action = isFront && frontAction ? frontAction(card) : null;
         return (
           <div key={card.id} className="absolute inset-x-0 bottom-0 origin-bottom will-change-transform" style={layerStyle}>
             {isFront && interactive ? (
@@ -136,7 +143,7 @@ export const CardStack = memo(function CardStack({
                   onClick={advance}
                   className="block w-full rounded-lg text-left"
                 >
-                  <BalanceCard data={card} balanceId={balanceId} />
+                  <BalanceCard data={card} balanceId={balanceId} hideChip={!!action} />
                 </button>
                 <span id={hintId} hidden>
                   {ru.common.nextCard}
@@ -147,9 +154,15 @@ export const CardStack = memo(function CardStack({
                 data-testid={isFront ? "balance-card-front" : undefined}
                 aria-hidden={isFront ? undefined : true}
               >
-                <BalanceCard data={card} balanceId={balanceId} />
+                <BalanceCard data={card} balanceId={balanceId} hideChip={!!action} />
               </div>
             )}
+            {action ? (
+              // the same 20px inset as the card's top row; only the action itself takes taps, the rest still flips the stack
+              <div data-testid="card-action" className="pointer-events-none absolute inset-x-5 top-5 z-10 flex h-[22px] items-center justify-end">
+                <div className="pointer-events-auto">{action}</div>
+              </div>
+            ) : null}
             {/* neutral faces for the layers behind (opacity only, never a filter) */}
             <div
               aria-hidden="true"
